@@ -162,6 +162,22 @@ async function sendMail({ to, subject, html }) {
   });
   await transporter.sendMail({ from: process.env.EMAIL_FROM || process.env.SMTP_USER, to, subject, html });
 }
+async function markOrderPendingApproval(order, paymentIntentId) {
+  if (!order || order.status === 'pending_admin_approval') return false;
+  order.status = 'pending_admin_approval';
+  order.paymentIntentId = paymentIntentId || order.paymentIntentId;
+  const names = (order.attendees || []).map(a => `<li>${a.name} — DOB: ${a.dateOfBirth} — Gender: ${a.gender || 'Not specified'} — Must match ID, dress code ${DRESS_CODE}</li>`).join('');
+  await sendMail({ to: process.env.ADMIN_EMAIL, subject: `Approve tickets: ${order.buyerName}`, html: `<p>${order.buyerName} requested ${order.qty} ticket(s) for ${EVENT_NAME}.</p><ul>${names}</ul><p><b>Event:</b> ${EVENT_DATE}, ${EVENT_TIME}, ${EVENT_LOCATION}</p><p><b>Price:</b> ${money(TICKET_PRICE)} per ticket. <b>Dress code:</b> ${DRESS_CODE}. <b>Age:</b> ${MIN_AGE}+. <b>Bar:</b> ${BAR_PARTNER}. <b>Sponsor:</b> ${SPONSOR_NAME}. <b>Included:</b> free Pica Pic Photo Booth picture.</p><p><a href="${BASE_URL}/admin/orders/${order.id}">Approve or deny this order</a></p>` });
+  return true;
+}
+async function syncOrderFromStripe(order) {
+  if (!stripe || !order || order.status !== 'awaiting_payment_authorization' || !order.stripeSessionId) return false;
+  const session = await stripe.checkout.sessions.retrieve(order.stripeSessionId, { expand: ['payment_intent'] });
+  if (session.status !== 'complete') return false;
+  const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
+  if (!paymentIntentId) return false;
+  return markOrderPendingApproval(order, paymentIntentId);
+}
 function ticketEmailHtml(ticket) {
   return `<div style="border:1px solid #ddd;border-radius:16px;padding:16px;margin:12px 0;font-family:Arial,sans-serif">
     <h2>${COMPANY_NAME} presents ${EVENT_NAME}</h2>
@@ -257,9 +273,8 @@ app.post('/webhook', async (req, res) => {
     const s = event.data.object;
     const order = db.orders.find(o => o.id === s.client_reference_id);
     if (order) {
-      order.status = 'pending_admin_approval'; order.paymentIntentId = s.payment_intent; await writeDb(db);
-      const names = (order.attendees || []).map(a => `<li>${a.name} — DOB: ${a.dateOfBirth} — Gender: ${a.gender || 'Not specified'} — Must match ID, dress code ${DRESS_CODE}</li>`).join('');
-      await sendMail({ to: process.env.ADMIN_EMAIL, subject: `Approve tickets: ${order.buyerName}`, html: `<p>${order.buyerName} requested ${order.qty} ticket(s) for ${EVENT_NAME}.</p><ul>${names}</ul><p><b>Event:</b> ${EVENT_DATE}, ${EVENT_TIME}, ${EVENT_LOCATION}</p><p><b>Price:</b> ${money(TICKET_PRICE)} per ticket. <b>Dress code:</b> ${DRESS_CODE}. <b>Age:</b> ${MIN_AGE}+. <b>Bar:</b> ${BAR_PARTNER}. <b>Sponsor:</b> ${SPONSOR_NAME}. <b>Included:</b> free Pica Pic Photo Booth picture.</p><p><a href="${BASE_URL}/admin/orders/${order.id}">Approve or deny this order</a></p>` });
+      await markOrderPendingApproval(order, s.payment_intent);
+      await writeDb(db);
     }
   }
   res.json({ received: true });
@@ -275,7 +290,16 @@ app.post('/admin/login', async (req, res) => {
 });
 app.get('/admin/logout', (req, res) => { req.session.destroy(() => res.redirect('/')); });
 app.get('/admin', requireAdmin, async (req, res) => { const db = await readDb(); res.render('admin', { orders: db.orders, tickets: db.tickets, scanHistory: db.scanHistory || [], stats: adminStats(db), ...eventInfo, money, usePostgres: usePostgres() }); });
-app.get('/admin/orders/:id', requireAdmin, async (req, res) => { const db = await readDb(); res.render('order', { order: db.orders.find(o => o.id === req.params.id), tickets: db.tickets.filter(t => t.orderId === req.params.id), ...eventInfo, money }); });
+app.get('/admin/orders/:id', requireAdmin, async (req, res) => {
+  const db = await readDb();
+  const order = db.orders.find(o => o.id === req.params.id);
+  try {
+    if (await syncOrderFromStripe(order)) await writeDb(db);
+  } catch (err) {
+    console.error('Stripe order sync failed:', err.message);
+  }
+  res.render('order', { order, tickets: db.tickets.filter(t => t.orderId === req.params.id), ...eventInfo, money });
+});
 
 app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
   const db = await readDb(); const order = db.orders.find(o => o.id === req.params.id);
