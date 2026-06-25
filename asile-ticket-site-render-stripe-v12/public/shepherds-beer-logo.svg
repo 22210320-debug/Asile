@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" role="img" aria-label="Shepherds Beer sponsor logo">
-  <defs><linearGradient id="gold" x1="0" x2="1"><stop offset="0" stop-color="#f1c86a"/><stop offset="1" stop-color="#fff2b6"/></linearGradient></defs>
-  <rect width="800" height="300" rx="42" fill="#111"/>
-  <rect x="18" y="18" width="764" height="264" rx="32" fill="none" stroke="url(#gold)" stroke-width="8"/>
-  <text x="400" y="128" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="62" fill="url(#gold)" font-weight="700" letter-spacing="4">SHEPHERDS</text>
-  <text x="400" y="196" text-anchor="middle" font-family="Arial, sans-serif" font-size="38" fill="#fff5cc" font-weight="700" letter-spacing="10">BEER</text>
-  <text x="400" y="238" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" fill="#d9c27d" letter-spacing="3">EVENT SPONSOR PLACEHOLDER LOGO</text>
-</svg>
