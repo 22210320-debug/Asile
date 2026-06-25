@@ -1,0 +1,37 @@
+{
+  "name": "asile-ticket-site",
+  "version": "1.4.1-digitalocean-stripe",
+  "description": "ASIL'E Sunset House Party ticket reservation and admin QR scanner website for DigitalOcean App Platform",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "check": "node --check server.js",
+    "do-start": "node server.js"
+  },
+  "keywords": [
+    "tickets",
+    "stripe",
+    "qr",
+    "events"
+  ],
+  "author": "ASIL'E",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.4.2",
+    "ejs": "^6.0.1",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "helmet": "^8.2.0",
+    "nodemailer": "^9.0.1",
+    "pg": "^8.13.1",
+    "qrcode": "^1.5.4",
+    "stripe": "^22.3.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
