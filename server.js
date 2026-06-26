@@ -151,15 +151,21 @@ function isOldEnough(dob) {
 function requireAdmin(req, res, next) { if (req.session.admin) return next(); res.redirect('/admin/login'); }
 
 async function sendMail({ to, subject, html }) {
-  if (!to) return;
-  if (!process.env.SMTP_HOST) { console.log('EMAIL NOT SENT - configure SMTP in .env:', subject, html); return; }
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-  });
-  await transporter.sendMail({ from: process.env.EMAIL_FROM || process.env.SMTP_USER, to, subject, html });
+  if (!to) return false;
+  if (!process.env.SMTP_HOST) { console.log('EMAIL NOT SENT - configure SMTP in .env:', subject, html); return false; }
+  try {
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT || 587),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+    });
+    await transporter.sendMail({ from: process.env.EMAIL_FROM || process.env.SMTP_USER, to, subject, html });
+    return true;
+  } catch (err) {
+    console.error('EMAIL SEND FAILED:', err.message);
+    return false;
+  }
 }
 async function markOrderPendingApproval(order, paymentIntentId) {
   if (!order || order.status === 'pending_admin_approval') return false;

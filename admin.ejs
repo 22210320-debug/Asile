@@ -1,0 +1,19 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Admin</title><link rel="stylesheet" href="/public/style.css"></head>
+<body><main class="wrap">
+<h1>Admin dashboard</h1>
+<p><a href="/admin/scanner">Open camera QR scanner</a> · <a href="/admin/logout">Logout</a></p><p class="muted">Database mode: <b><%= usePostgres ? "PostgreSQL production database" : "Local JSON development database" %></b></p>
+<div class="panel">
+  <h2><%= EVENT_NAME %></h2>
+  <p><b>Date:</b> <%= EVENT_DATE %> · <b>Time:</b> <%= EVENT_TIME %> · <b>Price:</b> <%= money(TICKET_PRICE) %> · <b>Capacity:</b> <%= CAPACITY %> · <b>Remaining/private:</b> <%= stats.remaining %> · <b>Dress:</b> <%= DRESS_CODE %></p>
+  <p><b>Bar:</b> <%= BAR_PARTNER %> · <b>Sponsor:</b> <%= SPONSOR_NAME %> · <b>Included:</b> <%= PHOTO_BOOTH_PARTNER %></p>
+  <p><b>Approved gender ratio:</b> Female <%= stats.approvedGender.female %> (<%= stats.approvedGender.femalePercent %>%) · Male <%= stats.approvedGender.male %> (<%= stats.approvedGender.malePercent %>%)</p>
+  <p><b>Pending gender ratio:</b> Female <%= stats.pendingGender.female %> (<%= stats.pendingGender.femalePercent %>%) · Male <%= stats.pendingGender.male %> (<%= stats.pendingGender.malePercent %>%)</p>
+</div>
+<h2>Orders</h2>
+<table><tr><th>Buyer</th><th>Email</th><th>Qty</th><th>Amount</th><th>Status</th><th></th></tr><% orders.forEach(o=>{ %><tr><td><%= o.buyerName %></td><td><%= o.buyerEmail %></td><td><%= o.qty %></td><td><%= money(o.amount) %></td><td><%= o.status %></td><td><a href="/admin/orders/<%= o.id %>">Review</a></td></tr><% }) %></table>
+<h2>Tickets</h2>
+<table><tr><th>ID</th><th>Attendee</th><th>DOB</th><th>Gender</th><th>Status</th></tr><% tickets.forEach(t=>{ %><tr><td><%= t.id %></td><td><%= t.attendeeName %></td><td><%= t.dateOfBirth %></td><td><%= t.gender || 'Not specified' %></td><td><%= t.status %></td></tr><% }) %></table><p class="note"><b>Entry note:</b> Each ticket must match the attendee ID. All guests must be wearing <%= DRESS_CODE %>.</p>
+<h2>Recent scan history</h2>
+<table><tr><th>Ticket</th><th>Admin</th><th>Result</th><th>Time</th></tr><% (scanHistory || []).slice(0,20).forEach(s=>{ %><tr><td><%= s.ticketId %></td><td><%= s.scannedBy %></td><td><%= s.result %></td><td><%= s.scannedAt %></td></tr><% }) %></table>
+</main></body></html>
