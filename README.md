@@ -13,8 +13,8 @@ Developer-ready Node/Express ticket reservation website for ASIL'E. This package
 - Age: 18+
 - Capacity: 500 guests, shown only in the admin dashboard
 - Theme: House music and sunset party
-- WhatsApp contacts: +9720568576684 and +9720532288098
-- Instagram placeholder: `INSTAGRAM_URL=#`
+- WhatsApp contact: +9720568576684
+- Instagram: `https://www.instagram.com/dj_loco.antwan/`
 - Bar: Double Shake
 - Sponsor: Shepherds Beer
 - Included: one free picture at Pica Pic Photo Booth
@@ -112,6 +112,8 @@ STRIPE_SECRET_KEY=sk_test_or_sk_live_from_stripe_dashboard
 STRIPE_WEBHOOK_SECRET=whsec_from_stripe_webhook
 ADMIN_EMAIL=your_admin_email@example.com
 ADMIN_PASSWORDS=admin_password_1,admin_password_2
+WHATSAPP_1=972568576684
+INSTAGRAM_URL=https://www.instagram.com/dj_loco.antwan/
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_SECURE=false
