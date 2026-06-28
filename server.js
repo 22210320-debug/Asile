@@ -123,6 +123,9 @@ async function makeUniqueTicketId(db) {
   do { ticketId = `ASILE-${id(10)}`; } while (db.tickets.some(t => t.id === ticketId));
   return ticketId;
 }
+function numberLabel(value, width = 4) {
+  return String(value).padStart(width, '0');
+}
 function parseDobInput(value) {
   const raw = String(value || '').trim();
   let day, month, year;
@@ -304,6 +307,69 @@ app.get('/admin/orders/:id', requireAdmin, async (req, res) => {
     console.error('Stripe order sync failed:', err.message);
   }
   res.render('order', { order, tickets: db.tickets.filter(t => t.orderId === req.params.id), ...eventInfo, money });
+});
+
+app.post('/admin/generate-tickets', requireAdmin, async (req, res) => {
+  const qty = Math.max(1, Math.min(1000, Number(req.body.quantity || 1000)));
+  const prefix = cleanName(req.body.prefix || 'Guest');
+  const db = await readDb();
+  const orderId = `MANUAL-${id(10)}`;
+  const createdAt = new Date().toISOString();
+  const attendees = [];
+  const newTickets = [];
+
+  for (let i = 1; i <= qty; i++) {
+    const label = numberLabel(i);
+    const attendeeName = `${prefix} ${label}`;
+    const ticketId = await makeUniqueTicketId(db);
+    const verifyUrl = `${BASE_URL}/admin/scan?ticket=${ticketId}`;
+    const qrDataUrl = await QRCode.toDataURL(verifyUrl);
+    const attendee = { firstName: prefix, lastName: label, name: attendeeName, dateOfBirth: 'Manual ticket', gender: '' };
+    const ticket = {
+      id: ticketId,
+      orderId,
+      attendeeFirstName: prefix,
+      attendeeLastName: label,
+      attendeeName,
+      dateOfBirth: 'Manual ticket',
+      gender: '',
+      buyerName: 'Manual batch',
+      buyerEmail: process.env.ADMIN_EMAIL || '',
+      eventName: EVENT_NAME,
+      eventDate: EVENT_DATE,
+      eventTime: EVENT_TIME,
+      location: EVENT_LOCATION,
+      dressCode: DRESS_CODE,
+      age: `${MIN_AGE}+`,
+      price: 'Manual ticket',
+      barPartner: BAR_PARTNER,
+      photoBoothPartner: PHOTO_BOOTH_PARTNER,
+      sponsorName: SPONSOR_NAME,
+      sponsorLogoUrl: SPONSOR_LOGO_URL,
+      status: 'valid',
+      qrDataUrl,
+      createdAt
+    };
+    attendees.push(attendee);
+    db.tickets.push(ticket);
+    newTickets.push(ticket);
+  }
+
+  db.orders.push({
+    id: orderId,
+    buyerName: 'Manual batch',
+    buyerEmail: process.env.ADMIN_EMAIL || '',
+    qty,
+    attendees,
+    amount: 0,
+    paymentMethods: ['Manual'],
+    paymentProvider: 'Manual',
+    status: 'approved_captured',
+    approvedAt: createdAt,
+    createdAt
+  });
+  await writeDb(db);
+  res.redirect(`/admin/orders/${orderId}`);
 });
 
 app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
