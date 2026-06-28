@@ -32,12 +32,14 @@ const WHATSAPP_1 = process.env.WHATSAPP_1 || '972568576684';
 const INSTAGRAM_URL = process.env.INSTAGRAM_URL || 'https://www.instagram.com/dj_loco.antwan/';
 const BAR_PARTNER = process.env.BAR_PARTNER || 'Double Shake';
 const SPONSOR_NAME = process.env.SPONSOR_NAME || 'Carlsberg';
-const SPONSOR_LOGO_URL = process.env.SPONSOR_LOGO_URL || '/public/carlsberg-logo.svg';
+const SPONSOR_LOGO_URL = process.env.SPONSOR_LOGO_URL || '/public/carlsberg-logo.jpeg';
+const DJ_NAME = process.env.DJ_NAME || 'DJ Loco';
+const DJ_IMAGE_URL = process.env.DJ_IMAGE_URL || '/public/dj-loco.jpeg';
 const PAYMENT_METHODS = ['Apple Pay', 'Google Pay', 'Visa', 'Mastercard'];
 const PAYMENT_PROVIDER_LABEL = process.env.PAYMENT_PROVIDER_LABEL || 'Stripe';
 const PHOTO_BOOTH_PARTNER = process.env.PHOTO_BOOTH_PARTNER || 'Pica Pic Photo Booth';
 
-const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_TIME, EVENT_THEME, DRESS_CODE, MIN_AGE, CAPACITY, TICKET_PRICE, CURRENCY, MAP_URL, WHATSAPP_1, INSTAGRAM_URL, BAR_PARTNER, SPONSOR_NAME, SPONSOR_LOGO_URL, PAYMENT_METHODS, PAYMENT_PROVIDER_LABEL, PHOTO_BOOTH_PARTNER }; 
+const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_TIME, EVENT_THEME, DRESS_CODE, MIN_AGE, CAPACITY, TICKET_PRICE, CURRENCY, MAP_URL, WHATSAPP_1, INSTAGRAM_URL, BAR_PARTNER, SPONSOR_NAME, SPONSOR_LOGO_URL, DJ_NAME, DJ_IMAGE_URL, PAYMENT_METHODS, PAYMENT_PROVIDER_LABEL, PHOTO_BOOTH_PARTNER }; 
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
