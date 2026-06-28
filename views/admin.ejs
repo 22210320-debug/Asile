@@ -13,7 +13,24 @@
 <h2>Orders</h2>
 <table><tr><th>Buyer</th><th>Email</th><th>Qty</th><th>Amount</th><th>Status</th><th></th></tr><% orders.forEach(o=>{ %><tr><td><%= o.buyerName %></td><td><%= o.buyerEmail %></td><td><%= o.qty %></td><td><%= money(o.amount) %></td><td><%= o.status %></td><td><a href="/admin/orders/<%= o.id %>">Review</a></td></tr><% }) %></table>
 <h2>Tickets</h2>
-<table><tr><th>ID</th><th>Attendee</th><th>DOB</th><th>Gender</th><th>Status</th></tr><% tickets.forEach(t=>{ %><tr><td><%= t.id %></td><td><%= t.attendeeName %></td><td><%= t.dateOfBirth %></td><td><%= t.gender || 'Not specified' %></td><td><%= t.status %></td></tr><% }) %></table><p class="note"><b>Entry note:</b> Each ticket must match the attendee ID. All guests must be wearing <%= DRESS_CODE %>.</p>
+<label>Search tickets by ID or name<input id="ticketSearch" type="search" placeholder="Type ticket ID or attendee name"></label>
+<p class="muted" id="ticketSearchCount"><%= tickets.length %> ticket(s)</p>
+<table id="ticketsTable"><tr><th>ID</th><th>Attendee</th><th>DOB</th><th>Gender</th><th>Status</th></tr><% tickets.forEach(t=>{ %><tr data-search="<%= `${t.id || ''} ${t.attendeeName || ''}`.toLowerCase() %>"><td><%= t.id %></td><td><%= t.attendeeName %></td><td><%= t.dateOfBirth %></td><td><%= t.gender || 'Not specified' %></td><td><%= t.status %></td></tr><% }) %></table><p class="note"><b>Entry note:</b> Each ticket must match the attendee ID. All guests must be wearing <%= DRESS_CODE %>.</p>
 <h2>Recent scan history</h2>
 <table><tr><th>Ticket</th><th>Admin</th><th>Result</th><th>Time</th></tr><% (scanHistory || []).slice(0,20).forEach(s=>{ %><tr><td><%= s.ticketId %></td><td><%= s.scannedBy %></td><td><%= s.result %></td><td><%= s.scannedAt %></td></tr><% }) %></table>
+<script>
+  const ticketSearch = document.getElementById('ticketSearch');
+  const ticketRows = Array.from(document.querySelectorAll('#ticketsTable tr[data-search]'));
+  const ticketSearchCount = document.getElementById('ticketSearchCount');
+  ticketSearch?.addEventListener('input', () => {
+    const query = ticketSearch.value.trim().toLowerCase();
+    let visible = 0;
+    for (const row of ticketRows) {
+      const match = !query || row.dataset.search.includes(query);
+      row.classList.toggle('hidden', !match);
+      if (match) visible++;
+    }
+    ticketSearchCount.textContent = `${visible} ticket(s)`;
+  });
+</script>
 </main></body></html>
