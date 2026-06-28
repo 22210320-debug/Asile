@@ -7,17 +7,18 @@
   <h2><%= EVENT_NAME %></h2>
   <p><b>Date:</b> <%= EVENT_DATE %> · <b>Time:</b> <%= EVENT_TIME %> · <b>Price:</b> <%= money(TICKET_PRICE) %> · <b>Capacity:</b> <%= CAPACITY %> · <b>Remaining/private:</b> <%= stats.remaining %> · <b>Dress:</b> <%= DRESS_CODE %></p>
   <p><b>Bar:</b> <%= BAR_PARTNER %> · <b>Sponsor:</b> <%= SPONSOR_NAME %> · <b>Included:</b> <%= PHOTO_BOOTH_PARTNER %></p>
+  <p><b>Ticket stock:</b> <%= stats.poolAvailable %> unused pre-generated ticket(s) ready for approval.</p>
   <p><b>Approved gender ratio:</b> Female <%= stats.approvedGender.female %> (<%= stats.approvedGender.femalePercent %>%) · Male <%= stats.approvedGender.male %> (<%= stats.approvedGender.malePercent %>%)</p>
   <p><b>Pending gender ratio:</b> Female <%= stats.pendingGender.female %> (<%= stats.pendingGender.femalePercent %>%) · Male <%= stats.pendingGender.male %> (<%= stats.pendingGender.malePercent %>%)</p>
 </div>
-<h2>Manual ticket batch</h2>
+<h2>Ticket stock</h2>
 <div class="panel">
   <form method="post" action="/admin/generate-tickets">
     <label>Quantity<input type="number" name="quantity" min="1" max="1000" value="1000" required></label>
-    <label>Name prefix<input name="prefix" value="Guest" required></label>
-    <button type="submit">Generate QR tickets</button>
+    <label>Stock prefix<input name="prefix" value="Stock Ticket" required></label>
+    <button type="submit">Generate ticket stock</button>
   </form>
-  <p class="note">Manual tickets are created as valid QR tickets without Stripe payment. Use this only once for the batch you need.</p>
+  <p class="note">These tickets are not valid yet. When you approve a paid order, the system assigns the buyer one of these pre-generated QR tickets.</p>
 </div>
 <h2>Orders</h2>
 <table><tr><th>Buyer</th><th>Email</th><th>Qty</th><th>Amount</th><th>Status</th><th></th></tr><% orders.forEach(o=>{ %><tr><td><%= o.buyerName %></td><td><%= o.buyerEmail %></td><td><%= o.qty %></td><td><%= money(o.amount) %></td><td><%= o.status %></td><td><a href="/admin/orders/<%= o.id %>">Review</a></td></tr><% }) %></table>

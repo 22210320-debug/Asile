@@ -70,11 +70,14 @@ function isActiveOrder(order) {
   }
   return true;
 }
+function isIssuedTicket(ticket) {
+  return ['valid', 'used'].includes(ticket.status);
+}
 function soldOrPendingCount(db) {
   return db.orders.filter(isActiveOrder).reduce((sum, o) => sum + Number(o.qty || 0), 0);
 }
 function usedNameKeys(db) {
-  const fromTickets = db.tickets.map(t => nameKey(t.attendeeName || t.buyerName));
+  const fromTickets = db.tickets.filter(isIssuedTicket).map(t => nameKey(t.attendeeName || t.buyerName));
   const fromOrders = db.orders.filter(isActiveOrder).flatMap(o => (o.attendees || []).map(a => nameKey(a.name || combineName(a.firstName, a.lastName))));
   return new Set([...fromTickets, ...fromOrders].filter(Boolean));
 }
@@ -100,13 +103,14 @@ function genderStatsFromAttendees(attendees = []) {
   return stats;
 }
 function adminStats(db) {
-  const activeTickets = db.tickets.filter(t => t.status !== 'void');
+  const activeTickets = db.tickets.filter(isIssuedTicket);
   const approvedAttendees = activeTickets.map(t => ({ gender: t.gender }));
   const pendingAttendees = db.orders
     .filter(o => o.status === 'pending_admin_approval')
     .flatMap(o => o.attendees || []);
   return {
     approvedCount: activeTickets.length,
+    poolAvailable: db.tickets.filter(t => t.status === 'pool_available').length,
     remaining: Math.max(0, CAPACITY - soldOrPendingCount(db)),
     approvedGender: genderStatsFromAttendees(approvedAttendees),
     pendingGender: genderStatsFromAttendees(pendingAttendees)
@@ -297,7 +301,18 @@ app.post('/admin/login', async (req, res) => {
   req.session.admin = true; req.session.adminName = adminName; res.redirect('/admin');
 });
 app.get('/admin/logout', (req, res) => { req.session.destroy(() => res.redirect('/')); });
-app.get('/admin', requireAdmin, async (req, res) => { const db = await readDb(); res.render('admin', { orders: db.orders, tickets: db.tickets, scanHistory: db.scanHistory || [], stats: adminStats(db), ...eventInfo, money, usePostgres: usePostgres() }); });
+app.get('/admin', requireAdmin, async (req, res) => {
+  const db = await readDb();
+  res.render('admin', {
+    orders: db.orders,
+    tickets: db.tickets.filter(isIssuedTicket),
+    scanHistory: db.scanHistory || [],
+    stats: adminStats(db),
+    ...eventInfo,
+    money,
+    usePostgres: usePostgres()
+  });
+});
 app.get('/admin/orders/:id', requireAdmin, async (req, res) => {
   const db = await readDb();
   const order = db.orders.find(o => o.id === req.params.id);
@@ -311,30 +326,27 @@ app.get('/admin/orders/:id', requireAdmin, async (req, res) => {
 
 app.post('/admin/generate-tickets', requireAdmin, async (req, res) => {
   const qty = Math.max(1, Math.min(1000, Number(req.body.quantity || 1000)));
-  const prefix = cleanName(req.body.prefix || 'Guest');
+  const prefix = cleanName(req.body.prefix || 'Stock Ticket');
   const db = await readDb();
-  const orderId = `MANUAL-${id(10)}`;
   const createdAt = new Date().toISOString();
-  const attendees = [];
-  const newTickets = [];
 
   for (let i = 1; i <= qty; i++) {
     const label = numberLabel(i);
-    const attendeeName = `${prefix} ${label}`;
+    const stockLabel = `${prefix} ${label}`;
     const ticketId = await makeUniqueTicketId(db);
     const verifyUrl = `${BASE_URL}/admin/scan?ticket=${ticketId}`;
     const qrDataUrl = await QRCode.toDataURL(verifyUrl);
-    const attendee = { firstName: prefix, lastName: label, name: attendeeName, dateOfBirth: 'Manual ticket', gender: '' };
     const ticket = {
       id: ticketId,
-      orderId,
-      attendeeFirstName: prefix,
-      attendeeLastName: label,
-      attendeeName,
-      dateOfBirth: 'Manual ticket',
+      orderId: '',
+      stockLabel,
+      attendeeFirstName: '',
+      attendeeLastName: '',
+      attendeeName: stockLabel,
+      dateOfBirth: '',
       gender: '',
-      buyerName: 'Manual batch',
-      buyerEmail: process.env.ADMIN_EMAIL || '',
+      buyerName: 'Ticket stock',
+      buyerEmail: '',
       eventName: EVENT_NAME,
       eventDate: EVENT_DATE,
       eventTime: EVENT_TIME,
@@ -346,46 +358,59 @@ app.post('/admin/generate-tickets', requireAdmin, async (req, res) => {
       photoBoothPartner: PHOTO_BOOTH_PARTNER,
       sponsorName: SPONSOR_NAME,
       sponsorLogoUrl: SPONSOR_LOGO_URL,
-      status: 'valid',
+      status: 'pool_available',
       qrDataUrl,
       createdAt
     };
-    attendees.push(attendee);
     db.tickets.push(ticket);
-    newTickets.push(ticket);
   }
 
-  db.orders.push({
-    id: orderId,
-    buyerName: 'Manual batch',
-    buyerEmail: process.env.ADMIN_EMAIL || '',
-    qty,
-    attendees,
-    amount: 0,
-    paymentMethods: ['Manual'],
-    paymentProvider: 'Manual',
-    status: 'approved_captured',
-    approvedAt: createdAt,
-    createdAt
-  });
   await writeDb(db);
-  res.redirect(`/admin/orders/${orderId}`);
+  res.redirect('/admin');
 });
 
 app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
   const db = await readDb(); const order = db.orders.find(o => o.id === req.params.id);
   if (!order || order.status !== 'pending_admin_approval') return res.status(400).send('Order is not pending approval.');
   if (!stripe) return res.status(503).render('message', { title: 'Stripe setup needed', message: 'STRIPE_SECRET_KEY is missing on the server.' });
+  const poolTickets = db.tickets.filter(t => t.status === 'pool_available').slice(0, order.attendees.length);
+  if (poolTickets.length < order.attendees.length) {
+    return res.status(400).render('message', {
+      title: 'Ticket stock needed',
+      message: `Only ${poolTickets.length} pre-generated ticket(s) are available. Generate more ticket stock before approving this order.`
+    });
+  }
   try { await stripe.paymentIntents.capture(order.paymentIntentId); }
   catch (err) { return res.status(502).render('message', { title: 'Payment capture failed', message: err.message }); }
   order.status = 'approved_captured'; order.approvedAt = new Date().toISOString();
   const newTickets = [];
-  for (const attendee of order.attendees) {
-    const ticketId = await makeUniqueTicketId(db);
-    const verifyUrl = `${BASE_URL}/admin/scan?ticket=${ticketId}`;
-    const qrDataUrl = await QRCode.toDataURL(verifyUrl);
-    const ticket = { id: ticketId, orderId: order.id, attendeeFirstName: attendee.firstName || '', attendeeLastName: attendee.lastName || '', attendeeName: attendee.name, dateOfBirth: attendee.dateOfBirth, gender: attendee.gender, buyerName: order.buyerName, buyerEmail: order.buyerEmail, eventName: EVENT_NAME, eventDate: EVENT_DATE, eventTime: EVENT_TIME, location: EVENT_LOCATION, dressCode: DRESS_CODE, age: `${MIN_AGE}+`, price: money(TICKET_PRICE), barPartner: BAR_PARTNER, photoBoothPartner: PHOTO_BOOTH_PARTNER, sponsorName: SPONSOR_NAME, sponsorLogoUrl: SPONSOR_LOGO_URL, status: 'valid', qrDataUrl, createdAt: new Date().toISOString() };
-    db.tickets.push(ticket); newTickets.push(ticket);
+  for (let i = 0; i < order.attendees.length; i++) {
+    const attendee = order.attendees[i];
+    const ticket = poolTickets[i];
+    Object.assign(ticket, {
+      orderId: order.id,
+      attendeeFirstName: attendee.firstName || '',
+      attendeeLastName: attendee.lastName || '',
+      attendeeName: attendee.name,
+      dateOfBirth: attendee.dateOfBirth,
+      gender: attendee.gender,
+      buyerName: order.buyerName,
+      buyerEmail: order.buyerEmail,
+      eventName: EVENT_NAME,
+      eventDate: EVENT_DATE,
+      eventTime: EVENT_TIME,
+      location: EVENT_LOCATION,
+      dressCode: DRESS_CODE,
+      age: `${MIN_AGE}+`,
+      price: money(TICKET_PRICE),
+      barPartner: BAR_PARTNER,
+      photoBoothPartner: PHOTO_BOOTH_PARTNER,
+      sponsorName: SPONSOR_NAME,
+      sponsorLogoUrl: SPONSOR_LOGO_URL,
+      status: 'valid',
+      issuedAt: new Date().toISOString()
+    });
+    newTickets.push(ticket);
   }
   await writeDb(db);
   const ticketHtml = newTickets.map(ticketEmailHtml).join('');
