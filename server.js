@@ -163,7 +163,7 @@ function isOldEnough(dob) {
 }
 function requireAdmin(req, res, next) { if (req.session.admin) return next(); res.redirect('/admin/login'); }
 
-async function sendMail({ to, subject, html }) {
+async function sendMail({ to, subject, html, attachments = [] }) {
   if (!to) return false;
   if (!process.env.SMTP_HOST) { console.log('EMAIL NOT SENT - configure SMTP in .env:', subject, html); return false; }
   try {
@@ -176,7 +176,7 @@ async function sendMail({ to, subject, html }) {
       greetingTimeout: 10000,
       socketTimeout: 15000
     });
-    await transporter.sendMail({ from: process.env.EMAIL_FROM || process.env.SMTP_USER, to, subject, html });
+    await transporter.sendMail({ from: process.env.EMAIL_FROM || process.env.SMTP_USER, to, subject, html, attachments });
     return true;
   } catch (err) {
     console.error('EMAIL SEND FAILED:', err.message);
@@ -199,7 +199,18 @@ async function syncOrderFromStripe(order) {
   if (!paymentIntentId) return false;
   return markOrderPendingApproval(order, paymentIntentId);
 }
+function qrAttachmentForTicket(ticket) {
+  const match = String(ticket.qrDataUrl || '').match(/^data:image\/png;base64,(.+)$/);
+  if (!match) return null;
+  return {
+    filename: `${ticket.id}.png`,
+    content: Buffer.from(match[1], 'base64'),
+    contentType: 'image/png',
+    cid: `qr-${ticket.id}@asile`
+  };
+}
 function ticketEmailHtml(ticket) {
+  const qrCid = `qr-${ticket.id}@asile`;
   return `<div style="border:1px solid #ddd;border-radius:16px;padding:16px;margin:12px 0;font-family:Arial,sans-serif">
     <h2>${COMPANY_NAME} presents ${EVENT_NAME}</h2>
     <p><b>Name:</b> ${ticket.attendeeName}</p>
@@ -218,7 +229,9 @@ function ticketEmailHtml(ticket) {
     <p><b>Event sponsor:</b> ${SPONSOR_NAME}</p>
     <p><b>Included:</b> One free picture at ${PHOTO_BOOTH_PARTNER}.</p>
     <img src="${BASE_URL}${SPONSOR_LOGO_URL}" width="170" alt="${SPONSOR_NAME} sponsor logo" style="display:block;margin:12px 0;border-radius:10px">
-    <img src="${ticket.qrDataUrl}" width="180" alt="QR code"> 
+    <p><b>QR ticket:</b></p>
+    <img src="cid:${qrCid}" width="180" alt="QR code" style="display:block;margin:12px 0">
+    <p style="font-size:13px;color:#555">If the image does not appear, ask the admin to generate a replacement ticket. Ticket ID: ${ticket.id}</p>
   </div>`;
 }
 async function createTicketForAttendee(db, order, attendee, overrides = {}) {
@@ -422,10 +435,12 @@ app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
   await upsertTicket(ticket);
 
   if (buyerEmail) {
+    const attachments = [qrAttachmentForTicket(ticket)].filter(Boolean);
     await sendMail({
       to: buyerEmail,
       subject: `Your ${EVENT_NAME} ticket credentials`,
-      html: `<p>Your manual ${EVENT_NAME} ticket is below. Bring your QR ticket and an ID that matches the ticket name.</p>${ticketEmailHtml(ticket)}`
+      html: `<p>Your manual ${EVENT_NAME} ticket is below. Bring your QR ticket and an ID that matches the ticket name.</p>${ticketEmailHtml(ticket)}`,
+      attachments
     });
   }
   res.redirect(`/admin/orders/${order.id}`);
@@ -447,7 +462,8 @@ app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
   await upsertOrder(order);
   for (const ticket of newTickets) await upsertTicket(ticket);
   const ticketHtml = newTickets.map(ticketEmailHtml).join('');
-  await sendMail({ to: order.buyerEmail, subject: `Your ${EVENT_NAME} ticket credentials`, html: `<p>Your ASIL'E reservation is approved. Your ticket credentials are below. Bring your QR ticket and an ID that matches the ticket name. Every guest must wear the all-white dress code.</p><p><b>Date:</b> ${EVENT_DATE}. <b>Time:</b> ${EVENT_TIME}. <b>Location:</b> ${EVENT_LOCATION}.</p><p><b>Dress code:</b> ${DRESS_CODE}. <b>Age:</b> ${MIN_AGE}+ only.</p><p><b>Bar experience:</b> ${BAR_PARTNER}. <b>Event sponsor:</b> ${SPONSOR_NAME}. <b>Included:</b> one free picture at ${PHOTO_BOOTH_PARTNER}.</p><p><b>Paid through:</b> Apple Pay, Google Pay, Visa/card payments through ${PAYMENT_PROVIDER_LABEL}, depending on the payment method selected at checkout.</p>${ticketHtml}` });
+  const attachments = newTickets.map(qrAttachmentForTicket).filter(Boolean);
+  await sendMail({ to: order.buyerEmail, subject: `Your ${EVENT_NAME} ticket credentials`, html: `<p>Your ASIL'E reservation is approved. Your ticket credentials are below. Bring your QR ticket and an ID that matches the ticket name. Every guest must wear the all-white dress code.</p><p><b>Date:</b> ${EVENT_DATE}. <b>Time:</b> ${EVENT_TIME}. <b>Location:</b> ${EVENT_LOCATION}.</p><p><b>Dress code:</b> ${DRESS_CODE}. <b>Age:</b> ${MIN_AGE}+ only.</p><p><b>Bar experience:</b> ${BAR_PARTNER}. <b>Event sponsor:</b> ${SPONSOR_NAME}. <b>Included:</b> one free picture at ${PHOTO_BOOTH_PARTNER}.</p><p><b>Paid through:</b> Apple Pay, Google Pay, Visa/card payments through ${PAYMENT_PROVIDER_LABEL}, depending on the payment method selected at checkout.</p>${ticketHtml}`, attachments });
   res.redirect(`/admin/orders/${order.id}`);
 });
 
@@ -475,10 +491,12 @@ app.post('/admin/orders/:id/replacement-ticket', requireAdmin, async (req, res) 
   }
   db.tickets.push(ticket);
   for (const changedTicket of [...replacedTickets, ticket]) await upsertTicket(changedTicket);
+  const attachments = [qrAttachmentForTicket(ticket)].filter(Boolean);
   await sendMail({
     to: order.buyerEmail,
     subject: `Replacement ${EVENT_NAME} ticket`,
-    html: `<p>A replacement ticket was generated for ${attendee.name}. Use this new QR ticket only. Any older active QR for this attendee has been cancelled.</p>${ticketEmailHtml(ticket)}`
+    html: `<p>A replacement ticket was generated for ${attendee.name}. Use this new QR ticket only. Any older active QR for this attendee has been cancelled.</p>${ticketEmailHtml(ticket)}`,
+    attachments
   });
   res.redirect(`/admin/orders/${order.id}`);
 });
