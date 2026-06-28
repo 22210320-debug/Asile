@@ -4,6 +4,7 @@ const path = require('path');
 const dbFile = path.join(__dirname, 'db.json');
 let dbWriteQueue = Promise.resolve();
 let pool = null;
+let initPromise = null;
 
 function usePostgres() { return Boolean(process.env.DATABASE_URL); }
 function getPool() {
@@ -17,8 +18,9 @@ function getPool() {
 
 async function initDb() {
   if (!usePostgres()) return;
+  if (initPromise) return initPromise;
   const p = getPool();
-  await p.query(`
+  initPromise = p.query(`
     CREATE TABLE IF NOT EXISTS orders (
       id TEXT PRIMARY KEY,
       data JSONB NOT NULL,
@@ -49,6 +51,7 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_tickets_attendee_name ON tickets(attendee_name);
     CREATE INDEX IF NOT EXISTS idx_tickets_attendee_first_last ON tickets(attendee_first_name, attendee_last_name);
   `);
+  return initPromise;
 }
 
 async function readDb() {
@@ -104,6 +107,43 @@ async function writeDb(data) {
   }
 }
 
+async function upsertOrder(order) {
+  if (!usePostgres()) {
+    const db = await readDb();
+    const index = db.orders.findIndex(o => o.id === order.id);
+    if (index >= 0) db.orders[index] = order;
+    else db.orders.push(order);
+    await writeDb(db);
+    return;
+  }
+  await initDb();
+  const p = getPool();
+  await p.query(
+    `INSERT INTO orders (id, data, updated_at) VALUES ($1, $2::jsonb, NOW())
+     ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+    [order.id, JSON.stringify(order)]
+  );
+}
+
+async function upsertTicket(ticket) {
+  if (!usePostgres()) {
+    const db = await readDb();
+    const index = db.tickets.findIndex(t => t.id === ticket.id);
+    if (index >= 0) db.tickets[index] = ticket;
+    else db.tickets.push(ticket);
+    await writeDb(db);
+    return;
+  }
+  await initDb();
+  const p = getPool();
+  await p.query(
+    `INSERT INTO tickets (id, order_id, status, attendee_name, attendee_first_name, attendee_last_name, gender, data, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, NOW())
+     ON CONFLICT (id) DO UPDATE SET order_id = EXCLUDED.order_id, status = EXCLUDED.status, attendee_name = EXCLUDED.attendee_name, attendee_first_name = EXCLUDED.attendee_first_name, attendee_last_name = EXCLUDED.attendee_last_name, gender = EXCLUDED.gender, data = EXCLUDED.data, updated_at = NOW()`,
+    [ticket.id, ticket.orderId || null, ticket.status || 'valid', ticket.attendeeName || null, ticket.attendeeFirstName || null, ticket.attendeeLastName || null, ticket.gender || null, JSON.stringify(ticket)]
+  );
+}
+
 async function safeCheckIn(ticketId, adminName) {
   if (!usePostgres()) {
     const db = await readDb();
@@ -142,4 +182,4 @@ async function safeCheckIn(ticketId, adminName) {
   } finally { client.release(); }
 }
 
-module.exports = { initDb, readDb, writeDb, safeCheckIn, usePostgres };
+module.exports = { initDb, readDb, writeDb, upsertOrder, upsertTicket, safeCheckIn, usePostgres };

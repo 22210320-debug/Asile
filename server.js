@@ -12,7 +12,7 @@ const crypto = require('crypto');
 
 const app = express();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY) : null;
-const { initDb, readDb, writeDb, safeCheckIn, usePostgres } = require('./db');
+const { initDb, readDb, upsertOrder, upsertTicket, safeCheckIn, usePostgres } = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
@@ -161,7 +161,10 @@ async function sendMail({ to, subject, html }) {
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT || 587),
       secure: process.env.SMTP_SECURE === 'true',
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000
     });
     await transporter.sendMail({ from: process.env.EMAIL_FROM || process.env.SMTP_USER, to, subject, html });
     return true;
@@ -269,11 +272,11 @@ app.post('/reserve', async (req, res) => {
   const attendees = attendeeNames.map((name, i) => ({ firstName: attendeeFirstNames[i] || '', lastName: attendeeLastNames[i] || '', name, dateOfBirth: parseDobInput(attendeeDobs[i]).display, gender: attendeeGenders[i] }));
   const orderId = id(14);
   const order = { id: orderId, buyerName, buyerEmail, qty, attendees, amount: TICKET_PRICE * qty, paymentMethods: PAYMENT_METHODS, paymentProvider: PAYMENT_PROVIDER_LABEL, status: 'checkout_started', createdAt: new Date().toISOString() };
-  db.orders.push(order); await writeDb(db);
+  db.orders.push(order); await upsertOrder(order);
   if (!stripe) {
     order.status = 'payment_error';
     order.paymentError = 'Missing STRIPE_SECRET_KEY';
-    await writeDb(db);
+    await upsertOrder(order);
     return res.status(503).render('message', { title: 'Stripe setup needed', message: 'Stripe is not configured yet. Add STRIPE_SECRET_KEY in DigitalOcean App Platform environment variables before accepting payments.' });
   }
   try {
@@ -289,16 +292,16 @@ app.post('/reserve', async (req, res) => {
       success_url: `${BASE_URL}/success?order=${orderId}`,
       cancel_url: `${BASE_URL}/cancel?order=${orderId}`
     });
-    order.stripeSessionId = checkoutSession.id; order.status = 'awaiting_payment_authorization'; await writeDb(db);
+    order.stripeSessionId = checkoutSession.id; order.status = 'awaiting_payment_authorization'; await upsertOrder(order);
     return res.redirect(303, checkoutSession.url);
   } catch (err) {
-    order.status = 'payment_error'; order.paymentError = err.message; await writeDb(db);
+    order.status = 'payment_error'; order.paymentError = err.message; await upsertOrder(order);
     return res.status(503).render('message', { title: 'Payment setup needed', message: 'The reservation form works, but Stripe payment keys must be configured before real checkout can open.' });
   }
 });
 
 app.get('/success', (req, res) => res.render('message', { title: 'Reservation received', message: `Your payment is authorized. Your ${EVENT_NAME} ticket will be sent only after admin approval.` }));
-app.get('/cancel', async (req, res) => { const db = await readDb(); const order = db.orders.find(o => o.id === req.query.order); if (order) { order.status = 'cancelled'; await writeDb(db); } res.render('message', { title: 'Checkout cancelled', message: 'No ticket was reserved.' }); });
+app.get('/cancel', async (req, res) => { const db = await readDb(); const order = db.orders.find(o => o.id === req.query.order); if (order) { order.status = 'cancelled'; await upsertOrder(order); } res.render('message', { title: 'Checkout cancelled', message: 'No ticket was reserved.' }); });
 
 app.post('/webhook', async (req, res) => {
   let event = req.body;
@@ -313,7 +316,7 @@ app.post('/webhook', async (req, res) => {
     const order = db.orders.find(o => o.id === s.client_reference_id);
     if (order) {
       await markOrderPendingApproval(order, s.payment_intent);
-      await writeDb(db);
+      await upsertOrder(order);
     }
   }
   res.json({ received: true });
@@ -344,7 +347,7 @@ app.get('/admin/orders/:id', requireAdmin, async (req, res) => {
   const db = await readDb();
   const order = db.orders.find(o => o.id === req.params.id);
   try {
-    if (await syncOrderFromStripe(order)) await writeDb(db);
+    if (await syncOrderFromStripe(order)) await upsertOrder(order);
   } catch (err) {
     console.error('Stripe order sync failed:', err.message);
   }
@@ -395,7 +398,8 @@ app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
   });
   db.orders.push(order);
   db.tickets.push(ticket);
-  await writeDb(db);
+  await upsertOrder(order);
+  await upsertTicket(ticket);
 
   if (buyerEmail) {
     await sendMail({
@@ -420,7 +424,8 @@ app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
     db.tickets.push(ticket);
     newTickets.push(ticket);
   }
-  await writeDb(db);
+  await upsertOrder(order);
+  for (const ticket of newTickets) await upsertTicket(ticket);
   const ticketHtml = newTickets.map(ticketEmailHtml).join('');
   await sendMail({ to: order.buyerEmail, subject: `Your ${EVENT_NAME} ticket credentials`, html: `<p>Your ASIL'E reservation is approved. Your ticket credentials are below. Bring your QR ticket and an ID that matches the ticket name. Every guest must wear the all-white dress code.</p><p><b>Date:</b> ${EVENT_DATE}. <b>Time:</b> ${EVENT_TIME}. <b>Location:</b> ${EVENT_LOCATION}.</p><p><b>Dress code:</b> ${DRESS_CODE}. <b>Age:</b> ${MIN_AGE}+ only.</p><p><b>Bar experience:</b> ${BAR_PARTNER}. <b>Event sponsor:</b> ${SPONSOR_NAME}. <b>Included:</b> one free picture at ${PHOTO_BOOTH_PARTNER}.</p><p><b>Paid through:</b> Apple Pay, Google Pay, Visa/card payments through ${PAYMENT_PROVIDER_LABEL}, depending on the payment method selected at checkout.</p>${ticketHtml}` });
   res.redirect(`/admin/orders/${order.id}`);
@@ -439,15 +444,17 @@ app.post('/admin/orders/:id/replacement-ticket', requireAdmin, async (req, res) 
     replacementForName: attendee.name
   });
   const now = new Date().toISOString();
+  const replacedTickets = [];
   for (const existing of db.tickets) {
     if (existing.orderId === order.id && existing.attendeeName === attendee.name && existing.status === 'valid') {
       existing.status = 'void_replaced';
       existing.replacedAt = now;
       existing.replacedByTicketId = ticket.id;
+      replacedTickets.push(existing);
     }
   }
   db.tickets.push(ticket);
-  await writeDb(db);
+  for (const changedTicket of [...replacedTickets, ticket]) await upsertTicket(changedTicket);
   await sendMail({
     to: order.buyerEmail,
     subject: `Replacement ${EVENT_NAME} ticket`,
@@ -462,7 +469,7 @@ app.post('/admin/orders/:id/deny', requireAdmin, async (req, res) => {
   if (!stripe) return res.status(503).render('message', { title: 'Stripe setup needed', message: 'STRIPE_SECRET_KEY is missing on the server.' });
   try { await stripe.paymentIntents.cancel(order.paymentIntentId); }
   catch (err) { return res.status(502).render('message', { title: 'Payment release failed', message: err.message }); }
-  order.status = 'denied_released'; order.deniedAt = new Date().toISOString(); await writeDb(db);
+  order.status = 'denied_released'; order.deniedAt = new Date().toISOString(); await upsertOrder(order);
   await sendMail({ to: order.buyerEmail, subject: `${EVENT_NAME} reservation not approved`, html: `<p>Your reservation was not approved. Your payment authorization has been cancelled/released.</p>` });
   res.redirect(`/admin/orders/${order.id}`);
 });
