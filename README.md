@@ -16,7 +16,7 @@ Developer-ready Node/Express ticket reservation website for ASIL'E. This package
 - WhatsApp contact: +9720568576684
 - Instagram: `https://www.instagram.com/dj_loco.antwan/`
 - Bar: Double Shake
-- Sponsor: Shepherds Beer
+- Sponsor: Carlsberg
 - Included: one free picture at Pica Pic Photo Booth
 
 ## Features included
