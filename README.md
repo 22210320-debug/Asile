@@ -72,14 +72,14 @@ Unzip this package, create a GitHub repository, and push all files. Do not uploa
 ### 2. Update the DigitalOcean app spec
 Edit `.do/app.yaml` before importing it:
 
-- Change `github.repo` to your real GitHub repository, for example `yourname/asile-ticket-site`.
+- `github.repo` is set to `22210320-debug/Asile`.
 - Keep `build_command: npm ci`.
 - Keep `run_command: npm start`.
-- Keep `http_port: 3000`.
+- Keep `http_port: 8080`.
 - Keep the health check path as `/healthz`.
 - Change `region` if you want a different DigitalOcean region.
 
-The included spec creates one Node web service and one PostgreSQL database component named `asile-ticket-db`.
+The included spec creates one Node web service. Add your Supabase/PostgreSQL connection in DigitalOcean environment variables.
 
 ### 3. Create the app in DigitalOcean
 In DigitalOcean:
@@ -87,7 +87,7 @@ In DigitalOcean:
 1. Open **App Platform**.
 2. Create a new app from your GitHub repository.
 3. If prompted, use the included `.do/app.yaml` app spec.
-4. Confirm the Node service and PostgreSQL database component.
+4. Confirm the Node service.
 5. Deploy the app.
 
 Alternative manual setup:
@@ -95,9 +95,9 @@ Alternative manual setup:
 - Resource type: Web Service
 - Build command: `npm ci`
 - Run command: `npm start`
-- HTTP port: `3000`
+- HTTP port: `8080`
 - Health check path: `/healthz`
-- Add a DigitalOcean Managed PostgreSQL database and set `DATABASE_URL`.
+- Add your Supabase transaction pooler connection string as `DATABASE_URL`.
 
 ### 4. Add required DigitalOcean environment variables
 Set these in App Platform -> Settings -> App-Level Environment Variables or the web service's environment variables:
@@ -105,7 +105,7 @@ Set these in App Platform -> Settings -> App-Level Environment Variables or the 
 ```env
 NODE_ENV=production
 BASE_URL=https://your-app-name.ondigitalocean.app
-DATABASE_URL=${asile-ticket-db.DATABASE_URL}
+DATABASE_URL=postgresql://postgres.your-project:your-password@aws-0-region.pooler.supabase.com:6543/postgres
 DATABASE_SSL=true
 SESSION_SECRET=generate_a_long_random_secret
 STRIPE_SECRET_KEY=sk_test_or_sk_live_from_stripe_dashboard
