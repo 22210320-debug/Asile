@@ -208,6 +208,37 @@ function ticketEmailHtml(ticket) {
     <img src="${ticket.qrDataUrl}" width="180" alt="QR code"> 
   </div>`;
 }
+async function createTicketForAttendee(db, order, attendee, overrides = {}) {
+  const ticketId = await makeUniqueTicketId(db);
+  const verifyUrl = `${BASE_URL}/admin/scan?ticket=${ticketId}`;
+  const qrDataUrl = await QRCode.toDataURL(verifyUrl);
+  return {
+    id: ticketId,
+    orderId: order.id,
+    attendeeFirstName: attendee.firstName || '',
+    attendeeLastName: attendee.lastName || '',
+    attendeeName: attendee.name,
+    dateOfBirth: attendee.dateOfBirth,
+    gender: attendee.gender,
+    buyerName: order.buyerName,
+    buyerEmail: order.buyerEmail,
+    eventName: EVENT_NAME,
+    eventDate: EVENT_DATE,
+    eventTime: EVENT_TIME,
+    location: EVENT_LOCATION,
+    dressCode: DRESS_CODE,
+    age: `${MIN_AGE}+`,
+    price: money(TICKET_PRICE),
+    barPartner: BAR_PARTNER,
+    photoBoothPartner: PHOTO_BOOTH_PARTNER,
+    sponsorName: SPONSOR_NAME,
+    sponsorLogoUrl: SPONSOR_LOGO_URL,
+    status: 'valid',
+    qrDataUrl,
+    createdAt: new Date().toISOString(),
+    ...overrides
+  };
+}
 
 app.get('/healthz', (req, res) => res.status(200).json({ ok: true, service: 'asile-ticket-site' }));
 
@@ -329,40 +360,43 @@ app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
   order.status = 'approved_captured'; order.approvedAt = new Date().toISOString();
   const newTickets = [];
   for (const attendee of order.attendees) {
-    const ticketId = await makeUniqueTicketId(db);
-    const verifyUrl = `${BASE_URL}/admin/scan?ticket=${ticketId}`;
-    const qrDataUrl = await QRCode.toDataURL(verifyUrl);
-    const ticket = {
-      id: ticketId,
-      orderId: order.id,
-      attendeeFirstName: attendee.firstName || '',
-      attendeeLastName: attendee.lastName || '',
-      attendeeName: attendee.name,
-      dateOfBirth: attendee.dateOfBirth,
-      gender: attendee.gender,
-      buyerName: order.buyerName,
-      buyerEmail: order.buyerEmail,
-      eventName: EVENT_NAME,
-      eventDate: EVENT_DATE,
-      eventTime: EVENT_TIME,
-      location: EVENT_LOCATION,
-      dressCode: DRESS_CODE,
-      age: `${MIN_AGE}+`,
-      price: money(TICKET_PRICE),
-      barPartner: BAR_PARTNER,
-      photoBoothPartner: PHOTO_BOOTH_PARTNER,
-      sponsorName: SPONSOR_NAME,
-      sponsorLogoUrl: SPONSOR_LOGO_URL,
-      status: 'valid',
-      qrDataUrl,
-      createdAt: new Date().toISOString()
-    };
+    const ticket = await createTicketForAttendee(db, order, attendee);
     db.tickets.push(ticket);
     newTickets.push(ticket);
   }
   await writeDb(db);
   const ticketHtml = newTickets.map(ticketEmailHtml).join('');
   await sendMail({ to: order.buyerEmail, subject: `Your ${EVENT_NAME} ticket credentials`, html: `<p>Your ASIL'E reservation is approved. Your ticket credentials are below. Bring your QR ticket and an ID that matches the ticket name. Every guest must wear the all-white dress code.</p><p><b>Date:</b> ${EVENT_DATE}. <b>Time:</b> ${EVENT_TIME}. <b>Location:</b> ${EVENT_LOCATION}.</p><p><b>Dress code:</b> ${DRESS_CODE}. <b>Age:</b> ${MIN_AGE}+ only.</p><p><b>Bar experience:</b> ${BAR_PARTNER}. <b>Event sponsor:</b> ${SPONSOR_NAME}. <b>Included:</b> one free picture at ${PHOTO_BOOTH_PARTNER}.</p><p><b>Paid through:</b> Apple Pay, Google Pay, Visa/card payments through ${PAYMENT_PROVIDER_LABEL}, depending on the payment method selected at checkout.</p>${ticketHtml}` });
+  res.redirect(`/admin/orders/${order.id}`);
+});
+
+app.post('/admin/orders/:id/replacement-ticket', requireAdmin, async (req, res) => {
+  const db = await readDb();
+  const order = db.orders.find(o => o.id === req.params.id);
+  if (!order || order.status !== 'approved_captured') return res.status(400).send('Replacement tickets can only be generated for approved paid orders.');
+  const attendeeIndex = Number(req.body.attendeeIndex);
+  const attendee = order.attendees?.[attendeeIndex];
+  if (!attendee) return res.status(400).send('Attendee not found.');
+
+  const ticket = await createTicketForAttendee(db, order, attendee, {
+    replacement: true,
+    replacementForName: attendee.name
+  });
+  const now = new Date().toISOString();
+  for (const existing of db.tickets) {
+    if (existing.orderId === order.id && existing.attendeeName === attendee.name && existing.status === 'valid') {
+      existing.status = 'void_replaced';
+      existing.replacedAt = now;
+      existing.replacedByTicketId = ticket.id;
+    }
+  }
+  db.tickets.push(ticket);
+  await writeDb(db);
+  await sendMail({
+    to: order.buyerEmail,
+    subject: `Replacement ${EVENT_NAME} ticket`,
+    html: `<p>A replacement ticket was generated for ${attendee.name}. Use this new QR ticket only. Any older active QR for this attendee has been cancelled.</p>${ticketEmailHtml(ticket)}`
+  });
   res.redirect(`/admin/orders/${order.id}`);
 });
 

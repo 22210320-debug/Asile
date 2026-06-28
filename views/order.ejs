@@ -1,1 +1,72 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Order</title><link rel="stylesheet" href="/public/style.css"></head><body><main class="wrap"><a href="/admin">← Dashboard</a><% if(!order){ %><h1>Order not found</h1><% } else { %><h1><%= order.buyerName %></h1><div class="panel"><p><b>Email:</b> <%= order.buyerEmail %></p><p><b>Quantity:</b> <%= order.qty %></p><p><b>Amount:</b> <%= money(order.amount) %></p><p><b>Payment:</b> Apple Pay, Google Pay, and Visa/card support through Stripe Checkout.</p><p><b>Status:</b> <%= order.status %></p><p><b>Event:</b> <%= EVENT_DATE %>, <%= EVENT_TIME %>, <%= EVENT_LOCATION %></p><p><b>Dress code:</b> <%= DRESS_CODE %> · <b>Age:</b> <%= MIN_AGE %>+</p><p><b>Bar:</b> <%= BAR_PARTNER %> · <b>Sponsor:</b> <%= SPONSOR_NAME %> · <b>Included:</b> <%= PHOTO_BOOTH_PARTNER %></p><p class="note"><b>Door rule:</b> Ticket name must match the attendee ID. Every attendee must arrive wearing <%= DRESS_CODE %>.</p></div><h2>Requested attendees</h2><table><tr><th>First name</th><th>Last name</th><th>Full name</th><th>Date of birth</th><th>Gender</th></tr><% (order.attendees || []).forEach(a=>{ %><tr><td><%= a.firstName || '' %></td><td><%= a.lastName || '' %></td><td><%= a.name %></td><td><%= a.dateOfBirth %></td><td><%= a.gender || 'Not specified' %></td></tr><% }) %></table><% if(order.status === 'pending_admin_approval'){ %><form class="inline" method="post" action="/admin/orders/<%= order.id %>/approve"><button>Approve, capture payment, send ticket</button></form><form class="inline" method="post" action="/admin/orders/<%= order.id %>/deny"><button class="danger">Deny and release payment</button></form><% } %><h2>Generated tickets</h2><% tickets.forEach(t=>{ %><div class="ticket"><h3><%= t.id %></h3><p><b>Name:</b> <%= t.attendeeName %></p><p><b>DOB:</b> <%= t.dateOfBirth %></p><p><b>Gender:</b> <%= t.gender || 'Not specified' %></p><p><b>Price:</b> <%= t.price %> · <b>Dress:</b> <%= t.dressCode %></p><p><b>Bar:</b> <%= t.barPartner || BAR_PARTNER %> · <b>Sponsor:</b> <%= t.sponsorName || SPONSOR_NAME %> · <b>Included:</b> <%= t.photoBoothPartner || PHOTO_BOOTH_PARTNER %></p><img class="sponsor-logo" src="<%= t.sponsorLogoUrl || SPONSOR_LOGO_URL %>" alt="<%= t.sponsorName || SPONSOR_NAME %> sponsor logo"><p><b>Status:</b> <%= t.status %></p><img src="<%= t.qrDataUrl %>" width="160" alt="QR code"></div><% }) %><% } %></main></body></html>
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Order</title>
+  <link rel="stylesheet" href="/public/style.css">
+</head>
+<body>
+<main class="wrap">
+  <a href="/admin">← Dashboard</a>
+  <% if(!order){ %>
+    <h1>Order not found</h1>
+  <% } else { %>
+    <h1><%= order.buyerName %></h1>
+    <div class="panel">
+      <p><b>Email:</b> <%= order.buyerEmail %></p>
+      <p><b>Quantity:</b> <%= order.qty %></p>
+      <p><b>Amount:</b> <%= money(order.amount) %></p>
+      <p><b>Payment:</b> Apple Pay, Google Pay, and Visa/card support through Stripe Checkout.</p>
+      <p><b>Status:</b> <%= order.status %></p>
+      <p><b>Event:</b> <%= EVENT_DATE %>, <%= EVENT_TIME %>, <%= EVENT_LOCATION %></p>
+      <p><b>Dress code:</b> <%= DRESS_CODE %> · <b>Age:</b> <%= MIN_AGE %>+</p>
+      <p><b>Bar:</b> <%= BAR_PARTNER %> · <b>Sponsor:</b> <%= SPONSOR_NAME %> · <b>Included:</b> <%= PHOTO_BOOTH_PARTNER %></p>
+      <p class="note"><b>Door rule:</b> Ticket name must match the attendee ID. Every attendee must arrive wearing <%= DRESS_CODE %>.</p>
+    </div>
+
+    <h2>Requested attendees</h2>
+    <table>
+      <tr><th>First name</th><th>Last name</th><th>Full name</th><th>Date of birth</th><th>Gender</th><th></th></tr>
+      <% (order.attendees || []).forEach((a, index)=>{ %>
+        <tr>
+          <td><%= a.firstName || '' %></td>
+          <td><%= a.lastName || '' %></td>
+          <td><%= a.name %></td>
+          <td><%= a.dateOfBirth %></td>
+          <td><%= a.gender || 'Not specified' %></td>
+          <td>
+            <% if(order.status === 'approved_captured'){ %>
+              <form class="inline" method="post" action="/admin/orders/<%= order.id %>/replacement-ticket">
+                <input type="hidden" name="attendeeIndex" value="<%= index %>">
+                <button type="submit">Generate replacement ticket</button>
+              </form>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+    </table>
+
+    <% if(order.status === 'pending_admin_approval'){ %>
+      <form class="inline" method="post" action="/admin/orders/<%= order.id %>/approve"><button>Approve, capture payment, send ticket</button></form>
+      <form class="inline" method="post" action="/admin/orders/<%= order.id %>/deny"><button class="danger">Deny and release payment</button></form>
+    <% } %>
+
+    <h2>Generated tickets</h2>
+    <% tickets.forEach(t=>{ %>
+      <div class="ticket">
+        <h3><%= t.id %></h3>
+        <p><b>Name:</b> <%= t.attendeeName %></p>
+        <p><b>DOB:</b> <%= t.dateOfBirth %></p>
+        <p><b>Gender:</b> <%= t.gender || 'Not specified' %></p>
+        <p><b>Price:</b> <%= t.price %> · <b>Dress:</b> <%= t.dressCode %></p>
+        <p><b>Bar:</b> <%= t.barPartner || BAR_PARTNER %> · <b>Sponsor:</b> <%= t.sponsorName || SPONSOR_NAME %> · <b>Included:</b> <%= t.photoBoothPartner || PHOTO_BOOTH_PARTNER %></p>
+        <img class="sponsor-logo" src="<%= t.sponsorLogoUrl || SPONSOR_LOGO_URL %>" alt="<%= t.sponsorName || SPONSOR_NAME %> sponsor logo">
+        <p><b>Status:</b> <%= t.status %></p>
+        <img src="<%= t.qrDataUrl %>" width="160" alt="QR code">
+      </div>
+    <% }) %>
+  <% } %>
+</main>
+</body>
+</html>
