@@ -9,9 +9,6 @@
   <p><b>Bar:</b> <%= BAR_PARTNER %> · <b>Sponsor:</b> <%= SPONSOR_NAME %> · <b>Included:</b> <%= PHOTO_BOOTH_PARTNER %></p>
   <p><b>Approved gender ratio:</b> Female <%= stats.approvedGender.female %> (<%= stats.approvedGender.femalePercent %>%) · Male <%= stats.approvedGender.male %> (<%= stats.approvedGender.malePercent %>%)</p>
   <p><b>Pending gender ratio:</b> Female <%= stats.pendingGender.female %> (<%= stats.pendingGender.femalePercent %>%) · Male <%= stats.pendingGender.male %> (<%= stats.pendingGender.malePercent %>%)</p>
-  <form class="inline" method="post" action="/admin/orders/delete-stuck" onsubmit="return confirm('Delete stuck unpaid orders? Approved orders and tickets will not be deleted.')">
-    <button class="danger" type="submit">Delete stuck orders (<%= stats.stuckOrderCount %>)</button>
-  </form>
 </div>
 <h2>Generate new manual ticket</h2>
 <div class="panel">
@@ -27,7 +24,12 @@
   </form>
   <p class="note">This creates a new valid QR ticket without Stripe. Use it only for admin-approved manual tickets.</p>
 </div>
-<h2>Orders</h2>
+<div class="section-heading">
+  <h2>Orders</h2>
+  <form class="inline" method="post" action="/admin/orders/delete-stuck" onsubmit="return confirm('Delete stuck unpaid orders? Approved orders and tickets will not be deleted.')">
+    <button class="danger compact-action" type="submit">Delete stuck orders (<%= stats.stuckOrderCount %>)</button>
+  </form>
+</div>
 <table class="admin-card-table"><tr><th>Buyer</th><th>Email</th><th>Qty</th><th>Amount</th><th>Status</th><th></th></tr><% orders.forEach(o=>{ %><tr><td data-label="Buyer"><%= o.buyerName %></td><td data-label="Email"><%= o.buyerEmail %></td><td data-label="Qty"><%= o.qty %></td><td data-label="Amount"><%= money(o.amount) %></td><td data-label="Status"><%= o.status %></td><td data-label="Action"><a class="button compact" href="/admin/orders/<%= o.id %>">Review</a></td></tr><% }) %></table>
 <h2>Tickets</h2>
 <label>Search tickets by ID or name<input id="ticketSearch" type="search" placeholder="Type ticket ID or attendee name"></label>
