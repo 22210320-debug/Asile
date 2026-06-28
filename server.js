@@ -12,7 +12,7 @@ const crypto = require('crypto');
 
 const app = express();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY) : null;
-const { initDb, readDb, upsertOrder, upsertTicket, safeCheckIn, usePostgres } = require('./db');
+const { initDb, readDb, upsertOrder, upsertTicket, deleteOrders, safeCheckIn, usePostgres } = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
@@ -70,6 +70,15 @@ function isActiveOrder(order) {
   }
   return true;
 }
+function isStuckOrder(order) {
+  if (!order) return false;
+  if (['payment_error', 'cancelled'].includes(order.status)) return true;
+  if (['checkout_started', 'awaiting_payment_authorization'].includes(order.status)) {
+    const created = new Date(order.createdAt || 0).getTime();
+    return !created || Date.now() - created >= 30 * 60 * 1000;
+  }
+  return false;
+}
 function isIssuedTicket(ticket) {
   return ['valid', 'used'].includes(ticket.status);
 }
@@ -110,6 +119,7 @@ function adminStats(db) {
     .flatMap(o => o.attendees || []);
   return {
     approvedCount: activeTickets.length,
+    stuckOrderCount: db.orders.filter(isStuckOrder).length,
     remaining: Math.max(0, CAPACITY - soldOrPendingCount(db)),
     approvedGender: genderStatsFromAttendees(approvedAttendees),
     pendingGender: genderStatsFromAttendees(pendingAttendees)
@@ -352,6 +362,16 @@ app.get('/admin/orders/:id', requireAdmin, async (req, res) => {
     console.error('Stripe order sync failed:', err.message);
   }
   res.render('order', { order, tickets: db.tickets.filter(t => t.orderId === req.params.id), ...eventInfo, money });
+});
+
+app.post('/admin/orders/delete-stuck', requireAdmin, async (req, res) => {
+  const db = await readDb();
+  const ticketOrderIds = new Set((db.tickets || []).map(ticket => ticket.orderId).filter(Boolean));
+  const stuckOrderIds = db.orders
+    .filter(order => isStuckOrder(order) && !ticketOrderIds.has(order.id))
+    .map(order => order.id);
+  await deleteOrders(stuckOrderIds);
+  res.redirect('/admin');
 });
 
 app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {

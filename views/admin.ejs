@@ -9,6 +9,9 @@
   <p><b>Bar:</b> <%= BAR_PARTNER %> · <b>Sponsor:</b> <%= SPONSOR_NAME %> · <b>Included:</b> <%= PHOTO_BOOTH_PARTNER %></p>
   <p><b>Approved gender ratio:</b> Female <%= stats.approvedGender.female %> (<%= stats.approvedGender.femalePercent %>%) · Male <%= stats.approvedGender.male %> (<%= stats.approvedGender.malePercent %>%)</p>
   <p><b>Pending gender ratio:</b> Female <%= stats.pendingGender.female %> (<%= stats.pendingGender.femalePercent %>%) · Male <%= stats.pendingGender.male %> (<%= stats.pendingGender.malePercent %>%)</p>
+  <form class="inline" method="post" action="/admin/orders/delete-stuck" onsubmit="return confirm('Delete stuck unpaid orders? Approved orders and tickets will not be deleted.')">
+    <button class="danger" type="submit">Delete stuck orders (<%= stats.stuckOrderCount %>)</button>
+  </form>
 </div>
 <h2>Generate new manual ticket</h2>
 <div class="panel">

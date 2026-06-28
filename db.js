@@ -144,6 +144,22 @@ async function upsertTicket(ticket) {
   );
 }
 
+async function deleteOrders(orderIds = []) {
+  const ids = orderIds.filter(Boolean);
+  if (!ids.length) return 0;
+  if (!usePostgres()) {
+    const db = await readDb();
+    const before = db.orders.length;
+    db.orders = db.orders.filter(order => !ids.includes(order.id));
+    await writeDb(db);
+    return before - db.orders.length;
+  }
+  await initDb();
+  const p = getPool();
+  const result = await p.query('DELETE FROM orders WHERE id = ANY($1::text[])', [ids]);
+  return result.rowCount || 0;
+}
+
 async function safeCheckIn(ticketId, adminName) {
   if (!usePostgres()) {
     const db = await readDb();
@@ -182,4 +198,4 @@ async function safeCheckIn(ticketId, adminName) {
   } finally { client.release(); }
 }
 
-module.exports = { initDb, readDb, writeDb, upsertOrder, upsertTicket, safeCheckIn, usePostgres };
+module.exports = { initDb, readDb, writeDb, upsertOrder, upsertTicket, deleteOrders, safeCheckIn, usePostgres };
