@@ -10,6 +10,20 @@
   <p><b>Approved gender ratio:</b> Female <%= stats.approvedGender.female %> (<%= stats.approvedGender.femalePercent %>%) · Male <%= stats.approvedGender.male %> (<%= stats.approvedGender.malePercent %>%)</p>
   <p><b>Pending gender ratio:</b> Female <%= stats.pendingGender.female %> (<%= stats.pendingGender.femalePercent %>%) · Male <%= stats.pendingGender.male %> (<%= stats.pendingGender.malePercent %>%)</p>
 </div>
+<h2>Generate new manual ticket</h2>
+<div class="panel">
+  <form method="post" action="/admin/manual-ticket">
+    <div class="name-grid">
+      <label>First name<input name="firstName" required></label>
+      <label>Last name<input name="lastName" required></label>
+    </div>
+    <label>Date of birth<input name="dateOfBirth" placeholder="DD/MM/YYYY" required></label>
+    <label>Gender<select name="gender" required><option value="">Select gender</option><option value="Female">Female</option><option value="Male">Male</option></select></label>
+    <label>Email to send ticket<input type="email" name="buyerEmail" placeholder="optional"></label>
+    <button type="submit">Generate new ticket</button>
+  </form>
+  <p class="note">This creates a new valid QR ticket without Stripe. Use it only for admin-approved manual tickets.</p>
+</div>
 <h2>Orders</h2>
 <table><tr><th>Buyer</th><th>Email</th><th>Qty</th><th>Amount</th><th>Status</th><th></th></tr><% orders.forEach(o=>{ %><tr><td><%= o.buyerName %></td><td><%= o.buyerEmail %></td><td><%= o.qty %></td><td><%= money(o.amount) %></td><td><%= o.status %></td><td><a href="/admin/orders/<%= o.id %>">Review</a></td></tr><% }) %></table>
 <h2>Tickets</h2>

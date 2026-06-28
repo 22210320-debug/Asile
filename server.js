@@ -351,6 +351,62 @@ app.get('/admin/orders/:id', requireAdmin, async (req, res) => {
   res.render('order', { order, tickets: db.tickets.filter(t => t.orderId === req.params.id), ...eventInfo, money });
 });
 
+app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
+  const db = await readDb();
+  const firstName = cleanName(req.body.firstName);
+  const lastName = cleanName(req.body.lastName);
+  const attendeeName = combineName(firstName, lastName);
+  const buyerEmail = String(req.body.buyerEmail || '').trim();
+  const gender = normalizeGender(req.body.gender);
+  const dob = String(req.body.dateOfBirth || '').trim();
+  const parsedDob = parseDobInput(dob);
+
+  if (!firstName || !lastName || !parsedDob || !gender) {
+    return res.status(400).render('message', { title: 'Missing manual ticket info', message: 'Enter first name, last name, date of birth as DD/MM/YYYY, and gender.' });
+  }
+  if (!isOldEnough(dob)) {
+    return res.status(400).render('message', { title: 'Age requirement', message: `The attendee must be ${MIN_AGE}+ by ${EVENT_DATE}.` });
+  }
+  if (usedNameKeys(db).has(nameKey(attendeeName))) {
+    return res.status(400).render('message', { title: 'Duplicate name', message: 'This attendee name already has a ticket or active order.' });
+  }
+  if (soldOrPendingCount(db) + 1 > CAPACITY) {
+    return res.status(400).render('message', { title: 'Sold out', message: 'This manual ticket goes over the event capacity.' });
+  }
+
+  const createdAt = new Date().toISOString();
+  const order = {
+    id: `MANUAL-${id(10)}`,
+    buyerName: attendeeName,
+    buyerEmail,
+    qty: 1,
+    attendees: [{ firstName, lastName, name: attendeeName, dateOfBirth: parsedDob.display, gender }],
+    amount: 0,
+    paymentMethods: ['Manual'],
+    paymentProvider: 'Manual admin ticket',
+    status: 'approved_captured',
+    approvedAt: createdAt,
+    createdAt
+  };
+  const ticket = await createTicketForAttendee(db, order, order.attendees[0], {
+    manual: true,
+    price: 'Manual ticket',
+    createdAt
+  });
+  db.orders.push(order);
+  db.tickets.push(ticket);
+  await writeDb(db);
+
+  if (buyerEmail) {
+    await sendMail({
+      to: buyerEmail,
+      subject: `Your ${EVENT_NAME} ticket credentials`,
+      html: `<p>Your manual ${EVENT_NAME} ticket is below. Bring your QR ticket and an ID that matches the ticket name.</p>${ticketEmailHtml(ticket)}`
+    });
+  }
+  res.redirect(`/admin/orders/${order.id}`);
+});
+
 app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
   const db = await readDb(); const order = db.orders.find(o => o.id === req.params.id);
   if (!order || order.status !== 'pending_admin_approval') return res.status(400).send('Order is not pending approval.');
