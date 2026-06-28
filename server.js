@@ -110,7 +110,6 @@ function adminStats(db) {
     .flatMap(o => o.attendees || []);
   return {
     approvedCount: activeTickets.length,
-    poolAvailable: db.tickets.filter(t => t.status === 'pool_available').length,
     remaining: Math.max(0, CAPACITY - soldOrPendingCount(db)),
     approvedGender: genderStatsFromAttendees(approvedAttendees),
     pendingGender: genderStatsFromAttendees(pendingAttendees)
@@ -126,9 +125,6 @@ async function makeUniqueTicketId(db) {
   let ticketId;
   do { ticketId = `ASILE-${id(10)}`; } while (db.tickets.some(t => t.id === ticketId));
   return ticketId;
-}
-function numberLabel(value, width = 4) {
-  return String(value).padStart(width, '0');
 }
 function parseDobInput(value) {
   const raw = String(value || '').trim();
@@ -324,70 +320,20 @@ app.get('/admin/orders/:id', requireAdmin, async (req, res) => {
   res.render('order', { order, tickets: db.tickets.filter(t => t.orderId === req.params.id), ...eventInfo, money });
 });
 
-app.post('/admin/generate-tickets', requireAdmin, async (req, res) => {
-  const qty = Math.max(1, Math.min(1000, Number(req.body.quantity || 1000)));
-  const prefix = cleanName(req.body.prefix || 'Stock Ticket');
-  const db = await readDb();
-  const createdAt = new Date().toISOString();
-
-  for (let i = 1; i <= qty; i++) {
-    const label = numberLabel(i);
-    const stockLabel = `${prefix} ${label}`;
+app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
+  const db = await readDb(); const order = db.orders.find(o => o.id === req.params.id);
+  if (!order || order.status !== 'pending_admin_approval') return res.status(400).send('Order is not pending approval.');
+  if (!stripe) return res.status(503).render('message', { title: 'Stripe setup needed', message: 'STRIPE_SECRET_KEY is missing on the server.' });
+  try { await stripe.paymentIntents.capture(order.paymentIntentId); }
+  catch (err) { return res.status(502).render('message', { title: 'Payment capture failed', message: err.message }); }
+  order.status = 'approved_captured'; order.approvedAt = new Date().toISOString();
+  const newTickets = [];
+  for (const attendee of order.attendees) {
     const ticketId = await makeUniqueTicketId(db);
     const verifyUrl = `${BASE_URL}/admin/scan?ticket=${ticketId}`;
     const qrDataUrl = await QRCode.toDataURL(verifyUrl);
     const ticket = {
       id: ticketId,
-      orderId: '',
-      stockLabel,
-      attendeeFirstName: '',
-      attendeeLastName: '',
-      attendeeName: stockLabel,
-      dateOfBirth: '',
-      gender: '',
-      buyerName: 'Ticket stock',
-      buyerEmail: '',
-      eventName: EVENT_NAME,
-      eventDate: EVENT_DATE,
-      eventTime: EVENT_TIME,
-      location: EVENT_LOCATION,
-      dressCode: DRESS_CODE,
-      age: `${MIN_AGE}+`,
-      price: 'Manual ticket',
-      barPartner: BAR_PARTNER,
-      photoBoothPartner: PHOTO_BOOTH_PARTNER,
-      sponsorName: SPONSOR_NAME,
-      sponsorLogoUrl: SPONSOR_LOGO_URL,
-      status: 'pool_available',
-      qrDataUrl,
-      createdAt
-    };
-    db.tickets.push(ticket);
-  }
-
-  await writeDb(db);
-  res.redirect('/admin');
-});
-
-app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
-  const db = await readDb(); const order = db.orders.find(o => o.id === req.params.id);
-  if (!order || order.status !== 'pending_admin_approval') return res.status(400).send('Order is not pending approval.');
-  if (!stripe) return res.status(503).render('message', { title: 'Stripe setup needed', message: 'STRIPE_SECRET_KEY is missing on the server.' });
-  const poolTickets = db.tickets.filter(t => t.status === 'pool_available').slice(0, order.attendees.length);
-  if (poolTickets.length < order.attendees.length) {
-    return res.status(400).render('message', {
-      title: 'Ticket stock needed',
-      message: `Only ${poolTickets.length} pre-generated ticket(s) are available. Generate more ticket stock before approving this order.`
-    });
-  }
-  try { await stripe.paymentIntents.capture(order.paymentIntentId); }
-  catch (err) { return res.status(502).render('message', { title: 'Payment capture failed', message: err.message }); }
-  order.status = 'approved_captured'; order.approvedAt = new Date().toISOString();
-  const newTickets = [];
-  for (let i = 0; i < order.attendees.length; i++) {
-    const attendee = order.attendees[i];
-    const ticket = poolTickets[i];
-    Object.assign(ticket, {
       orderId: order.id,
       attendeeFirstName: attendee.firstName || '',
       attendeeLastName: attendee.lastName || '',
@@ -408,8 +354,10 @@ app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
       sponsorName: SPONSOR_NAME,
       sponsorLogoUrl: SPONSOR_LOGO_URL,
       status: 'valid',
-      issuedAt: new Date().toISOString()
-    });
+      qrDataUrl,
+      createdAt: new Date().toISOString()
+    };
+    db.tickets.push(ticket);
     newTickets.push(ticket);
   }
   await writeDb(db);
