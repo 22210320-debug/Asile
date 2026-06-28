@@ -211,27 +211,16 @@ function qrAttachmentForTicket(ticket) {
 }
 function ticketEmailHtml(ticket) {
   const qrCid = `qr-${ticket.id}@asile`;
-  return `<div style="border:1px solid #ddd;border-radius:16px;padding:16px;margin:12px 0;font-family:Arial,sans-serif">
-    <h2>${COMPANY_NAME} presents ${EVENT_NAME}</h2>
-    <p><b>Name:</b> ${ticket.attendeeName}</p>
-    <p><b>Date of birth:</b> ${ticket.dateOfBirth}</p>
-    <p><b>Gender:</b> ${ticket.gender || 'Not specified'}</p>
-    <p><b>Ticket ID:</b> ${ticket.id}</p>
-    <p><b>Date:</b> ${EVENT_DATE}</p>
-    <p><b>Time:</b> ${EVENT_TIME}</p>
-    <p><b>Location:</b> ${EVENT_LOCATION}</p>
-    <p><b>Price:</b> ${money(TICKET_PRICE)}</p>
-    <p><b>Payment:</b> Apple Pay, Google Pay, Visa/card payments through ${PAYMENT_PROVIDER_LABEL}.</p>
-    <p><b>Age:</b> ${MIN_AGE}+ only</p>
-    <p><b>Dress code:</b> ${DRESS_CODE}</p>
-    <p><b>Theme:</b> ${EVENT_THEME}</p>
-    <p><b>Bar experience:</b> ${BAR_PARTNER}</p>
-    <p><b>Event sponsor:</b> ${SPONSOR_NAME}</p>
-    <p><b>Included:</b> One free picture at ${PHOTO_BOOTH_PARTNER}.</p>
-    <img src="${BASE_URL}${SPONSOR_LOGO_URL}" width="170" alt="${SPONSOR_NAME} sponsor logo" style="display:block;margin:12px 0;border-radius:10px">
-    <p><b>QR ticket:</b></p>
-    <img src="cid:${qrCid}" width="180" alt="QR code" style="display:block;margin:12px 0">
-    <p style="font-size:13px;color:#555">If the image does not appear, ask the admin to generate a replacement ticket. Ticket ID: ${ticket.id}</p>
+  return `<div style="border:1px solid #ddd;border-radius:16px;padding:16px;margin:12px 0;font-family:Arial,sans-serif;max-width:420px">
+    <h2 style="margin:0 0 10px">${EVENT_NAME}</h2>
+    <p style="margin:6px 0"><b>Name:</b> ${ticket.attendeeName}</p>
+    <p style="margin:6px 0"><b>Ticket:</b> ${ticket.id}</p>
+    <p style="margin:6px 0"><b>Date:</b> ${EVENT_DATE}</p>
+    <p style="margin:6px 0"><b>Time:</b> ${EVENT_TIME}</p>
+    <p style="margin:6px 0"><b>Location:</b> ${EVENT_LOCATION}</p>
+    <p style="margin:6px 0"><b>Dress:</b> ${DRESS_CODE}</p>
+    <img src="cid:${qrCid}" width="190" alt="QR code" style="display:block;margin:14px 0">
+    <p style="font-size:13px;color:#555;margin:8px 0 0">Bring this QR and matching ID.</p>
   </div>`;
 }
 async function createTicketForAttendee(db, order, attendee, overrides = {}) {
@@ -439,7 +428,7 @@ app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
     await sendMail({
       to: buyerEmail,
       subject: `Your ${EVENT_NAME} ticket credentials`,
-      html: `<p>Your manual ${EVENT_NAME} ticket is below. Bring your QR ticket and an ID that matches the ticket name.</p>${ticketEmailHtml(ticket)}`,
+      html: `<p>Your ticket is ready.</p>${ticketEmailHtml(ticket)}`,
       attachments
     });
   }
@@ -463,7 +452,7 @@ app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
   for (const ticket of newTickets) await upsertTicket(ticket);
   const ticketHtml = newTickets.map(ticketEmailHtml).join('');
   const attachments = newTickets.map(qrAttachmentForTicket).filter(Boolean);
-  await sendMail({ to: order.buyerEmail, subject: `Your ${EVENT_NAME} ticket credentials`, html: `<p>Your ASIL'E reservation is approved. Your ticket credentials are below. Bring your QR ticket and an ID that matches the ticket name. Every guest must wear the all-white dress code.</p><p><b>Date:</b> ${EVENT_DATE}. <b>Time:</b> ${EVENT_TIME}. <b>Location:</b> ${EVENT_LOCATION}.</p><p><b>Dress code:</b> ${DRESS_CODE}. <b>Age:</b> ${MIN_AGE}+ only.</p><p><b>Bar experience:</b> ${BAR_PARTNER}. <b>Event sponsor:</b> ${SPONSOR_NAME}. <b>Included:</b> one free picture at ${PHOTO_BOOTH_PARTNER}.</p><p><b>Paid through:</b> Apple Pay, Google Pay, Visa/card payments through ${PAYMENT_PROVIDER_LABEL}, depending on the payment method selected at checkout.</p>${ticketHtml}`, attachments });
+  await sendMail({ to: order.buyerEmail, subject: `Your ${EVENT_NAME} ticket`, html: `<p>Approved. Your ticket is ready.</p>${ticketHtml}`, attachments });
   res.redirect(`/admin/orders/${order.id}`);
 });
 
@@ -495,7 +484,7 @@ app.post('/admin/orders/:id/replacement-ticket', requireAdmin, async (req, res) 
   await sendMail({
     to: order.buyerEmail,
     subject: `Replacement ${EVENT_NAME} ticket`,
-    html: `<p>A replacement ticket was generated for ${attendee.name}. Use this new QR ticket only. Any older active QR for this attendee has been cancelled.</p>${ticketEmailHtml(ticket)}`,
+    html: `<p>Replacement ticket for ${attendee.name}. Use this QR only.</p>${ticketEmailHtml(ticket)}`,
     attachments
   });
   res.redirect(`/admin/orders/${order.id}`);

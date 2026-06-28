@@ -58,11 +58,7 @@
         <h3><%= t.id %></h3>
         <p><b>Name:</b> <%= t.attendeeName %></p>
         <p><b>DOB:</b> <%= t.dateOfBirth %></p>
-        <p><b>Gender:</b> <%= t.gender || 'Not specified' %></p>
-        <p><b>Price:</b> <%= t.price %> · <b>Dress:</b> <%= t.dressCode %></p>
-        <p><b>Bar:</b> <%= t.barPartner || BAR_PARTNER %> · <b>Sponsor:</b> <%= SPONSOR_NAME %> · <b>Included:</b> <%= t.photoBoothPartner || PHOTO_BOOTH_PARTNER %></p>
-        <img class="sponsor-logo" src="<%= SPONSOR_LOGO_URL %>" alt="<%= SPONSOR_NAME %> sponsor logo">
-        <p><b>Status:</b> <%= t.status %></p>
+        <p><b>Dress:</b> <%= t.dressCode %> · <b>Status:</b> <%= t.status %></p>
         <img src="<%= t.qrDataUrl %>" width="160" alt="QR code">
       </div>
     <% }) %>
