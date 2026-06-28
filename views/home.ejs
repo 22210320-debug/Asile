@@ -3,71 +3,108 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="<%= COMPANY_NAME %> presents <%= EVENT_NAME %> in <%= EVENT_LOCATION %>. Reserve approved-list QR tickets.">
   <title><%= EVENT_NAME %> | <%= COMPANY_NAME %></title>
+  <link rel="preload" href="/public/vineyard-sunset.svg" as="image">
   <link rel="stylesheet" href="/public/style.css">
 </head>
 <body>
-  <main class="home-hero">
-    <section class="hero-card glass">
+  <main class="home-hero modern-home">
+    <nav class="home-nav" aria-label="Event links">
+      <a href="#details">Details</a>
+      <a href="#reserve">Reserve</a>
+      <a href="<%= INSTAGRAM_URL %>" target="_blank" rel="noopener">Instagram</a>
+    </nav>
+
+    <section class="hero-copy">
       <p class="brand"><%= COMPANY_NAME %></p>
       <h1><%= EVENT_NAME %></h1>
-      <p class="subtitle">A private all-white sunset house party in Cremisan, built around house music, a secure approved guest list, golden-hour vineyard views, Double Shake at the bar, Carlsberg sponsorship, and a free Pica Pic photo booth picture for every guest.</p>
-      <div class="pills">
-        <span><%= EVENT_DATE %></span><span><%= EVENT_TIME %></span><span><%= money(TICKET_PRICE) %></span><span>Apple Pay</span><span>Google Pay</span><span>Visa/cards</span><span><%= MIN_AGE %>+</span><span><%= DRESS_CODE %></span><span>Bar by <%= BAR_PARTNER %></span><span>Sponsored by <%= SPONSOR_NAME %></span><span>Free Pica Pic photo booth picture</span>
-      </div>
-      <div class="luxury-strip"><div><b>Approved guest list</b><br>Every reservation is reviewed before tickets are issued.</div><div><b>Named QR entry</b><br>Each ticket has a unique QR code and must match ID at the door.</div><div><b>Designed for photos</b><br>All-white theme, Cremisan sunset setting, lighting, music, and Pica Pic photo booth.</div></div>
-      <div class="actions">
-        <a class="button secondary" href="<%= MAP_URL %>" target="_blank">Pinned location</a>
-        <a class="button secondary" href="https://wa.me/<%= WHATSAPP_1 %>" target="_blank">WhatsApp 1</a>
-
-        <a class="button secondary" href="<%= INSTAGRAM_URL %>" target="_blank">Instagram</a>
+      <p class="subtitle">A private all-white sunset house party in <%= EVENT_LOCATION %>, built around house music, approved guest-list entry, QR tickets, <%= BAR_PARTNER %> at the bar, <%= SPONSOR_NAME %> sponsorship, and one free <%= PHOTO_BOOTH_PARTNER %> picture for every approved guest.</p>
+      <div class="hero-actions">
+        <a class="button" href="#reserve">Reserve now</a>
+        <a class="button secondary" href="<%= MAP_URL %>" target="_blank" rel="noopener">Pinned location</a>
       </div>
     </section>
+
+    <aside class="hero-ticket" aria-label="Event summary">
+      <span><b><%= EVENT_DATE %></b>Date</span>
+      <span><b><%= EVENT_TIME %></b>Time</span>
+      <span><b><%= money(TICKET_PRICE) %></b>Ticket</span>
+      <span><b><%= MIN_AGE %>+</b>Age</span>
+    </aside>
   </main>
 
-  <section class="wrap grid-two">
-    <div class="panel">
-      <p class="eyebrow">About ASIL'E</p>
-      <h2>Every event has its own identity.</h2>
-      <p>ASIL'E creates private, polished event experiences where every detail has a purpose. Each event is built with a different identity, from the music direction and guest flow to the visual moments people remember. Sunset House Party is a luxury all-white sunset experience in Cremisan, shaped around house music, golden-hour photos, stage lighting, secure digital tickets, an approved guest list, Double Shake at the bar, Carlsberg sponsorship, and one free Pica Pic photo booth picture for every guest.</p>
-      <div class="details-list">
-        <p><b>Company:</b> <%= COMPANY_NAME %></p>
-        <p><b>Event:</b> <%= EVENT_NAME %></p>
-        <p><b>Theme:</b> <%= EVENT_THEME %></p>
-        <p><b>Location:</b> <%= EVENT_LOCATION %></p>
-        <p><b>Private capacity:</b> Limited guest list</p>
-        <p><b>Bar experience:</b> <%= BAR_PARTNER %></p>
-        <p><b>Sponsor:</b> <%= SPONSOR_NAME %></p><p><b>Included:</b> One free picture at <%= PHOTO_BOOTH_PARTNER %></p>
+  <section class="wrap home-wrap" id="details">
+    <div class="event-detail-panel">
+      <div class="event-detail-copy">
+        <p class="eyebrow">Event details</p>
+        <h2>All-white sunset energy, controlled from checkout to the door.</h2>
+        <p>Every reservation is reviewed before tickets are issued. Approved guests receive named QR tickets, and the name on each ticket must match ID at entry.</p>
+        <div class="detail-actions">
+          <a class="button" href="#reserve">Reserve now</a>
+          <a class="button secondary" href="https://wa.me/<%= WHATSAPP_1 %>" target="_blank" rel="noopener">WhatsApp</a>
+        </div>
       </div>
-      <div class="sponsor-card"><p class="eyebrow">Event sponsor</p><img src="<%= SPONSOR_LOGO_URL %>" alt="<%= SPONSOR_NAME %> sponsor logo"><p><%= SPONSOR_NAME %> is sponsoring this event.</p></div><div class="sponsor-card"><p class="eyebrow">Included experience</p><p><b><%= PHOTO_BOOTH_PARTNER %>:</b> every approved attendee gets one free picture in the photo booth.</p></div><div class="details-list"><p class="eyebrow">Secure guest experience</p><p>Limited capacity, approved guest list, and QR entry keep the event controlled, organized, and more exclusive. Every attendee receives a named digital ticket with a unique QR code. Names must match ID at the door, which keeps entry smooth, secure, and respectful of the guest list.</p></div>
-    </div>
-
-    <div class="panel" id="reserve">
-      <p class="eyebrow">Reserve tickets</p>
-      <h2><%= money(TICKET_PRICE) %> per ticket</h2><div class="payment-badges"><span>Apple Pay</span><span>Google Pay</span><span>Visa</span><span>Mastercard</span></div><p class="muted">Secure checkout is prepared through Stripe. Apple Pay, Google Pay, Visa, and Mastercard can appear after HTTPS hosting, Stripe keys, and wallet/domain setup are completed.</p>
-      <p class="muted">Each ticket must have a unique attendee first name and last name, date of birth in DD/MM/YYYY format, and gender. All attendees must be <%= MIN_AGE %>+. Every ticket includes one free <%= PHOTO_BOOTH_PARTNER %> picture.</p>
-      <form action="/reserve" method="post" id="ticketForm">
-        <label>Buyer full name<input name="buyerName" required placeholder="Buyer name"></label>
-        <label>Buyer email<input type="email" name="buyerEmail" required placeholder="you@example.com"></label>
-        <label>Quantity<input id="quantity" type="number" name="quantity" min="1" max="10" value="1" required></label>
-        <div id="attendeeForms"></div>
-        <p id="duplicateWarning" class="bad hidden">The same attendee name cannot be used twice.</p>
-        <p class="note"><b>Important:</b> Each ticket name must match the attendee's ID at the door. Every attendee must wear <%= DRESS_CODE %>.</p>
-        <p id="ageWarning" class="bad hidden">All attendees must be <%= MIN_AGE %>+ on <%= EVENT_DATE %>.</p>
-        <p class="summary"><b>Total:</b> <span id="total"><%= money(TICKET_PRICE) %></span></p>
-        <button class="button" type="submit">Reserve & Pay</button>
-      </form>
+      <div class="event-detail-grid">
+        <span><b>Theme</b><%= EVENT_THEME %></span>
+        <span><b>Location</b><%= EVENT_LOCATION %></span>
+        <span><b>Dress</b><%= DRESS_CODE %></span>
+        <span><b>Capacity</b>Limited guest list</span>
+        <span><b>Bar</b><%= BAR_PARTNER %></span>
+        <span><b>Sponsor</b><%= SPONSOR_NAME %></span>
+        <span><b>Included</b><%= PHOTO_BOOTH_PARTNER %></span>
+        <span><b>Payment</b>Stripe checkout</span>
+      </div>
     </div>
   </section>
 
-  <section class="wrap"><div class="panel"><p class="eyebrow">The experience</p><h2>Luxury from the first click to the door.</h2><p>Guests immediately understand the value: a curated all-white dress code, Cremisan vineyard sunset atmosphere, house music, lighting, a free Pica Pic photo booth picture, and secure digital tickets. The event is designed around photos, music, and flow, while the approved guest list and QR check-in keep the night organized and exclusive.</p></div></section>
+  <section class="wrap feature-strip">
+    <article>
+      <b>Approved guest list</b>
+      <p>Reservations are checked before payment is captured and tickets are sent.</p>
+    </article>
+    <article>
+      <b>Named QR entry</b>
+      <p>Every approved attendee receives a unique QR ticket tied to their name.</p>
+    </article>
+    <article>
+      <b>Photo-ready night</b>
+      <p><%= DRESS_CODE %>, sunset views, house music, and a free <%= PHOTO_BOOTH_PARTNER %> picture.</p>
+    </article>
+  </section>
+
+  <section class="wrap reserve-wrap" id="reserve">
+    <div class="reserve-intro">
+      <p class="eyebrow">Reserve tickets</p>
+      <h2><%= money(TICKET_PRICE) %> per ticket</h2>
+      <p class="muted">Apple Pay, Google Pay, Visa, and Mastercard can appear through Stripe on the live HTTPS site when payment settings are complete.</p>
+      <div class="payment-badges"><span>Apple Pay</span><span>Google Pay</span><span>Visa</span><span>Mastercard</span></div>
+      <div class="sponsor-card fast-sponsor">
+        <p class="eyebrow">Event sponsor</p>
+        <img src="<%= SPONSOR_LOGO_URL %>" alt="<%= SPONSOR_NAME %> sponsor logo" loading="lazy" decoding="async">
+      </div>
+    </div>
+
+    <div class="panel reserve-panel">
+      <p class="muted">Each ticket needs a unique attendee first name, last name, date of birth in DD/MM/YYYY format, and gender. All attendees must be <%= MIN_AGE %>+.</p>
+      <form action="/reserve" method="post" id="ticketForm">
+        <label>Buyer full name<input name="buyerName" required autocomplete="name" placeholder="Buyer name"></label>
+        <label>Buyer email<input type="email" name="buyerEmail" required autocomplete="email" placeholder="you@example.com"></label>
+        <label>Quantity<input id="quantity" type="number" name="quantity" min="1" max="10" value="1" required></label>
+        <div id="attendeeForms"></div>
+        <p id="duplicateWarning" class="bad hidden">The same attendee name cannot be used twice.</p>
+        <p class="note"><b>Important:</b> each ticket name must match the attendee ID at the door. Every attendee must wear <%= DRESS_CODE %>.</p>
+        <p id="ageWarning" class="bad hidden">All attendees must be <%= MIN_AGE %>+ on <%= EVENT_DATE %>.</p>
+        <p class="summary"><b>Total:</b> <span id="total"><%= money(TICKET_PRICE) %></span></p>
+        <button class="button reserve-submit" type="submit">Reserve & Pay</button>
+      </form>
+    </div>
+  </section>
 
 <script>
 const priceCents = <%= TICKET_PRICE %>;
 const minAge = <%= MIN_AGE %>;
 const eventDate = new Date('2026-07-24T17:30:00');
-const maxDob = new Date(eventDate);
-maxDob.setFullYear(maxDob.getFullYear() - minAge);
 const quantity = document.getElementById('quantity');
 const attendeeForms = document.getElementById('attendeeForms');
 const total = document.getElementById('total');
@@ -76,13 +113,16 @@ const ageWarning = document.getElementById('ageWarning');
 function money(cents){ return (cents / 100).toFixed(0) + ' NIS'; }
 function renderForms(){
   const qty = Math.max(1, Math.min(10, Number(quantity.value || 1)));
+  if(Number(quantity.value) !== qty) quantity.value = qty;
   attendeeForms.innerHTML = '';
+  const fragment = document.createDocumentFragment();
   for(let i = 1; i <= qty; i++){
     const div = document.createElement('div');
     div.className = 'attendee-box';
-    div.innerHTML = `<h3>Ticket ${i}</h3><p class="note"><b>Door rule:</b> The first and last name on this ticket must match the attendee's ID. Dress code is <%= DRESS_CODE %>.</p><div class="name-grid"><label>First name<input name="attendeeFirstName" class="attendee-first-name attendee-name-part" required autocomplete="given-name" placeholder="First name"></label><label>Last name<input name="attendeeLastName" class="attendee-last-name attendee-name-part" required autocomplete="family-name" placeholder="Last name"></label></div><label>Date of birth <span class="hint">DD/MM/YYYY</span><input type="text" name="attendeeDob" class="attendee-dob" required inputmode="numeric" autocomplete="bday" maxlength="10" pattern="\\d{2}/\\d{2}/\\d{4}" placeholder="DD/MM/YYYY"></label><p class="age-help muted">Type the birthday as day / month / year. Example: 24/07/2004. Age is checked automatically.</p><p class="age-result muted"></p><label>Gender<select name="attendeeGender" class="attendee-gender" required><option value="">Select gender</option><option value="female">Female</option><option value="male">Male</option></select></label>`;
-    attendeeForms.appendChild(div);
+    div.innerHTML = `<h3>Ticket ${i}</h3><div class="name-grid"><label>First name<input name="attendeeFirstName" class="attendee-first-name attendee-name-part" required autocomplete="given-name" placeholder="First name"></label><label>Last name<input name="attendeeLastName" class="attendee-last-name attendee-name-part" required autocomplete="family-name" placeholder="Last name"></label></div><label>Date of birth <span class="hint">DD/MM/YYYY</span><input type="text" name="attendeeDob" class="attendee-dob" required inputmode="numeric" autocomplete="bday" maxlength="10" pattern="\\d{2}/\\d{2}/\\d{4}" placeholder="DD/MM/YYYY"></label><p class="age-result muted"></p><label>Gender<select name="attendeeGender" class="attendee-gender" required><option value="">Select gender</option><option value="female">Female</option><option value="male">Male</option></select></label>`;
+    fragment.appendChild(div);
   }
+  attendeeForms.appendChild(fragment);
   total.textContent = money(priceCents * qty);
   checkDuplicates();
 }
@@ -112,21 +152,22 @@ function formatDobInput(input){
   input.value = formatted;
 }
 function validateForm(){
-  const names = [...document.querySelectorAll('.attendee-box')].map(box => ((box.querySelector('.attendee-first-name')?.value || '') + ' ' + (box.querySelector('.attendee-last-name')?.value || '')).trim().toLowerCase().replace(/\s+/g, ' ')).filter(Boolean);
+  const boxes = [...document.querySelectorAll('.attendee-box')];
+  const names = boxes.map(box => ((box.querySelector('.attendee-first-name')?.value || '') + ' ' + (box.querySelector('.attendee-last-name')?.value || '')).trim().toLowerCase().replace(/\s+/g, ' ')).filter(Boolean);
   const hasDupes = new Set(names).size !== names.length;
   duplicateWarning.classList.toggle('hidden', !hasDupes);
   let underAge = false;
-  document.querySelectorAll('.attendee-box').forEach(box => {
+  boxes.forEach(box => {
     const dobInput = box.querySelector('.attendee-dob');
     const output = box.querySelector('.age-result');
     const age = calculateAge(dobInput.value);
     if(!dobInput.value){ output.textContent = ''; return; }
     if(dobInput.value.length < 10 || age === null || age < minAge){
       underAge = true;
-      output.textContent = dobInput.value.length < 10 ? 'Enter date as DD/MM/YYYY.' : `Not eligible — attendee must be ${minAge}+ on event day.`;
+      output.textContent = dobInput.value.length < 10 ? 'Enter date as DD/MM/YYYY.' : `Not eligible - attendee must be ${minAge}+ on event day.`;
       output.className = 'age-result bad';
     } else {
-      output.textContent = `Age on event day: ${age} ✓ Eligible`;
+      output.textContent = `Age on event day: ${age}. Eligible.`;
       output.className = 'age-result good';
     }
   });
@@ -135,7 +176,10 @@ function validateForm(){
 }
 function checkDuplicates(){ return validateForm(); }
 quantity.addEventListener('input', renderForms);
-document.addEventListener('input', e => { if(e.target.matches('.attendee-dob')) formatDobInput(e.target); if(e.target.matches('.attendee-name-part,.attendee-dob,.attendee-gender')) validateForm(); });
+document.addEventListener('input', e => {
+  if(e.target.matches('.attendee-dob')) formatDobInput(e.target);
+  if(e.target.matches('.attendee-name-part,.attendee-dob,.attendee-gender')) validateForm();
+});
 document.getElementById('ticketForm').addEventListener('submit', e => { if(!validateForm()) e.preventDefault(); });
 renderForms();
 </script>
