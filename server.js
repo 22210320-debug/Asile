@@ -12,7 +12,7 @@ const crypto = require('crypto');
 
 const app = express();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY) : null;
-const { initDb, readDb, upsertOrder, upsertTicket, deleteOrders, safeCheckIn, usePostgres } = require('./db');
+const { initDb, readDb, upsertOrder, upsertTicket, deleteOrders, safeCheckIn, usePostgres, getPool, reserveAtomic } = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
@@ -49,7 +49,17 @@ app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.set('trust proxy', 1);
+
+// Use a Postgres-backed session store when a database is configured so admin
+// logins survive restarts/redeploys and are shared across multiple instances.
+// Falls back to the in-memory store only for local development without a DB.
+let sessionStore;
+if (usePostgres()) {
+  const pgSession = require('connect-pg-simple')(session);
+  sessionStore = new pgSession({ pool: getPool(), createTableIfMissing: true });
+}
 app.use(session({
+  store: sessionStore,
   secret: process.env.SESSION_SECRET || 'change-this-secret',
   resave: false,
   saveUninitialized: false,
@@ -63,7 +73,7 @@ function nameKey(value) { return cleanName(value).toLowerCase(); }
 function combineName(first, last) { return cleanName(`${cleanName(first)} ${cleanName(last)}`); }
 function asArray(value) { return Array.isArray(value) ? value : (value ? [value] : []); }
 function isActiveOrder(order) {
-  const inactive = ['denied_released', 'cancelled', 'rejected_refunded', 'payment_error'];
+  const inactive = ['denied_released', 'cancelled', 'rejected_refunded', 'payment_error', 'authorization_expired'];
   if (inactive.includes(order.status)) return false;
   // Do not hold names/capacity forever if someone starts checkout and never pays.
   if (['checkout_started', 'awaiting_payment_authorization'].includes(order.status)) {
@@ -264,7 +274,6 @@ app.get('/', async (req, res) => {
 });
 
 app.post('/reserve', async (req, res) => {
-  const db = await readDb();
   const buyerName = cleanName(req.body.buyerName);
   const buyerEmail = String(req.body.buyerEmail || '').trim();
   const attendeeFirstNames = asArray(req.body.attendeeFirstName).map(cleanName);
@@ -279,14 +288,20 @@ app.post('/reserve', async (req, res) => {
   if (attendeeDobs.some(d => !isOldEnough(d))) return res.status(400).render('message', { title: 'Age requirement', message: `Every attendee must enter a valid date of birth as DD/MM/YYYY and be ${MIN_AGE}+ by ${EVENT_DATE}.` });
   const keys = attendeeNames.map(nameKey);
   if (new Set(keys).size !== keys.length) return res.status(400).render('message', { title: 'Duplicate name', message: 'The same attendee name cannot be used twice in one order.' });
-  const duplicate = keys.find(k => usedNameKeys(db).has(k));
-  if (duplicate) return res.status(400).render('message', { title: 'Duplicate name', message: 'One of these attendee names has already been used for another ticket.' });
-  if (soldOrPendingCount(db) + qty > CAPACITY) return res.status(400).render('message', { title: 'Sold out', message: 'This order goes over the event capacity.' });
 
   const attendees = attendeeNames.map((name, i) => ({ firstName: attendeeFirstNames[i] || '', lastName: attendeeLastNames[i] || '', name, dateOfBirth: parseDobInput(attendeeDobs[i]).display, gender: attendeeGenders[i] }));
   const orderId = id(14);
   const order = { id: orderId, buyerName, buyerEmail, qty, attendees, amount: TICKET_PRICE * qty, paymentMethods: PAYMENT_METHODS, paymentProvider: PAYMENT_PROVIDER_LABEL, status: 'checkout_started', createdAt: new Date().toISOString() };
-  db.orders.push(order); await upsertOrder(order);
+  // Capacity and cross-order duplicate-name checks run atomically against the
+  // latest data so simultaneous buyers cannot oversell or double-book a name.
+  const reservation = await reserveAtomic(freshDb => {
+    if (keys.some(k => usedNameKeys(freshDb).has(k))) return { error: 'duplicate' };
+    if (soldOrPendingCount(freshDb) + qty > CAPACITY) return { error: 'soldout' };
+    return { order };
+  });
+  if (reservation.error === 'duplicate') return res.status(400).render('message', { title: 'Duplicate name', message: 'One of these attendee names has already been used for another ticket.' });
+  if (reservation.error === 'soldout') return res.status(400).render('message', { title: 'Sold out', message: 'This order goes over the event capacity.' });
+  if (reservation.error) return res.status(500).render('message', { title: 'Reservation error', message: 'The reservation could not be completed. Please try again.' });
   if (!stripe) {
     order.status = 'payment_error';
     order.paymentError = 'Missing STRIPE_SECRET_KEY';
@@ -323,6 +338,10 @@ app.post('/webhook', async (req, res) => {
     if (!stripe) return res.status(503).send('Stripe is not configured.');
     try { event = stripe.webhooks.constructEvent(req.rawBody, req.headers['stripe-signature'], process.env.STRIPE_WEBHOOK_SECRET); }
     catch (err) { return res.status(400).send(`Webhook error: ${err.message}`); }
+  } else if (process.env.NODE_ENV === 'production') {
+    // Never trust unsigned webhooks in production — without verification anyone
+    // could POST fake payment events and push orders to pending approval.
+    return res.status(503).send('Webhook signature verification is not configured.');
   }
   const db = await readDb();
   if (event.type === 'checkout.session.completed') {
@@ -379,7 +398,6 @@ app.post('/admin/orders/delete-stuck', requireAdmin, async (req, res) => {
 });
 
 app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
-  const db = await readDb();
   const firstName = cleanName(req.body.firstName);
   const lastName = cleanName(req.body.lastName);
   const attendeeName = combineName(firstName, lastName);
@@ -393,12 +411,6 @@ app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
   }
   if (!isOldEnough(dob)) {
     return res.status(400).render('message', { title: 'Age requirement', message: `The attendee must be ${MIN_AGE}+ by ${EVENT_DATE}.` });
-  }
-  if (usedNameKeys(db).has(nameKey(attendeeName))) {
-    return res.status(400).render('message', { title: 'Duplicate name', message: 'This attendee name already has a ticket or active order.' });
-  }
-  if (soldOrPendingCount(db) + 1 > CAPACITY) {
-    return res.status(400).render('message', { title: 'Sold out', message: 'This manual ticket goes over the event capacity.' });
   }
 
   const createdAt = new Date().toISOString();
@@ -415,15 +427,28 @@ app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
     approvedAt: createdAt,
     createdAt
   };
-  const ticket = await createTicketForAttendee(db, order, order.attendees[0], {
-    manual: true,
-    price: 'Manual ticket',
-    createdAt
+  // Validate duplicate name + capacity and persist the order and its ticket in
+  // one atomic step, consistent with the buyer reservation flow.
+  const reservation = await reserveAtomic(async freshDb => {
+    if (usedNameKeys(freshDb).has(nameKey(attendeeName))) return { error: 'duplicate' };
+    if (soldOrPendingCount(freshDb) + 1 > CAPACITY) return { error: 'soldout' };
+    const ticket = await createTicketForAttendee(freshDb, order, order.attendees[0], {
+      manual: true,
+      price: 'Manual ticket',
+      createdAt
+    });
+    return { order, tickets: [ticket], ticket };
   });
-  db.orders.push(order);
-  db.tickets.push(ticket);
-  await upsertOrder(order);
-  await upsertTicket(ticket);
+  if (reservation.error === 'duplicate') {
+    return res.status(400).render('message', { title: 'Duplicate name', message: 'This attendee name already has a ticket or active order.' });
+  }
+  if (reservation.error === 'soldout') {
+    return res.status(400).render('message', { title: 'Sold out', message: 'This manual ticket goes over the event capacity.' });
+  }
+  if (reservation.error) {
+    return res.status(500).render('message', { title: 'Manual ticket error', message: 'The ticket could not be created. Please try again.' });
+  }
+  const ticket = reservation.ticket;
 
   if (buyerEmail) {
     const attachments = [qrAttachmentForTicket(ticket)].filter(Boolean);
@@ -441,8 +466,28 @@ app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
   const db = await readDb(); const order = db.orders.find(o => o.id === req.params.id);
   if (!order || order.status !== 'pending_admin_approval') return res.status(400).send('Order is not pending approval.');
   if (!stripe) return res.status(503).render('message', { title: 'Stripe setup needed', message: 'STRIPE_SECRET_KEY is missing on the server.' });
-  try { await stripe.paymentIntents.capture(order.paymentIntentId); }
-  catch (err) { return res.status(502).render('message', { title: 'Payment capture failed', message: err.message }); }
+  try {
+    await stripe.paymentIntents.capture(order.paymentIntentId);
+  } catch (err) {
+    // Manual-capture authorizations expire after about 7 days. If the hold is
+    // gone, mark the order so its name/capacity is released and ask the buyer
+    // to re-book, instead of leaving a dead order that blocks approval.
+    let expired = false;
+    try {
+      const intent = await stripe.paymentIntents.retrieve(order.paymentIntentId);
+      expired = ['canceled', 'requires_payment_method'].includes(intent.status);
+    } catch (lookupErr) {
+      console.error('Payment intent lookup failed:', lookupErr.message);
+    }
+    if (expired) {
+      order.status = 'authorization_expired';
+      order.paymentError = err.message;
+      await upsertOrder(order);
+      await sendMail({ to: order.buyerEmail, subject: `${EVENT_NAME} — please re-book your ticket`, html: `<p>We could not finalize your ${EVENT_NAME} ticket because the payment authorization expired (card holds expire after about 7 days). No charge was made.</p><p>Please reserve again here: <a href="${BASE_URL}/">${BASE_URL}</a></p>` });
+      return res.status(409).render('message', { title: 'Authorization expired', message: 'The payment hold expired (Stripe authorizations last about 7 days). The order was released and the buyer was emailed to re-book.' });
+    }
+    return res.status(502).render('message', { title: 'Payment capture failed', message: err.message });
+  }
   order.status = 'approved_captured'; order.approvedAt = new Date().toISOString();
   const newTickets = [];
   for (const attendee of order.attendees) {

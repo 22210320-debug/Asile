@@ -6,6 +6,15 @@ let dbWriteQueue = Promise.resolve();
 let pool = null;
 let initPromise = null;
 
+// Single, app-wide key for the reservation advisory lock so that capacity and
+// duplicate-name checks are serialized against concurrent reservations.
+const RESERVE_LOCK_KEY = 728492;
+
+async function readJsonFile() {
+  try { return JSON.parse(await fs.readFile(dbFile, 'utf8')); }
+  catch { return { orders: [], tickets: [], scanHistory: [] }; }
+}
+
 function usePostgres() { return Boolean(process.env.DATABASE_URL); }
 function getPool() {
   if (!usePostgres()) return null;
@@ -198,4 +207,68 @@ async function safeCheckIn(ticketId, adminName) {
   } finally { client.release(); }
 }
 
-module.exports = { initDb, readDb, writeDb, upsertOrder, upsertTicket, deleteOrders, safeCheckIn, usePostgres };
+// Atomically validate-and-commit a reservation so two simultaneous buyers can
+// never oversell capacity or double-book the same attendee name.
+// `validateAndBuild(freshDb)` is run against the latest data while the write is
+// held exclusive. It returns `{ error }` to reject, or `{ order, tickets }` to
+// persist. The whole thing is one Postgres transaction (guarded by an advisory
+// lock), or a serialized step on the JSON write queue for local development.
+async function reserveAtomic(validateAndBuild) {
+  if (!usePostgres()) {
+    let outcome = { error: 'unknown' };
+    dbWriteQueue = dbWriteQueue.then(async () => {
+      const db = await readJsonFile();
+      outcome = await validateAndBuild(db);
+      if (outcome.error) return;
+      if (outcome.order) {
+        const i = db.orders.findIndex(o => o.id === outcome.order.id);
+        if (i >= 0) db.orders[i] = outcome.order; else db.orders.push(outcome.order);
+      }
+      for (const t of outcome.tickets || []) {
+        const i = db.tickets.findIndex(x => x.id === t.id);
+        if (i >= 0) db.tickets[i] = t; else db.tickets.push(t);
+      }
+      await fs.writeFile(dbFile, JSON.stringify(db, null, 2));
+    });
+    await dbWriteQueue;
+    return outcome;
+  }
+  await initDb();
+  const p = getPool();
+  const client = await p.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock($1)', [RESERVE_LOCK_KEY]);
+    const [orders, tickets] = await Promise.all([
+      client.query('SELECT data FROM orders'),
+      client.query('SELECT data FROM tickets')
+    ]);
+    const db = { orders: orders.rows.map(r => r.data), tickets: tickets.rows.map(r => r.data), scanHistory: [] };
+    const outcome = await validateAndBuild(db);
+    if (outcome.error) { await client.query('ROLLBACK'); return outcome; }
+    if (outcome.order) {
+      await client.query(
+        `INSERT INTO orders (id, data, updated_at) VALUES ($1, $2::jsonb, NOW())
+         ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+        [outcome.order.id, JSON.stringify(outcome.order)]
+      );
+    }
+    for (const t of outcome.tickets || []) {
+      await client.query(
+        `INSERT INTO tickets (id, order_id, status, attendee_name, attendee_first_name, attendee_last_name, gender, data, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, NOW())
+         ON CONFLICT (id) DO UPDATE SET order_id = EXCLUDED.order_id, status = EXCLUDED.status, attendee_name = EXCLUDED.attendee_name, attendee_first_name = EXCLUDED.attendee_first_name, attendee_last_name = EXCLUDED.attendee_last_name, gender = EXCLUDED.gender, data = EXCLUDED.data, updated_at = NOW()`,
+        [t.id, t.orderId || null, t.status || 'valid', t.attendeeName || null, t.attendeeFirstName || null, t.attendeeLastName || null, t.gender || null, JSON.stringify(t)]
+      );
+    }
+    await client.query('COMMIT');
+    return outcome;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { initDb, readDb, writeDb, upsertOrder, upsertTicket, deleteOrders, safeCheckIn, usePostgres, getPool, reserveAtomic };
