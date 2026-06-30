@@ -39,6 +39,10 @@
     </div>
   </section>
 
+  <% if (notice) { %>
+    <p class="note"><%= notice %></p>
+  <% } %>
+
   <section class="panel event-summary">
     <div>
       <p class="eyebrow">Event control</p>
@@ -77,8 +81,11 @@
   <div class="section-heading admin-section-heading">
     <div>
       <h2>Orders</h2>
-      <p class="muted">Showing latest orders. Delete removes the order and its generated tickets.</p>
+      <p class="muted">Showing latest orders. <%= stats.awaitingPaymentCount %> order(s) are still waiting for customer payment.</p>
     </div>
+    <form class="inline" method="post" action="/admin/orders/sync-payments">
+      <button class="compact-action" type="submit">Sync Stripe payments</button>
+    </form>
     <form class="inline" method="post" action="/admin/orders/delete-stuck" onsubmit="return confirm('Delete stuck unpaid orders? Approved orders and tickets will not be deleted.')">
       <button class="danger compact-action" type="submit">Delete stuck orders (<%= stats.stuckOrderCount %>)</button>
     </form>
@@ -96,7 +103,7 @@
         <td data-label="Email"><%= o.buyerEmail %></td>
         <td data-label="Qty"><%= o.qty %></td>
         <td data-label="Amount"><%= money(o.amount) %></td>
-        <td data-label="Status"><span class="status-pill"><%= o.status %></span></td>
+        <td data-label="Status"><span class="status-pill"><%= orderStatusLabel(o.status) %></span></td>
         <td data-label="Action">
           <a class="button compact" href="/admin/orders/<%= o.id %>">Review</a>
           <form class="inline" method="post" action="/admin/orders/<%= o.id %>/delete" onsubmit="return confirm('Delete this order and its tickets? This cannot be undone.')">
