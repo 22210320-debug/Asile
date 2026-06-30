@@ -3,6 +3,7 @@ const express = require('express');
 const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const session = require('express-session');
+const compression = require('compression');
 const bcrypt = require('bcryptjs');
 const Stripe = require('stripe');
 const QRCode = require('qrcode');
@@ -43,9 +44,19 @@ const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-app.use('/public', express.static(path.join(__dirname, 'public')));
-app.get('/favicon.ico', (req, res) => res.redirect(302, '/public/favicon.jpeg'));
 app.use(helmet({ contentSecurityPolicy: false }));
+app.use(compression());
+app.use('/public', express.static(path.join(__dirname, 'public'), {
+  maxAge: '7d',
+  etag: true,
+  lastModified: true
+}));
+app.get('/favicon.ico', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'favicon-small.jpeg'), {
+    maxAge: '7d',
+    headers: { 'Content-Type': 'image/jpeg' }
+  });
+});
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
