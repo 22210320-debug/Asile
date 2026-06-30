@@ -13,7 +13,7 @@ const crypto = require('crypto');
 
 const app = express();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY) : null;
-const { initDb, readDb, upsertOrder, upsertTicket, deleteOrders, safeCheckIn, usePostgres, getPool, reserveAtomic } = require('./db');
+const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, usePostgres, getPool, reserveAtomic } = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
@@ -25,7 +25,7 @@ const EVENT_TIME = process.env.EVENT_TIME || '5:30 PM–11:00 PM';
 const EVENT_THEME = process.env.EVENT_THEME || 'House Music & Sunset Party';
 const DRESS_CODE = process.env.DRESS_CODE || 'All White';
 const MIN_AGE = Number(process.env.MIN_AGE || 18);
-const CAPACITY = Number(process.env.CAPACITY || 500);
+const CAPACITY = Number(process.env.CAPACITY || 1000);
 const TICKET_PRICE = Number(process.env.TICKET_PRICE || 8000); // 8000 agorot = 80.00 ILS/NIS
 const CURRENCY = (process.env.CURRENCY || 'ils').toLowerCase();
 const MAP_URL = process.env.MAP_URL || 'https://www.google.com/maps?q=Cremisan';
@@ -120,38 +120,21 @@ function normalizeGender(value) {
   if (['female', 'f'].includes(v)) return 'Female';
   return '';
 }
-function genderStatsFromAttendees(attendees = []) {
-  const stats = { male: 0, female: 0, unknown: 0, total: 0, femalePercent: 0, malePercent: 0 };
-  for (const a of attendees) {
-    const gender = normalizeGender(a.gender);
-    if (gender === 'Female') stats.female++;
-    else if (gender === 'Male') stats.male++;
-    else stats.unknown++;
-    stats.total++;
-  }
-  if (stats.total > 0) {
-    stats.femalePercent = Math.round((stats.female / stats.total) * 100);
-    stats.malePercent = Math.round((stats.male / stats.total) * 100);
-  }
-  return stats;
-}
-function adminStats(db) {
+function adminStats(db, approvedCountOverride) {
   const activeTickets = db.tickets.filter(isIssuedTicket);
-  const approvedAttendees = activeTickets.map(t => ({ gender: t.gender }));
   const pendingAttendees = db.orders
     .filter(o => o.status === 'pending_admin_approval')
     .flatMap(o => o.attendees || []);
   return {
-    approvedCount: activeTickets.length,
+    approvedCount: typeof approvedCountOverride === 'number' ? approvedCountOverride : activeTickets.length,
     stuckOrderCount: db.orders.filter(isStuckOrder).length,
     remaining: Math.max(0, CAPACITY - soldOrPendingCount(db)),
-    approvedGender: genderStatsFromAttendees(approvedAttendees),
-    pendingGender: genderStatsFromAttendees(pendingAttendees)
+    pendingCount: pendingAttendees.length
   };
 }
 function adminPasswordAllowed(password) {
   const raw = String(password || '');
-  const list = (process.env.ADMIN_PASSWORDS || process.env.ADMIN_PASSWORD || 'admin123')
+  const list = (process.env.ADMIN_PASSWORDS || process.env.ADMIN_PASSWORD || 'admin1122')
     .split(',').map(p => p.trim()).filter(Boolean);
   return list.includes(raw);
 }
@@ -377,12 +360,12 @@ app.post('/admin/login', async (req, res) => {
 });
 app.get('/admin/logout', (req, res) => { req.session.destroy(() => res.redirect('/')); });
 app.get('/admin', requireAdmin, async (req, res) => {
-  const db = await readDb();
+  const dashboard = await readAdminDashboard();
   res.render('admin', {
-    orders: db.orders,
-    tickets: db.tickets.filter(isIssuedTicket),
-    scanHistory: db.scanHistory || [],
-    stats: adminStats(db),
+    orders: dashboard.orders,
+    tickets: dashboard.tickets.filter(isIssuedTicket),
+    scanHistory: dashboard.scanHistory || [],
+    stats: adminStats({ orders: dashboard.allOrders, tickets: dashboard.allTickets }, dashboard.approvedCount),
     ...eventInfo,
     money,
     usePostgres: usePostgres()
@@ -406,6 +389,27 @@ app.post('/admin/orders/delete-stuck', requireAdmin, async (req, res) => {
     .filter(order => isStuckOrder(order) && !ticketOrderIds.has(order.id))
     .map(order => order.id);
   await deleteOrders(stuckOrderIds);
+  res.redirect('/admin');
+});
+
+app.post('/admin/orders/:id/delete', requireAdmin, async (req, res) => {
+  const db = await readDb();
+  const order = db.orders.find(o => o.id === req.params.id);
+  if (stripe && order?.paymentIntentId && ['pending_admin_approval', 'awaiting_payment_authorization'].includes(order.status)) {
+    try { await stripe.paymentIntents.cancel(order.paymentIntentId); }
+    catch (err) { console.error('Stripe payment release before delete failed:', err.message); }
+  }
+  await deleteOrderWithTickets(req.params.id);
+  res.redirect('/admin');
+});
+
+app.post('/admin/tickets/:id/delete', requireAdmin, async (req, res) => {
+  await deleteTickets([req.params.id]);
+  res.redirect('/admin');
+});
+
+app.post('/admin/reset-event-data', requireAdmin, async (req, res) => {
+  await resetEventData();
   res.redirect('/admin');
 });
 

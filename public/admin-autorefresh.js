@@ -1,5 +1,5 @@
 (function () {
-  const intervalMs = 12000;
+  const intervalMs = 30000;
   const idleMs = 4000;
   let lastInteraction = Date.now();
 

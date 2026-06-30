@@ -31,7 +31,7 @@
     </div>
     <div class="metric-card">
       <span>Pending</span>
-      <b><%= stats.pendingGender.total %></b>
+      <b><%= stats.pendingCount %></b>
     </div>
     <div class="metric-card alert-card">
       <span>Stuck orders</span>
@@ -53,10 +53,6 @@
       <span><b>Bar</b><%= BAR_PARTNER %></span>
       <span><b>Sponsor</b><%= SPONSOR_NAME %></span>
       <span><b>Included</b><%= PHOTO_BOOTH_PARTNER %></span>
-    </div>
-    <div class="ratio-grid">
-      <p><b>Approved ratio</b><br>Female <%= stats.approvedGender.female %> (<%= stats.approvedGender.femalePercent %>%) / Male <%= stats.approvedGender.male %> (<%= stats.approvedGender.malePercent %>%)</p>
-      <p><b>Pending ratio</b><br>Female <%= stats.pendingGender.female %> (<%= stats.pendingGender.femalePercent %>%) / Male <%= stats.pendingGender.male %> (<%= stats.pendingGender.malePercent %>%)</p>
     </div>
   </section>
 
@@ -81,23 +77,32 @@
   <div class="section-heading admin-section-heading">
     <div>
       <h2>Orders</h2>
-      <p class="muted">Review reservations, approve payments, or remove old unpaid orders.</p>
+      <p class="muted">Showing latest orders. Delete removes the order and its generated tickets.</p>
     </div>
     <form class="inline" method="post" action="/admin/orders/delete-stuck" onsubmit="return confirm('Delete stuck unpaid orders? Approved orders and tickets will not be deleted.')">
       <button class="danger compact-action" type="submit">Delete stuck orders (<%= stats.stuckOrderCount %>)</button>
     </form>
+    <form class="inline" method="post" action="/admin/reset-event-data" onsubmit="return confirm('Reset all tickets, orders, and scan history? This cannot be undone.')">
+      <button class="danger compact-action" type="submit">Reset tickets/orders</button>
+    </form>
   </div>
 
   <table class="admin-card-table">
-    <tr><th>Buyer</th><th>Email</th><th>Qty</th><th>Amount</th><th>Status</th><th></th></tr>
+    <tr><th>Buyer</th><th>Ticket names</th><th>Email</th><th>Qty</th><th>Amount</th><th>Status</th><th></th></tr>
     <% orders.forEach(o=>{ %>
       <tr>
         <td data-label="Buyer"><%= o.buyerName %></td>
+        <td data-label="Ticket names"><%= (o.attendees || []).map(a => a.name).filter(Boolean).join(', ') || o.buyerName %></td>
         <td data-label="Email"><%= o.buyerEmail %></td>
         <td data-label="Qty"><%= o.qty %></td>
         <td data-label="Amount"><%= money(o.amount) %></td>
         <td data-label="Status"><span class="status-pill"><%= o.status %></span></td>
-        <td data-label="Action"><a class="button compact" href="/admin/orders/<%= o.id %>">Review</a></td>
+        <td data-label="Action">
+          <a class="button compact" href="/admin/orders/<%= o.id %>">Review</a>
+          <form class="inline" method="post" action="/admin/orders/<%= o.id %>/delete" onsubmit="return confirm('Delete this order and its tickets? This cannot be undone.')">
+            <button class="danger compact-action" type="submit">Delete</button>
+          </form>
+        </td>
       </tr>
     <% }) %>
   </table>
@@ -105,20 +110,24 @@
   <div class="section-heading admin-section-heading">
     <div>
       <h2>Tickets</h2>
-      <p class="muted" id="ticketSearchCount"><%= tickets.length %> ticket(s)</p>
+      <p class="muted" id="ticketSearchCount"><%= tickets.length %> ticket(s) shown</p>
     </div>
     <label class="ticket-search">Search<input id="ticketSearch" type="search" placeholder="Ticket ID or attendee name"></label>
   </div>
 
   <table id="ticketsTable" class="admin-card-table">
-    <tr><th>ID</th><th>Attendee</th><th>DOB</th><th>Gender</th><th>Status</th></tr>
+    <tr><th>ID</th><th>Ticket name</th><th>DOB</th><th>Status</th><th></th></tr>
     <% tickets.forEach(t=>{ %>
       <tr data-search="<%= `${t.id || ''} ${t.attendeeName || ''}`.toLowerCase() %>">
         <td data-label="ID"><%= t.id %></td>
-        <td data-label="Attendee"><%= t.attendeeName %></td>
+        <td data-label="Ticket name"><%= t.attendeeName %></td>
         <td data-label="DOB"><%= t.dateOfBirth %></td>
-        <td data-label="Gender"><%= t.gender || 'Not specified' %></td>
         <td data-label="Status"><span class="status-pill"><%= t.status %></span></td>
+        <td data-label="Action">
+          <form class="inline" method="post" action="/admin/tickets/<%= t.id %>/delete" onsubmit="return confirm('Delete this ticket? This cannot be undone.')">
+            <button class="danger compact-action" type="submit">Delete</button>
+          </form>
+        </td>
       </tr>
     <% }) %>
   </table>
@@ -154,7 +163,7 @@
       row.classList.toggle('hidden', !match);
       if (match) visible++;
     }
-    ticketSearchCount.textContent = `${visible} ticket(s)`;
+    ticketSearchCount.textContent = `${visible} ticket(s) shown`;
   });
 </script>
 <script src="/public/admin-autorefresh.js"></script>

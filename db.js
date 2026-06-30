@@ -82,6 +82,37 @@ async function readDb() {
   };
 }
 
+async function readAdminDashboard({ orderLimit = 200, ticketLimit = 250 } = {}) {
+  if (!usePostgres()) {
+    const db = await readDb();
+    return {
+      orders: (db.orders || []).slice(0, orderLimit),
+      tickets: (db.tickets || []).slice(0, ticketLimit).map(ticket => ({ ...ticket, qrDataUrl: undefined })),
+      scanHistory: (db.scanHistory || []).slice(0, 20),
+      allOrders: db.orders || [],
+      allTickets: db.tickets || [],
+      approvedCount: (db.tickets || []).filter(ticket => ['valid', 'used'].includes(ticket.status)).length
+    };
+  }
+  await initDb();
+  const p = getPool();
+  const [orders, tickets, scanHistory, allOrders, ticketCount] = await Promise.all([
+    p.query('SELECT data FROM orders ORDER BY created_at DESC LIMIT $1', [orderLimit]),
+    p.query(`SELECT data - 'qrDataUrl' AS data FROM tickets WHERE status IN ('valid', 'used') ORDER BY created_at DESC LIMIT $1`, [ticketLimit]),
+    p.query('SELECT ticket_id, scanned_by, result, scanned_at FROM scan_history ORDER BY scanned_at DESC LIMIT 20'),
+    p.query('SELECT data FROM orders'),
+    p.query(`SELECT COUNT(*)::int AS count FROM tickets WHERE status IN ('valid', 'used')`)
+  ]);
+  return {
+    orders: orders.rows.map(r => r.data),
+    tickets: tickets.rows.map(r => r.data),
+    scanHistory: scanHistory.rows.map(r => ({ ticketId: r.ticket_id, scannedBy: r.scanned_by, result: r.result, scannedAt: r.scanned_at })),
+    allOrders: allOrders.rows.map(r => r.data),
+    allTickets: [],
+    approvedCount: ticketCount.rows[0]?.count || 0
+  };
+}
+
 async function writeDb(data) {
   if (!usePostgres()) {
     dbWriteQueue = dbWriteQueue.then(() => fs.writeFile(dbFile, JSON.stringify(data, null, 2)));
@@ -167,6 +198,89 @@ async function deleteOrders(orderIds = []) {
   const p = getPool();
   const result = await p.query('DELETE FROM orders WHERE id = ANY($1::text[])', [ids]);
   return result.rowCount || 0;
+}
+
+async function deleteTickets(ticketIds = []) {
+  const ids = ticketIds.filter(Boolean);
+  if (!ids.length) return 0;
+  if (!usePostgres()) {
+    const db = await readDb();
+    const before = db.tickets.length;
+    db.tickets = db.tickets.filter(ticket => !ids.includes(ticket.id));
+    db.scanHistory = (db.scanHistory || []).filter(scan => !ids.includes(scan.ticketId));
+    await writeDb(db);
+    return before - db.tickets.length;
+  }
+  await initDb();
+  const p = getPool();
+  const client = await p.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM scan_history WHERE ticket_id = ANY($1::text[])', [ids]);
+    const result = await client.query('DELETE FROM tickets WHERE id = ANY($1::text[])', [ids]);
+    await client.query('COMMIT');
+    return result.rowCount || 0;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function deleteOrderWithTickets(orderId) {
+  if (!orderId) return { ordersDeleted: 0, ticketsDeleted: 0 };
+  if (!usePostgres()) {
+    const db = await readDb();
+    const beforeOrders = db.orders.length;
+    const beforeTickets = db.tickets.length;
+    const ticketIds = db.tickets.filter(ticket => ticket.orderId === orderId).map(ticket => ticket.id);
+    db.orders = db.orders.filter(order => order.id !== orderId);
+    db.tickets = db.tickets.filter(ticket => ticket.orderId !== orderId);
+    db.scanHistory = (db.scanHistory || []).filter(scan => !ticketIds.includes(scan.ticketId));
+    await writeDb(db);
+    return { ordersDeleted: beforeOrders - db.orders.length, ticketsDeleted: beforeTickets - db.tickets.length };
+  }
+  await initDb();
+  const p = getPool();
+  const client = await p.connect();
+  try {
+    await client.query('BEGIN');
+    const ticketIds = await client.query('SELECT id FROM tickets WHERE order_id=$1', [orderId]);
+    const ids = ticketIds.rows.map(row => row.id);
+    if (ids.length) await client.query('DELETE FROM scan_history WHERE ticket_id = ANY($1::text[])', [ids]);
+    const tickets = await client.query('DELETE FROM tickets WHERE order_id=$1', [orderId]);
+    const orders = await client.query('DELETE FROM orders WHERE id=$1', [orderId]);
+    await client.query('COMMIT');
+    return { ordersDeleted: orders.rowCount || 0, ticketsDeleted: tickets.rowCount || 0 };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function resetEventData() {
+  if (!usePostgres()) {
+    await writeDb({ orders: [], tickets: [], scanHistory: [] });
+    return;
+  }
+  await initDb();
+  const p = getPool();
+  const client = await p.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM scan_history');
+    await client.query('DELETE FROM tickets');
+    await client.query('DELETE FROM orders');
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 async function safeCheckIn(ticketId, adminName) {
@@ -271,4 +385,4 @@ async function reserveAtomic(validateAndBuild) {
   }
 }
 
-module.exports = { initDb, readDb, writeDb, upsertOrder, upsertTicket, deleteOrders, safeCheckIn, usePostgres, getPool, reserveAtomic };
+module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, usePostgres, getPool, reserveAtomic };

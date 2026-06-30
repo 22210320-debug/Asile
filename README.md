@@ -11,7 +11,7 @@ Developer-ready Node/Express ticket reservation website for ASIL'E. This package
 - Price: 80 NIS per ticket
 - Dress code: All White
 - Age: 18+
-- Capacity: 500 guests, shown only in the admin dashboard
+- Capacity: 1000 guests, shown only in the admin dashboard
 - Theme: House music and sunset party
 - WhatsApp contact: +9720568576684
 - Instagram: `https://www.instagram.com/events.asile?igsh=cXduejFvbHB4bjRo`
@@ -62,7 +62,7 @@ Open `http://localhost:3000`.
 
 Admin login: `/admin/login`.
 
-Default local admin password is `admin123` if `ADMIN_PASSWORD` is not set. Change it before publishing. For multiple admins, set `ADMIN_PASSWORDS` to comma-separated passwords or use bcrypt hashes with `ADMIN_PASSWORD_HASHES`.
+Default local admin password is `admin1122` if `ADMIN_PASSWORD` is not set. Change it before publishing. For multiple admins, set `ADMIN_PASSWORDS` to comma-separated passwords or use bcrypt hashes with `ADMIN_PASSWORD_HASHES`.
 
 ## DigitalOcean deployment — App Platform
 
@@ -111,7 +111,7 @@ SESSION_SECRET=generate_a_long_random_secret
 STRIPE_SECRET_KEY=sk_test_or_sk_live_from_stripe_dashboard
 STRIPE_WEBHOOK_SECRET=whsec_from_stripe_webhook
 ADMIN_EMAIL=your_admin_email@example.com
-ADMIN_PASSWORDS=admin_password_1,admin_password_2
+ADMIN_PASSWORDS=admin1122
 WHATSAPP_1=972568576684
 INSTAGRAM_URL=https://www.instagram.com/events.asile?igsh=cXduejFvbHB4bjRo
 SMTP_HOST=smtp.gmail.com
