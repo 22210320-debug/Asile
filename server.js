@@ -38,7 +38,7 @@ const DJ_NAME = process.env.DJ_NAME || 'DJ Loco';
 const DJ_IMAGE_URL = process.env.DJ_IMAGE_URL || '/public/dj-loco.jpeg';
 const PAYMENT_METHODS = ['Apple Pay', 'Google Pay', 'Visa', 'Mastercard'];
 const PAYMENT_PROVIDER_LABEL = process.env.PAYMENT_PROVIDER_LABEL || 'Stripe';
-const PHOTO_BOOTH_PARTNER = process.env.PHOTO_BOOTH_PARTNER || 'Pica Pic Photo Booth';
+const PHOTO_BOOTH_PARTNER = process.env.PHOTO_BOOTH_PARTNER || 'Picka pic';
 
 const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_TIME, EVENT_THEME, DRESS_CODE, MIN_AGE, CAPACITY, TICKET_PRICE, CURRENCY, MAP_URL, WHATSAPP_1, INSTAGRAM_URL, BAR_PARTNER, SPONSOR_NAME, SPONSOR_LOGO_URL, DJ_NAME, DJ_IMAGE_URL, PAYMENT_METHODS, PAYMENT_PROVIDER_LABEL, PHOTO_BOOTH_PARTNER }; 
 
@@ -214,7 +214,7 @@ async function markOrderPendingApproval(order, paymentIntentId) {
   order.status = 'pending_admin_approval';
   order.paymentIntentId = paymentIntentId || order.paymentIntentId;
   const names = (order.attendees || []).map(a => `<li>${a.name} — DOB: ${a.dateOfBirth} — Gender: ${a.gender || 'Not specified'} — Must match ID, dress code ${DRESS_CODE}</li>`).join('');
-  await sendMail({ to: process.env.ADMIN_EMAIL, subject: `Approve tickets: ${order.buyerName}`, html: `<p>${order.buyerName} requested ${order.qty} ticket(s) for ${EVENT_NAME}.</p><ul>${names}</ul><p><b>Event:</b> ${EVENT_DATE}, ${EVENT_TIME}, ${EVENT_LOCATION}</p><p><b>Price:</b> ${money(TICKET_PRICE)} per ticket. <b>Dress code:</b> ${DRESS_CODE}. <b>Age:</b> ${MIN_AGE}+. <b>Bar:</b> ${BAR_PARTNER}. <b>Sponsor:</b> ${SPONSOR_NAME}. <b>Included:</b> free Pica Pic Photo Booth picture.</p><p><a href="${BASE_URL}/admin/orders/${order.id}">Approve or deny this order</a></p>` });
+  await sendMail({ to: process.env.ADMIN_EMAIL, subject: `Approve tickets: ${order.buyerName}`, html: `<p>${order.buyerName} requested ${order.qty} ticket(s) for ${EVENT_NAME}.</p><ul>${names}</ul><p><b>Event:</b> ${EVENT_DATE}, ${EVENT_TIME}, ${EVENT_LOCATION}</p><p><b>Price:</b> ${money(TICKET_PRICE)} per ticket. <b>Dress code:</b> ${DRESS_CODE}. <b>Age:</b> ${MIN_AGE}+. <b>Bar:</b> ${BAR_PARTNER}. <b>Sponsor:</b> ${SPONSOR_NAME}. <b>Included:</b> free ${PHOTO_BOOTH_PARTNER} picture.</p><p><a href="${BASE_URL}/admin/orders/${order.id}">Approve or deny this order</a></p>` });
   return true;
 }
 async function syncOrderFromStripe(order) {
@@ -352,7 +352,7 @@ app.post('/reserve', async (req, res) => {
       payment_method_types: ['card'],
       customer_email: buyerEmail,
       client_reference_id: orderId,
-      line_items: [{ price_data: { currency: CURRENCY, product_data: { name: `${EVENT_NAME} ticket`, description: `${DRESS_CODE} dress code · ${MIN_AGE}+ · Free Pica Pic photo · Sponsor: ${SPONSOR_NAME}` }, unit_amount: TICKET_PRICE }, quantity: qty }],
+      line_items: [{ price_data: { currency: CURRENCY, product_data: { name: `${EVENT_NAME} ticket`, description: `${DRESS_CODE} dress code · ${MIN_AGE}+ · Free ${PHOTO_BOOTH_PARTNER} photo · Sponsor: ${SPONSOR_NAME}` }, unit_amount: TICKET_PRICE }, quantity: qty }],
       payment_intent_data: { capture_method: 'manual', metadata: { orderId, eventName: EVENT_NAME, companyName: COMPANY_NAME } },
       success_url: `${BASE_URL}/success?order=${orderId}`,
       cancel_url: `${BASE_URL}/cancel?order=${orderId}`

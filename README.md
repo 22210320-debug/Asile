@@ -17,7 +17,7 @@ Developer-ready Node/Express ticket reservation website for ASIL'E. This package
 - Instagram: `https://www.instagram.com/events.asile?igsh=cXduejFvbHB4bjRo`
 - Bar: Double Shake
 - Sponsor: Carlsberg
-- Included: one free picture at Pica Pic Photo Booth
+- Included: one free picture at Picka pic
 
 ## Features included
 - Buyer reservation form
