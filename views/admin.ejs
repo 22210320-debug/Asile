@@ -91,9 +91,6 @@
     <form class="inline" method="post" action="/admin/orders/delete-stuck" onsubmit="return confirm('Delete stuck unpaid orders? Approved orders and tickets will not be deleted.')">
       <button class="danger compact-action" type="submit">Delete stuck orders (<%= stats.stuckOrderCount %>)</button>
     </form>
-    <form class="inline" method="post" action="/admin/reset-event-data" onsubmit="return confirm('Reset all tickets, orders, and scan history? This cannot be undone.')">
-      <button class="danger compact-action" type="submit">Reset tickets/orders</button>
-    </form>
   </div>
 
   <table class="admin-card-table">

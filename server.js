@@ -13,7 +13,7 @@ const crypto = require('crypto');
 
 const app = express();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY) : null;
-const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, usePostgres, getPool, reserveAtomic } = require('./db');
+const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, usePostgres, getPool, reserveAtomic } = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
@@ -276,16 +276,30 @@ function ticketPublicUrl(ticket) {
 function ticketEmailHtml(ticket) {
   const qrCid = `qr-${ticket.id}@asile`;
   const publicUrl = ticketPublicUrl(ticket);
-  return `<div style="border:1px solid #ddd;border-radius:14px;padding:14px;margin:12px 0;font-family:Arial,sans-serif;max-width:420px;color:#111">
-    <h2 style="margin:0 0 10px">${EVENT_NAME}</h2>
+  return `<div style="background:#fffaf3;border:1px solid #d7a45b;border-radius:18px;padding:18px;margin:14px 0;font-family:Arial,sans-serif;max-width:430px;color:#1d130d;box-shadow:0 10px 30px rgba(0,0,0,.18)">
+    <h2 style="margin:0 0 12px;color:#1d130d">${EVENT_NAME}</h2>
     <p style="margin:6px 0"><b>Name:</b> ${ticket.attendeeName}</p>
     <p style="margin:6px 0"><b>Ticket:</b> ${ticket.id}</p>
     <p style="margin:6px 0"><b>Time:</b> ${EVENT_TIME}</p>
     <p style="margin:6px 0"><b>Location:</b> ${EVENT_LOCATION}</p>
     <p style="margin:6px 0"><b>Dress:</b> ${DRESS_CODE}</p>
-    <img src="cid:${qrCid}" width="190" height="190" alt="QR code" style="display:block;margin:14px 0">
-    <p style="margin:8px 0"><a href="${publicUrl}">Open QR ticket</a></p>
+    <div style="background:#fff;border-radius:14px;display:inline-block;padding:10px;margin:14px 0"><img src="cid:${qrCid}" width="190" height="190" alt="QR code" style="display:block"></div>
+    <p style="margin:8px 0"><a href="${publicUrl}" style="color:#8a5a17;font-weight:bold">Open QR ticket</a></p>
     <p style="font-size:13px;color:#555;margin:8px 0 0">Bring this QR and matching ID.</p>
+  </div>`;
+}
+function ticketEmailBackground(content) {
+  return `<div style="margin:0;padding:28px 14px;background:#120c08;background-image:linear-gradient(135deg,#120c08 0%,#24140c 55%,#4b2b13 100%);font-family:Arial,sans-serif;color:#fff4df">
+    <div style="max-width:520px;margin:0 auto">
+      <div style="text-align:center;margin:0 0 18px">
+        <div style="font-size:24px;font-weight:800;letter-spacing:1px;color:#f4cf92">${COMPANY_NAME}</div>
+        <div style="font-size:13px;color:#d8bc8b;margin-top:4px">${EVENT_NAME}</div>
+      </div>
+      <div style="background:rgba(255,250,243,.08);border:1px solid rgba(215,164,91,.35);border-radius:22px;padding:18px">
+        ${content}
+      </div>
+      <p style="text-align:center;font-size:12px;color:#c6aa7b;margin:16px 0 0">If the QR image is hidden, use the Open QR ticket link.</p>
+    </div>
   </div>`;
 }
 function ticketEmailText(ticket) {
@@ -501,11 +515,6 @@ app.post('/admin/tickets/:id/delete', requireAdmin, async (req, res) => {
   res.redirect('/admin');
 });
 
-app.post('/admin/reset-event-data', requireAdmin, async (req, res) => {
-  await resetEventData();
-  res.redirect('/admin');
-});
-
 app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
   const firstName = cleanName(req.body.firstName);
   const lastName = cleanName(req.body.lastName);
@@ -564,7 +573,7 @@ app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
     sendMailInBackground({
       to: buyerEmail,
       subject: `Your ${EVENT_NAME} ticket credentials`,
-      html: `<p>Your ticket is ready. If you do not see the QR image, use the QR ticket link below.</p>${ticketEmailHtml(ticket)}`,
+      html: ticketEmailBackground(`<p style="margin:0 0 12px;color:#fff4df">Your ticket is ready.</p>${ticketEmailHtml(ticket)}`),
       text: `Your ticket is ready.\n\n${ticketEmailText(ticket)}`,
       attachments
     });
@@ -613,7 +622,7 @@ app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
   sendMailInBackground({
     to: order.buyerEmail,
     subject: `Your ${EVENT_NAME} ticket`,
-    html: `<p>Approved. Your ticket is ready. If you do not see the QR image, use the QR ticket link below.</p>${ticketHtml}`,
+    html: ticketEmailBackground(`<p style="margin:0 0 12px;color:#fff4df">Approved. Your ticket is ready.</p>${ticketHtml}`),
     text: `Approved. Your ticket is ready.\n\n${ticketText}`,
     attachments
   });
@@ -648,7 +657,7 @@ app.post('/admin/orders/:id/replacement-ticket', requireAdmin, async (req, res) 
   sendMailInBackground({
     to: order.buyerEmail,
     subject: `Replacement ${EVENT_NAME} ticket`,
-    html: `<p>Replacement ticket for ${attendee.name}. Use this QR only. If you do not see the QR image, use the QR ticket link below.</p>${ticketEmailHtml(ticket)}`,
+    html: ticketEmailBackground(`<p style="margin:0 0 12px;color:#fff4df">Replacement ticket for ${attendee.name}. Use this QR only.</p>${ticketEmailHtml(ticket)}`),
     text: `Replacement ticket for ${attendee.name}. Use this QR only.\n\n${ticketEmailText(ticket)}`,
     attachments
   });
