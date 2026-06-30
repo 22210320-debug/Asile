@@ -114,6 +114,7 @@
         <p id="duplicateWarning" class="bad hidden">The same attendee name cannot be used twice.</p>
         <p class="note"><b>Important:</b> each ticket name must match the attendee ID at the door. Every attendee must wear <%= DRESS_CODE %>. After approval, check spam/junk if you do not see the QR ticket email.</p>
         <p id="ageWarning" class="bad hidden">All attendees must be <%= MIN_AGE %>+ on <%= EVENT_DATE %>.</p>
+        <p id="checkoutStatus" class="note hidden"></p>
         <p class="summary"><b>Total:</b> <span id="total"><%= money(TICKET_PRICE) %></span></p>
         <button class="button reserve-submit" type="submit">Reserve & Pay</button>
       </form>
@@ -129,6 +130,9 @@ const attendeeForms = document.getElementById('attendeeForms');
 const total = document.getElementById('total');
 const duplicateWarning = document.getElementById('duplicateWarning');
 const ageWarning = document.getElementById('ageWarning');
+const ticketForm = document.getElementById('ticketForm');
+const checkoutStatus = document.getElementById('checkoutStatus');
+const reserveSubmit = document.querySelector('.reserve-submit');
 function money(cents){ return (cents / 100).toFixed(0) + ' NIS'; }
 function renderForms(){
   const qty = Math.max(1, Math.min(10, Number(quantity.value || 1)));
@@ -199,7 +203,23 @@ document.addEventListener('input', e => {
   if(e.target.matches('.attendee-dob')) formatDobInput(e.target);
   if(e.target.matches('.attendee-name-part,.attendee-dob,.attendee-gender')) validateForm();
 });
-document.getElementById('ticketForm').addEventListener('submit', e => { if(!validateForm()) e.preventDefault(); });
+ticketForm.addEventListener('submit', e => {
+  if(!validateForm()){
+    e.preventDefault();
+    return;
+  }
+  reserveSubmit.disabled = true;
+  reserveSubmit.textContent = 'Opening secure checkout...';
+  checkoutStatus.textContent = 'Creating your secure Stripe checkout. Please do not close this page.';
+  checkoutStatus.classList.remove('hidden');
+  window.setTimeout(() => {
+    if(document.visibilityState === 'visible'){
+      checkoutStatus.textContent = 'Still opening checkout. If this stays here, refresh and try again, or contact us on WhatsApp.';
+      reserveSubmit.disabled = false;
+      reserveSubmit.textContent = 'Try again';
+    }
+  }, 15000);
+});
 renderForms();
 </script>
 </body>

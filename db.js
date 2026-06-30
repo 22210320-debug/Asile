@@ -20,7 +20,13 @@ function getPool() {
   if (!usePostgres()) return null;
   if (!pool) {
     const { Pool } = require('pg');
-    pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_SSL === 'false' ? false : { rejectUnauthorized: false } });
+    pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.DATABASE_SSL === 'false' ? false : { rejectUnauthorized: false },
+      connectionTimeoutMillis: Number(process.env.DATABASE_CONNECT_TIMEOUT_MS || 8000),
+      query_timeout: Number(process.env.DATABASE_QUERY_TIMEOUT_MS || 10000),
+      statement_timeout: Number(process.env.DATABASE_STATEMENT_TIMEOUT_MS || 10000)
+    });
   }
   return pool;
 }

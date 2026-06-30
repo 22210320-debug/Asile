@@ -12,7 +12,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const app = express();
-const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY) : null;
+const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY, { timeout: Number(process.env.STRIPE_TIMEOUT_MS || 10000) }) : null;
 const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, usePostgres, getPool, reserveAtomic } = require('./db');
 
 const PORT = process.env.PORT || 3000;
@@ -375,13 +375,20 @@ app.post('/reserve', async (req, res) => {
   const attendees = attendeeNames.map((name, i) => ({ firstName: attendeeFirstNames[i] || '', lastName: attendeeLastNames[i] || '', name, dateOfBirth: parseDobInput(attendeeDobs[i]).display, gender: attendeeGenders[i] }));
   const orderId = id(14);
   const order = { id: orderId, buyerName, buyerEmail, qty, attendees, amount: TICKET_PRICE * qty, paymentMethods: PAYMENT_METHODS, paymentProvider: PAYMENT_PROVIDER_LABEL, status: 'checkout_started', createdAt: new Date().toISOString() };
+  console.log('CHECKOUT START', { orderId, buyerEmail, qty, amount: order.amount });
   // Capacity and cross-order duplicate-name checks run atomically against the
   // latest data so simultaneous buyers cannot oversell or double-book a name.
-  const reservation = await reserveAtomic(freshDb => {
-    if (keys.some(k => usedNameKeys(freshDb).has(k))) return { error: 'duplicate' };
-    if (soldOrPendingCount(freshDb) + qty > CAPACITY) return { error: 'soldout' };
-    return { order };
-  });
+  let reservation;
+  try {
+    reservation = await reserveAtomic(freshDb => {
+      if (keys.some(k => usedNameKeys(freshDb).has(k))) return { error: 'duplicate' };
+      if (soldOrPendingCount(freshDb) + qty > CAPACITY) return { error: 'soldout' };
+      return { order };
+    });
+  } catch (err) {
+    console.error('CHECKOUT RESERVATION FAILED', { orderId, message: err.message });
+    return res.status(503).render('message', { title: 'Reservation is slow', message: 'The reservation system is taking too long. Please try again in a moment.' });
+  }
   if (reservation.error === 'duplicate') return res.status(400).render('message', { title: 'Duplicate name', message: 'One of these attendee names has already been used for another ticket.' });
   if (reservation.error === 'soldout') return res.status(400).render('message', { title: 'Sold out', message: 'This order goes over the event capacity.' });
   if (reservation.error) return res.status(500).render('message', { title: 'Reservation error', message: 'The reservation could not be completed. Please try again.' });
@@ -392,6 +399,7 @@ app.post('/reserve', async (req, res) => {
     return res.status(503).render('message', { title: 'Stripe setup needed', message: 'Stripe is not configured yet. Add STRIPE_SECRET_KEY in DigitalOcean App Platform environment variables before accepting payments.' });
   }
   try {
+    console.log('STRIPE SESSION CREATE START', { orderId, amount: order.amount, currency: CURRENCY });
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: 'payment',
       // The current implementation uses Stripe Checkout as the payment gateway template.
@@ -404,11 +412,13 @@ app.post('/reserve', async (req, res) => {
       success_url: `${BASE_URL}/success?order=${orderId}`,
       cancel_url: `${BASE_URL}/cancel?order=${orderId}`
     });
+    console.log('STRIPE SESSION CREATED', { orderId, sessionId: checkoutSession.id });
     order.stripeSessionId = checkoutSession.id; order.status = 'awaiting_payment_authorization'; await upsertOrder(order);
     return res.redirect(303, checkoutSession.url);
   } catch (err) {
+    console.error('STRIPE SESSION CREATE FAILED', { orderId, type: err.type, code: err.code, message: err.message });
     order.status = 'payment_error'; order.paymentError = err.message; await upsertOrder(order);
-    return res.status(503).render('message', { title: 'Payment setup needed', message: 'The reservation form works, but Stripe payment keys must be configured before real checkout can open.' });
+    return res.status(503).render('message', { title: 'Payment problem', message: `Stripe checkout did not open: ${err.message}` });
   }
 });
 
