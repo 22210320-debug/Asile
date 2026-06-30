@@ -52,9 +52,9 @@ app.use('/public', express.static(path.join(__dirname, 'public'), {
   lastModified: true
 }));
 app.get('/favicon.ico', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'favicon-small.jpeg'), {
+  res.sendFile(path.join(__dirname, 'public', 'favicon.png'), {
     maxAge: '7d',
-    headers: { 'Content-Type': 'image/jpeg' }
+    headers: { 'Content-Type': 'image/png' }
   });
 });
 app.use(cookieParser());
