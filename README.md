@@ -14,7 +14,7 @@ Developer-ready Node/Express ticket reservation website for ASIL'E. This package
 - Capacity: 500 guests, shown only in the admin dashboard
 - Theme: House music and sunset party
 - WhatsApp contact: +9720568576684
-- Instagram: `https://www.instagram.com/dj_loco.antwan/`
+- Instagram: `https://www.instagram.com/events.asile?igsh=cXduejFvbHB4bjRo`
 - Bar: Double Shake
 - Sponsor: Carlsberg
 - Included: one free picture at Pica Pic Photo Booth
@@ -113,7 +113,7 @@ STRIPE_WEBHOOK_SECRET=whsec_from_stripe_webhook
 ADMIN_EMAIL=your_admin_email@example.com
 ADMIN_PASSWORDS=admin_password_1,admin_password_2
 WHATSAPP_1=972568576684
-INSTAGRAM_URL=https://www.instagram.com/dj_loco.antwan/
+INSTAGRAM_URL=https://www.instagram.com/events.asile?igsh=cXduejFvbHB4bjRo
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_SECURE=false

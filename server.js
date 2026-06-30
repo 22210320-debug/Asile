@@ -29,7 +29,7 @@ const TICKET_PRICE = Number(process.env.TICKET_PRICE || 8000); // 8000 agorot = 
 const CURRENCY = (process.env.CURRENCY || 'ils').toLowerCase();
 const MAP_URL = process.env.MAP_URL || 'https://www.google.com/maps?q=Cremisan';
 const WHATSAPP_1 = process.env.WHATSAPP_1 || '972568576684';
-const INSTAGRAM_URL = process.env.INSTAGRAM_URL || 'https://www.instagram.com/dj_loco.antwan/';
+const INSTAGRAM_URL = process.env.INSTAGRAM_URL || 'https://www.instagram.com/events.asile?igsh=cXduejFvbHB4bjRo';
 const BAR_PARTNER = process.env.BAR_PARTNER || 'Double Shake';
 const SPONSOR_NAME = process.env.SPONSOR_NAME || 'Carlsberg';
 const SPONSOR_LOGO_URL = process.env.SPONSOR_LOGO_URL || '/public/carlsberg-logo.jpeg';
@@ -44,6 +44,7 @@ const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use('/public', express.static(path.join(__dirname, 'public')));
+app.get('/favicon.ico', (req, res) => res.redirect(302, '/public/favicon.jpeg'));
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
