@@ -1,7 +1,9 @@
 (function () {
   const intervalMs = 30000;
   const idleMs = 4000;
+  const paymentSyncMs = 15000;
   let lastInteraction = Date.now();
+  let syncingPayments = false;
 
   function activeFormField() {
     const el = document.activeElement;
@@ -32,4 +34,36 @@
     button.textContent = 'Working...';
     button.disabled = true;
   });
+
+  async function syncPaymentsQuietly() {
+    const dashboard = document.querySelector('[data-admin-dashboard="true"]');
+    if (!dashboard || syncingPayments || document.hidden) return;
+    const awaitingCount = Number(dashboard.dataset.awaitingPayments || 0);
+    if (!awaitingCount) return;
+    syncingPayments = true;
+    try {
+      const response = await fetch('/admin/orders/sync-payments.json', {
+        method: 'POST',
+        headers: { Accept: 'application/json' }
+      });
+      if (!response.ok) return;
+      const result = await response.json();
+      if (result.synced > 0) {
+        window.location.href = `/admin?notice=${encodeURIComponent(`Auto-synced ${result.synced} payment(s).`)}`;
+        return;
+      }
+      const notice = document.getElementById('adminNotice');
+      if (notice && result.checked > 0) {
+        notice.textContent = `Checked ${result.checked} waiting payment(s). Nothing new yet.`;
+        notice.classList.remove('hidden');
+      }
+    } catch (err) {
+      console.error('Auto payment sync failed:', err);
+    } finally {
+      syncingPayments = false;
+    }
+  }
+
+  window.setTimeout(syncPaymentsQuietly, 1000);
+  window.setInterval(syncPaymentsQuietly, paymentSyncMs);
 })();

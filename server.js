@@ -146,6 +146,24 @@ function orderStatusLabel(status) {
   };
   return labels[status] || status;
 }
+async function syncWaitingOrdersFromStripe() {
+  const db = await readDb();
+  let synced = 0;
+  let failed = 0;
+  const waitingOrders = db.orders.filter(order => order.status === 'awaiting_payment_authorization' && order.stripeSessionId);
+  for (const order of waitingOrders) {
+    try {
+      if (await syncOrderFromStripe(order)) {
+        await upsertOrder(order);
+        synced++;
+      }
+    } catch (err) {
+      failed++;
+      console.error('Stripe bulk order sync failed:', order.id, err.message);
+    }
+  }
+  return { checked: waitingOrders.length, synced, failed };
+}
 function adminPasswordAllowed(password) {
   const raw = String(password || '');
   const list = (process.env.ADMIN_PASSWORDS || process.env.ADMIN_PASSWORD || 'admin1122')
@@ -455,25 +473,16 @@ app.post('/admin/orders/delete-stuck', requireAdmin, async (req, res) => {
 });
 
 app.post('/admin/orders/sync-payments', requireAdmin, async (req, res) => {
-  const db = await readDb();
-  let synced = 0;
-  let failed = 0;
-  const waitingOrders = db.orders.filter(order => order.status === 'awaiting_payment_authorization' && order.stripeSessionId);
-  for (const order of waitingOrders) {
-    try {
-      if (await syncOrderFromStripe(order)) {
-        await upsertOrder(order);
-        synced++;
-      }
-    } catch (err) {
-      failed++;
-      console.error('Stripe bulk order sync failed:', order.id, err.message);
-    }
-  }
-  const message = failed
-    ? `Synced ${synced} payment(s). ${failed} could not be checked.`
-    : `Synced ${synced} payment(s).`;
+  const result = await syncWaitingOrdersFromStripe();
+  const message = result.failed
+    ? `Synced ${result.synced} payment(s). ${result.failed} could not be checked.`
+    : `Synced ${result.synced} payment(s).`;
   res.redirect(`/admin?notice=${encodeURIComponent(message)}`);
+});
+
+app.post('/admin/orders/sync-payments.json', requireAdmin, async (req, res) => {
+  const result = await syncWaitingOrdersFromStripe();
+  res.json({ ok: true, ...result });
 });
 
 app.post('/admin/orders/:id/delete', requireAdmin, async (req, res) => {

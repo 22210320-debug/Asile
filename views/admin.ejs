@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/public/style.css">
 </head>
 <body>
-<main class="wrap admin-wrap">
+<main class="wrap admin-wrap" data-admin-dashboard="true" data-awaiting-payments="<%= stats.awaitingPaymentCount %>">
   <header class="admin-hero panel">
     <div>
       <p class="eyebrow">Admin dashboard</p>
@@ -40,7 +40,9 @@
   </section>
 
   <% if (notice) { %>
-    <p class="note"><%= notice %></p>
+    <p class="note" id="adminNotice"><%= notice %></p>
+  <% } else { %>
+    <p class="note hidden" id="adminNotice"></p>
   <% } %>
 
   <section class="panel event-summary">
@@ -81,7 +83,7 @@
   <div class="section-heading admin-section-heading">
     <div>
       <h2>Orders</h2>
-      <p class="muted">Showing latest orders. <%= stats.awaitingPaymentCount %> order(s) are still waiting for customer payment.</p>
+      <p class="muted">Showing latest orders. <span id="awaitingPaymentCount"><%= stats.awaitingPaymentCount %></span> order(s) are still waiting for customer payment.</p>
     </div>
     <form class="inline" method="post" action="/admin/orders/sync-payments">
       <button class="compact-action" type="submit">Sync Stripe payments</button>
