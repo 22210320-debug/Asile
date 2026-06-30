@@ -84,7 +84,7 @@
     <div class="reserve-intro">
       <p class="eyebrow">Reserve tickets</p>
       <h2><%= money(TICKET_PRICE) %> per ticket</h2>
-      <p class="muted">Apple Pay, Google Pay, Visa, and Mastercard.</p>
+      <p class="muted">Apple Pay, Google Pay, Visa, and Mastercard. After approval, check your inbox and spam/junk folder for the QR ticket email.</p>
       <div class="payment-badges"><span>Apple Pay</span><span>Google Pay</span><span>Visa</span><span>Mastercard</span></div>
       <div class="sponsor-card fast-sponsor">
         <p class="eyebrow">Event sponsor</p>
@@ -100,7 +100,7 @@
         <label>Quantity<input id="quantity" type="number" name="quantity" min="1" max="10" value="1" required></label>
         <div id="attendeeForms"></div>
         <p id="duplicateWarning" class="bad hidden">The same attendee name cannot be used twice.</p>
-        <p class="note"><b>Important:</b> each ticket name must match the attendee ID at the door. Every attendee must wear <%= DRESS_CODE %>.</p>
+        <p class="note"><b>Important:</b> each ticket name must match the attendee ID at the door. Every attendee must wear <%= DRESS_CODE %>. After approval, check spam/junk if you do not see the QR ticket email.</p>
         <p id="ageWarning" class="bad hidden">All attendees must be <%= MIN_AGE %>+ on <%= EVENT_DATE %>.</p>
         <p class="summary"><b>Total:</b> <span id="total"><%= money(TICKET_PRICE) %></span></p>
         <button class="button reserve-submit" type="submit">Reserve & Pay</button>

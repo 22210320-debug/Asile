@@ -170,7 +170,23 @@ function isOldEnough(dob) {
 }
 function requireAdmin(req, res, next) { if (req.session.admin) return next(); res.redirect('/admin/login'); }
 
-async function sendMail({ to, subject, html, attachments = [] }) {
+function htmlToText(html) {
+  return String(html || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+\n/g, '\n')
+    .replace(/\n\s+/g, '\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
+async function sendMail({ to, subject, html, text, attachments = [] }) {
   if (!to) return false;
   if (!process.env.SMTP_HOST) { console.log('EMAIL NOT SENT - configure SMTP in .env:', subject, html); return false; }
   try {
@@ -183,12 +199,15 @@ async function sendMail({ to, subject, html, attachments = [] }) {
       greetingTimeout: 10000,
       socketTimeout: 15000
     });
-    await transporter.sendMail({ from: process.env.EMAIL_FROM || process.env.SMTP_USER, to, subject, html, attachments });
+    await transporter.sendMail({ from: process.env.EMAIL_FROM || process.env.SMTP_USER, to, subject, html, text: text || htmlToText(html), attachments });
     return true;
   } catch (err) {
     console.error('EMAIL SEND FAILED:', err.message);
     return false;
   }
+}
+function sendMailInBackground(mail) {
+  sendMail(mail).catch(err => console.error('EMAIL BACKGROUND FAILED:', err.message));
 }
 async function markOrderPendingApproval(order, paymentIntentId) {
   if (!order || order.status === 'pending_admin_approval') return false;
@@ -216,23 +235,43 @@ function qrAttachmentForTicket(ticket) {
     cid: `qr-${ticket.id}@asile`
   };
 }
+function ticketVerifyUrl(ticket) {
+  return ticket.verifyUrl || `${BASE_URL}/admin/scan?ticket=${ticket.id}`;
+}
+function ticketPublicUrl(ticket) {
+  return ticket.publicUrl || `${BASE_URL}/ticket/${ticket.id}`;
+}
 function ticketEmailHtml(ticket) {
   const qrCid = `qr-${ticket.id}@asile`;
-  return `<div style="border:1px solid #ddd;border-radius:16px;padding:16px;margin:12px 0;font-family:Arial,sans-serif;max-width:420px">
+  const publicUrl = ticketPublicUrl(ticket);
+  return `<div style="border:1px solid #ddd;border-radius:14px;padding:14px;margin:12px 0;font-family:Arial,sans-serif;max-width:420px;color:#111">
     <h2 style="margin:0 0 10px">${EVENT_NAME}</h2>
     <p style="margin:6px 0"><b>Name:</b> ${ticket.attendeeName}</p>
     <p style="margin:6px 0"><b>Ticket:</b> ${ticket.id}</p>
-    <p style="margin:6px 0"><b>Date:</b> ${EVENT_DATE}</p>
     <p style="margin:6px 0"><b>Time:</b> ${EVENT_TIME}</p>
     <p style="margin:6px 0"><b>Location:</b> ${EVENT_LOCATION}</p>
     <p style="margin:6px 0"><b>Dress:</b> ${DRESS_CODE}</p>
-    <img src="cid:${qrCid}" width="190" alt="QR code" style="display:block;margin:14px 0">
+    <img src="cid:${qrCid}" width="190" height="190" alt="QR code" style="display:block;margin:14px 0">
+    <p style="margin:8px 0"><a href="${publicUrl}">Open QR ticket</a></p>
     <p style="font-size:13px;color:#555;margin:8px 0 0">Bring this QR and matching ID.</p>
   </div>`;
+}
+function ticketEmailText(ticket) {
+  return [
+    `${EVENT_NAME} ticket`,
+    `Name: ${ticket.attendeeName}`,
+    `Ticket ID: ${ticket.id}`,
+    `Time: ${EVENT_TIME}`,
+    `Location: ${EVENT_LOCATION}`,
+    `Dress code: ${DRESS_CODE}`,
+    `QR ticket: ${ticketPublicUrl(ticket)}`,
+    'Bring this QR and matching ID.'
+  ].join('\n');
 }
 async function createTicketForAttendee(db, order, attendee, overrides = {}) {
   const ticketId = await makeUniqueTicketId(db);
   const verifyUrl = `${BASE_URL}/admin/scan?ticket=${ticketId}`;
+  const publicUrl = `${BASE_URL}/ticket/${ticketId}`;
   const qrDataUrl = await QRCode.toDataURL(verifyUrl);
   return {
     id: ticketId,
@@ -256,6 +295,8 @@ async function createTicketForAttendee(db, order, attendee, overrides = {}) {
     sponsorName: SPONSOR_NAME,
     sponsorLogoUrl: SPONSOR_LOGO_URL,
     status: 'valid',
+    verifyUrl,
+    publicUrl,
     qrDataUrl,
     createdAt: new Date().toISOString(),
     ...overrides
@@ -324,8 +365,13 @@ app.post('/reserve', async (req, res) => {
   }
 });
 
-app.get('/success', (req, res) => res.render('message', { title: 'Reservation received', message: `Your payment is authorized. Your ${EVENT_NAME} ticket will be sent only after admin approval.` }));
+app.get('/success', (req, res) => res.render('message', { title: 'Reservation received', message: `Your payment is authorized. Your ${EVENT_NAME} ticket will be sent only after admin approval. Please check your inbox and spam/junk folder for the ticket email.` }));
 app.get('/cancel', async (req, res) => { const db = await readDb(); const order = db.orders.find(o => o.id === req.query.order); if (order) { order.status = 'cancelled'; await upsertOrder(order); } res.render('message', { title: 'Checkout cancelled', message: 'No ticket was reserved.' }); });
+app.get('/ticket/:id', async (req, res) => {
+  const db = await readDb();
+  const ticket = db.tickets.find(t => t.id === req.params.id);
+  res.render('ticket-public', { ticket, ...eventInfo });
+});
 
 app.post('/webhook', async (req, res) => {
   let event = req.body;
@@ -468,10 +514,11 @@ app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
 
   if (buyerEmail) {
     const attachments = [qrAttachmentForTicket(ticket)].filter(Boolean);
-    await sendMail({
+    sendMailInBackground({
       to: buyerEmail,
       subject: `Your ${EVENT_NAME} ticket credentials`,
-      html: `<p>Your ticket is ready.</p>${ticketEmailHtml(ticket)}`,
+      html: `<p>Your ticket is ready. If you do not see the QR image, use the QR ticket link below.</p>${ticketEmailHtml(ticket)}`,
+      text: `Your ticket is ready.\n\n${ticketEmailText(ticket)}`,
       attachments
     });
   }
@@ -499,7 +546,7 @@ app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
       order.status = 'authorization_expired';
       order.paymentError = err.message;
       await upsertOrder(order);
-      await sendMail({ to: order.buyerEmail, subject: `${EVENT_NAME} — please re-book your ticket`, html: `<p>We could not finalize your ${EVENT_NAME} ticket because the payment authorization expired (card holds expire after about 7 days). No charge was made.</p><p>Please reserve again here: <a href="${BASE_URL}/">${BASE_URL}</a></p>` });
+      sendMailInBackground({ to: order.buyerEmail, subject: `${EVENT_NAME} - please re-book your ticket`, html: `<p>We could not finalize your ${EVENT_NAME} ticket because the payment authorization expired (card holds expire after about 7 days). No charge was made.</p><p>Please reserve again here: <a href="${BASE_URL}/">${BASE_URL}</a></p>` });
       return res.status(409).render('message', { title: 'Authorization expired', message: 'The payment hold expired (Stripe authorizations last about 7 days). The order was released and the buyer was emailed to re-book.' });
     }
     return res.status(502).render('message', { title: 'Payment capture failed', message: err.message });
@@ -514,8 +561,15 @@ app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
   await upsertOrder(order);
   for (const ticket of newTickets) await upsertTicket(ticket);
   const ticketHtml = newTickets.map(ticketEmailHtml).join('');
+  const ticketText = newTickets.map(ticketEmailText).join('\n\n');
   const attachments = newTickets.map(qrAttachmentForTicket).filter(Boolean);
-  await sendMail({ to: order.buyerEmail, subject: `Your ${EVENT_NAME} ticket`, html: `<p>Approved. Your ticket is ready.</p>${ticketHtml}`, attachments });
+  sendMailInBackground({
+    to: order.buyerEmail,
+    subject: `Your ${EVENT_NAME} ticket`,
+    html: `<p>Approved. Your ticket is ready. If you do not see the QR image, use the QR ticket link below.</p>${ticketHtml}`,
+    text: `Approved. Your ticket is ready.\n\n${ticketText}`,
+    attachments
+  });
   res.redirect(`/admin/orders/${order.id}`);
 });
 
@@ -544,10 +598,11 @@ app.post('/admin/orders/:id/replacement-ticket', requireAdmin, async (req, res) 
   db.tickets.push(ticket);
   for (const changedTicket of [...replacedTickets, ticket]) await upsertTicket(changedTicket);
   const attachments = [qrAttachmentForTicket(ticket)].filter(Boolean);
-  await sendMail({
+  sendMailInBackground({
     to: order.buyerEmail,
     subject: `Replacement ${EVENT_NAME} ticket`,
-    html: `<p>Replacement ticket for ${attendee.name}. Use this QR only.</p>${ticketEmailHtml(ticket)}`,
+    html: `<p>Replacement ticket for ${attendee.name}. Use this QR only. If you do not see the QR image, use the QR ticket link below.</p>${ticketEmailHtml(ticket)}`,
+    text: `Replacement ticket for ${attendee.name}. Use this QR only.\n\n${ticketEmailText(ticket)}`,
     attachments
   });
   res.redirect(`/admin/orders/${order.id}`);
@@ -560,7 +615,7 @@ app.post('/admin/orders/:id/deny', requireAdmin, async (req, res) => {
   try { await stripe.paymentIntents.cancel(order.paymentIntentId); }
   catch (err) { return res.status(502).render('message', { title: 'Payment release failed', message: err.message }); }
   order.status = 'denied_released'; order.deniedAt = new Date().toISOString(); await upsertOrder(order);
-  await sendMail({ to: order.buyerEmail, subject: `${EVENT_NAME} reservation not approved`, html: `<p>Your reservation was not approved. Your payment authorization has been cancelled/released.</p>` });
+  sendMailInBackground({ to: order.buyerEmail, subject: `${EVENT_NAME} reservation not approved`, html: `<p>Your reservation was not approved. Your payment authorization has been cancelled/released.</p>` });
   res.redirect(`/admin/orders/${order.id}`);
 });
 

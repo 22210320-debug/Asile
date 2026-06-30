@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= ticket ? `${ticket.eventName || EVENT_NAME} ticket` : 'Ticket not found' %></title>
+  <link rel="stylesheet" href="/public/style.css">
+</head>
+<body>
+<main class="hero">
+  <div class="card ticket-public-card">
+    <% if(!ticket){ %>
+      <h1>Ticket not found</h1>
+      <p>This ticket link is not valid.</p>
+    <% } else { %>
+      <h1><%= ticket.eventName || EVENT_NAME %></h1>
+      <p><b>Name:</b> <%= ticket.attendeeName %></p>
+      <p><b>Ticket:</b> <%= ticket.id %></p>
+      <p><b>Time:</b> <%= ticket.eventTime || EVENT_TIME %></p>
+      <p><b>Location:</b> <%= ticket.location || EVENT_LOCATION %></p>
+      <p><b>Dress:</b> <%= ticket.dressCode || DRESS_CODE %></p>
+      <div class="qrbox">
+        <img src="<%= ticket.qrDataUrl %>" width="220" height="220" alt="QR code">
+      </div>
+      <p class="note"><b>Entry:</b> bring this QR and matching ID.</p>
+    <% } %>
+  </div>
+</main>
+</body>
+</html>

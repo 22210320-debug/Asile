@@ -22,4 +22,14 @@
     if (Date.now() - lastInteraction < idleMs) return;
     window.location.reload();
   }, intervalMs);
+
+  document.addEventListener('submit', event => {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement)) return;
+    const button = form.querySelector('button[type="submit"], button:not([type])');
+    if (!button || button.disabled) return;
+    button.dataset.originalText = button.textContent;
+    button.textContent = 'Working...';
+    button.disabled = true;
+  });
 })();
