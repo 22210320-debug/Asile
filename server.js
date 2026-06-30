@@ -53,8 +53,8 @@ app.use('/public', express.static(path.join(__dirname, 'public'), {
 }));
 app.get('/favicon.ico', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'favicon.png'), {
-    maxAge: '7d',
-    headers: { 'Content-Type': 'image/png' }
+    maxAge: '1h',
+    headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=3600' }
   });
 });
 app.use(cookieParser());
