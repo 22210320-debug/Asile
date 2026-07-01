@@ -109,7 +109,12 @@
       <form action="/reserve" method="post" id="ticketForm">
         <label>Buyer full name<input name="buyerName" required autocomplete="name" placeholder="Buyer name"></label>
         <label>Buyer email<input type="email" name="buyerEmail" required autocomplete="email" placeholder="you@example.com"></label>
-        <label>Quantity<input id="quantity" type="number" name="quantity" min="1" max="10" value="1" required></label>
+        <label>Quantity</label>
+        <div class="quantity-control">
+          <button type="button" class="quantity-step" data-quantity-step="-1" aria-label="Decrease quantity">-</button>
+          <input id="quantity" type="number" name="quantity" min="1" max="10" value="1" required inputmode="numeric">
+          <button type="button" class="quantity-step" data-quantity-step="1" aria-label="Increase quantity">+</button>
+        </div>
         <div id="attendeeForms"></div>
         <p id="duplicateWarning" class="bad hidden">The same attendee name cannot be used twice.</p>
         <p class="note"><b>Important:</b> each ticket name must match the attendee ID at the door. Every attendee must wear <%= DRESS_CODE %>. After approval, check spam/junk if you do not see the QR ticket email.</p>
@@ -134,15 +139,29 @@ const ticketForm = document.getElementById('ticketForm');
 const checkoutStatus = document.getElementById('checkoutStatus');
 const reserveSubmit = document.querySelector('.reserve-submit');
 function money(cents){ return (cents / 100).toFixed(0) + ' NIS'; }
+function attendeeValues(){
+  return [...document.querySelectorAll('.attendee-box')].map(box => ({
+    firstName: box.querySelector('.attendee-first-name')?.value || '',
+    lastName: box.querySelector('.attendee-last-name')?.value || '',
+    dob: box.querySelector('.attendee-dob')?.value || '',
+    gender: box.querySelector('.attendee-gender')?.value || ''
+  }));
+}
 function renderForms(){
+  const previous = attendeeValues();
   const qty = Math.max(1, Math.min(10, Number(quantity.value || 1)));
   if(Number(quantity.value) !== qty) quantity.value = qty;
   attendeeForms.innerHTML = '';
   const fragment = document.createDocumentFragment();
   for(let i = 1; i <= qty; i++){
+    const saved = previous[i - 1] || {};
     const div = document.createElement('div');
     div.className = 'attendee-box';
     div.innerHTML = `<h3>Ticket ${i}</h3><div class="name-grid"><label>First name<input name="attendeeFirstName" class="attendee-first-name attendee-name-part" required autocomplete="given-name" placeholder="First name"></label><label>Last name<input name="attendeeLastName" class="attendee-last-name attendee-name-part" required autocomplete="family-name" placeholder="Last name"></label></div><label>Date of birth <span class="hint">DD/MM/YYYY</span><input type="text" name="attendeeDob" class="attendee-dob" required inputmode="numeric" autocomplete="bday" maxlength="10" pattern="\\d{2}/\\d{2}/\\d{4}" placeholder="DD/MM/YYYY"></label><p class="age-result muted"></p><label>Gender<select name="attendeeGender" class="attendee-gender" required><option value="">Select gender</option><option value="female">Female</option><option value="male">Male</option></select></label>`;
+    div.querySelector('.attendee-first-name').value = saved.firstName || '';
+    div.querySelector('.attendee-last-name').value = saved.lastName || '';
+    div.querySelector('.attendee-dob').value = saved.dob || '';
+    div.querySelector('.attendee-gender').value = saved.gender || '';
     fragment.appendChild(div);
   }
   attendeeForms.appendChild(fragment);
@@ -199,6 +218,13 @@ function validateForm(){
 }
 function checkDuplicates(){ return validateForm(); }
 quantity.addEventListener('input', renderForms);
+document.querySelectorAll('[data-quantity-step]').forEach(button => {
+  button.addEventListener('click', () => {
+    const next = Math.max(1, Math.min(10, Number(quantity.value || 1) + Number(button.dataset.quantityStep)));
+    quantity.value = next;
+    renderForms();
+  });
+});
 document.addEventListener('input', e => {
   if(e.target.matches('.attendee-dob')) formatDobInput(e.target);
   if(e.target.matches('.attendee-name-part,.attendee-dob,.attendee-gender')) validateForm();
