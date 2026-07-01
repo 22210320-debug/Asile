@@ -102,7 +102,7 @@
         <td data-label="Email"><%= o.buyerEmail %></td>
         <td data-label="Qty"><%= o.qty %></td>
         <td data-label="Amount"><%= money(o.amount) %></td>
-        <td data-label="Status"><span class="status-pill"><%= orderStatusLabel(o.status) %></span></td>
+        <td data-label="Status"><span class="<%= statusClass(o.status) %>"><%= orderStatusLabel(o.status) %></span></td>
         <td data-label="Action">
           <a class="button compact" href="/admin/orders/<%= o.id %>">Review</a>
           <form class="inline" method="post" action="/admin/orders/<%= o.id %>/delete" onsubmit="return confirm('Delete this order and its tickets? This cannot be undone.')">

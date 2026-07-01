@@ -107,12 +107,15 @@ function isStuckOrder(order) {
 function isIssuedTicket(ticket) {
   return ['valid', 'used'].includes(ticket.status);
 }
+function isNameBlockingOrder(order) {
+  return ['pending_admin_approval', 'approved_captured'].includes(order.status);
+}
 function soldOrPendingCount(db) {
   return db.orders.filter(isActiveOrder).reduce((sum, o) => sum + Number(o.qty || 0), 0);
 }
 function usedNameKeys(db) {
   const fromTickets = db.tickets.filter(isIssuedTicket).map(t => nameKey(t.attendeeName || t.buyerName));
-  const fromOrders = db.orders.filter(isActiveOrder).flatMap(o => (o.attendees || []).map(a => nameKey(a.name || combineName(a.firstName, a.lastName))));
+  const fromOrders = db.orders.filter(isNameBlockingOrder).flatMap(o => (o.attendees || []).map(a => nameKey(a.name || combineName(a.firstName, a.lastName))));
   return new Set([...fromTickets, ...fromOrders].filter(Boolean));
 }
 function normalizeGender(value) {
@@ -137,15 +140,18 @@ function adminStats(db, approvedCountOverride) {
 function orderStatusLabel(status) {
   const labels = {
     checkout_started: 'Checkout started',
-    awaiting_payment_authorization: 'Waiting for customer payment',
-    pending_admin_approval: 'Ready for admin approval',
-    approved_captured: 'Approved and paid',
-    denied_released: 'Rejected, payment released',
+    awaiting_payment_authorization: 'Awaiting payment',
+    pending_admin_approval: 'Ready for approval',
+    approved_captured: 'Approved',
+    denied_released: 'Rejected',
     cancelled: 'Cancelled',
     payment_error: 'Payment error',
-    authorization_expired: 'Payment hold expired'
+    authorization_expired: 'Expired'
   };
   return labels[status] || status;
+}
+function statusClass(status) {
+  return `status-pill status-${String(status || 'unknown').replace(/[^a-z0-9_-]/gi, '-')}`;
 }
 async function syncWaitingOrdersFromStripe() {
   const db = await readDb();
@@ -472,6 +478,7 @@ app.get('/admin', requireAdmin, async (req, res) => {
     ...eventInfo,
     money,
     orderStatusLabel,
+    statusClass,
     notice: req.query.notice || '',
     usePostgres: usePostgres()
   });
