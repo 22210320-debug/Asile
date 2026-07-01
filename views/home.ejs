@@ -109,7 +109,8 @@
       <form action="/reserve" method="post" id="ticketForm">
         <label>Buyer full name<input name="buyerName" required autocomplete="name" placeholder="Buyer name"></label>
         <label>Buyer email<input type="email" name="buyerEmail" required autocomplete="email" placeholder="you@example.com"></label>
-        <label>Quantity<input id="quantity" class="quantity-input" type="number" name="quantity" min="1" max="10" value="1" required inputmode="numeric"></label>
+        <label>Quantity<input id="quantity" class="quantity-input" type="number" name="quantity" value="1" required inputmode="numeric"></label>
+        <p id="quantityWarning" class="bad hidden"></p>
         <div id="attendeeForms"></div>
         <p id="duplicateWarning" class="bad hidden">The same attendee name cannot be used twice.</p>
         <p class="note"><b>Important:</b> each ticket name must match the attendee ID at the door. Every attendee must wear <%= DRESS_CODE %>. After approval, check spam/junk if you do not see the QR ticket email.</p>
@@ -129,11 +130,24 @@ const quantity = document.getElementById('quantity');
 const attendeeForms = document.getElementById('attendeeForms');
 const total = document.getElementById('total');
 const duplicateWarning = document.getElementById('duplicateWarning');
+const quantityWarning = document.getElementById('quantityWarning');
 const ageWarning = document.getElementById('ageWarning');
 const ticketForm = document.getElementById('ticketForm');
 const checkoutStatus = document.getElementById('checkoutStatus');
 const reserveSubmit = document.querySelector('.reserve-submit');
 function money(cents){ return (cents / 100).toFixed(0) + ' NIS'; }
+function quantityError(){
+  const raw = Number(quantity.value || 0);
+  if (!Number.isFinite(raw) || raw < 1) return 'Cannot order 0 tickets. Please order at least 1.';
+  if (!Number.isInteger(raw)) return 'Please enter a whole number of tickets.';
+  if (raw > 10) return 'Cannot order more than 10 tickets at once.';
+  return '';
+}
+function quantityForForms(){
+  const raw = Number(quantity.value || 0);
+  if (!Number.isFinite(raw) || raw < 1) return 1;
+  return Math.min(10, Math.floor(raw));
+}
 function attendeeValues(){
   return [...document.querySelectorAll('.attendee-box')].map(box => ({
     firstName: box.querySelector('.attendee-first-name')?.value || '',
@@ -144,8 +158,7 @@ function attendeeValues(){
 }
 function renderForms(){
   const previous = attendeeValues();
-  const qty = Math.max(1, Math.min(10, Number(quantity.value || 1)));
-  if(Number(quantity.value) !== qty) quantity.value = qty;
+  const qty = quantityForForms();
   attendeeForms.innerHTML = '';
   const fragment = document.createDocumentFragment();
   for(let i = 1; i <= qty; i++){
@@ -189,6 +202,9 @@ function formatDobInput(input){
   input.value = formatted;
 }
 function validateForm(){
+  const qtyError = quantityError();
+  quantityWarning.textContent = qtyError;
+  quantityWarning.classList.toggle('hidden', !qtyError);
   const boxes = [...document.querySelectorAll('.attendee-box')];
   const names = boxes.map(box => ((box.querySelector('.attendee-first-name')?.value || '') + ' ' + (box.querySelector('.attendee-last-name')?.value || '')).trim().toLowerCase().replace(/\s+/g, ' ')).filter(Boolean);
   const hasDupes = new Set(names).size !== names.length;
@@ -209,7 +225,7 @@ function validateForm(){
     }
   });
   ageWarning.classList.toggle('hidden', !underAge);
-  return !hasDupes && !underAge;
+  return !qtyError && !hasDupes && !underAge;
 }
 function checkDuplicates(){ return validateForm(); }
 quantity.addEventListener('input', renderForms);

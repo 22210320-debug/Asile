@@ -371,8 +371,11 @@ app.post('/reserve', async (req, res) => {
   const attendeeDobs = asArray(req.body.attendeeDob).map(v => String(v || '').trim());
   const attendeeGenders = asArray(req.body.attendeeGender).map(normalizeGender);
   const attendeeNames = legacyNames.length ? legacyNames : attendeeFirstNames.map((first, i) => combineName(first, attendeeLastNames[i]));
-  const qty = Math.max(1, Math.min(10, Number(req.body.quantity || attendeeNames.length || 1)));
+  const qty = Number(req.body.quantity || attendeeNames.length || 1);
   if (!buyerName || !buyerEmail) return res.status(400).render('message', { title: 'Missing information', message: 'Buyer name and email are required.' });
+  if (!Number.isFinite(qty) || qty < 1) return res.status(400).render('message', { title: 'Invalid quantity', message: 'Cannot order 0 tickets. Please order at least 1.' });
+  if (!Number.isInteger(qty)) return res.status(400).render('message', { title: 'Invalid quantity', message: 'Please enter a whole number of tickets.' });
+  if (qty > 10) return res.status(400).render('message', { title: 'Invalid quantity', message: 'Cannot order more than 10 tickets at once.' });
   if (attendeeNames.length !== qty || attendeeDobs.length !== qty || attendeeGenders.length !== qty || attendeeNames.some(n => !n) || (!legacyNames.length && (attendeeFirstNames.length !== qty || attendeeLastNames.length !== qty || attendeeFirstNames.some(n => !n) || attendeeLastNames.some(n => !n))) || attendeeDobs.some(d => !d) || attendeeGenders.some(g => !g)) return res.status(400).render('message', { title: 'Missing ticket forms', message: 'Each ticket needs a separate first name, last name, date of birth, and gender.' });
   if (attendeeDobs.some(d => !isOldEnough(d))) return res.status(400).render('message', { title: 'Age requirement', message: `Every attendee must enter a valid date of birth as DD/MM/YYYY and be ${MIN_AGE}+ by ${EVENT_DATE}.` });
   const keys = attendeeNames.map(nameKey);
