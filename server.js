@@ -153,6 +153,23 @@ function orderStatusLabel(status) {
 function statusClass(status) {
   return `status-pill status-${String(status || 'unknown').replace(/[^a-z0-9_-]/gi, '-')}`;
 }
+function pageNumber(value) {
+  const parsed = Number(value || 1);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+function pageMeta(page, total, pageSize) {
+  const pageCount = Math.max(1, Math.ceil(Number(total || 0) / pageSize));
+  return { page, pageSize, total, pageCount, hasOlder: page < pageCount, hasNewer: page > 1 };
+}
+function adminPageUrl(currentPages, key, page) {
+  const params = new URLSearchParams();
+  const nextPages = { ...currentPages, [key]: page };
+  if (nextPages.ordersPage > 1) params.set('ordersPage', nextPages.ordersPage);
+  if (nextPages.ticketsPage > 1) params.set('ticketsPage', nextPages.ticketsPage);
+  if (nextPages.scansPage > 1) params.set('scansPage', nextPages.scansPage);
+  const query = params.toString();
+  return query ? `/admin?${query}` : '/admin';
+}
 async function syncWaitingOrdersFromStripe() {
   const db = await readDb();
   let synced = 0;
@@ -472,11 +489,31 @@ app.post('/admin/login', async (req, res) => {
 });
 app.get('/admin/logout', (req, res) => { req.session.destroy(() => res.redirect('/')); });
 app.get('/admin', requireAdmin, async (req, res) => {
-  const dashboard = await readAdminDashboard();
+  const pageSize = 10;
+  const pages = {
+    ordersPage: pageNumber(req.query.ordersPage),
+    ticketsPage: pageNumber(req.query.ticketsPage),
+    scansPage: pageNumber(req.query.scansPage)
+  };
+  const dashboard = await readAdminDashboard({
+    orderLimit: pageSize,
+    orderOffset: (pages.ordersPage - 1) * pageSize,
+    ticketLimit: pageSize,
+    ticketOffset: (pages.ticketsPage - 1) * pageSize,
+    scanLimit: pageSize,
+    scanOffset: (pages.scansPage - 1) * pageSize
+  });
   res.render('admin', {
     orders: dashboard.orders,
     tickets: dashboard.tickets.filter(isIssuedTicket),
     scanHistory: dashboard.scanHistory || [],
+    pagination: {
+      pages,
+      orders: pageMeta(pages.ordersPage, dashboard.orderCount, pageSize),
+      tickets: pageMeta(pages.ticketsPage, dashboard.ticketCount, pageSize),
+      scans: pageMeta(pages.scansPage, dashboard.scanCount, pageSize)
+    },
+    adminPageUrl,
     stats: adminStats({ orders: dashboard.allOrders, tickets: dashboard.allTickets }, dashboard.approvedCount),
     ...eventInfo,
     money,

@@ -88,26 +88,32 @@ async function readDb() {
   };
 }
 
-async function readAdminDashboard({ orderLimit = 200, ticketLimit = 250 } = {}) {
+async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, ticketLimit = 10, ticketOffset = 0, scanLimit = 10, scanOffset = 0 } = {}) {
   if (!usePostgres()) {
     const db = await readDb();
+    const issuedTickets = (db.tickets || []).filter(ticket => ['valid', 'used'].includes(ticket.status));
     return {
-      orders: (db.orders || []).slice(0, orderLimit),
-      tickets: (db.tickets || []).slice(0, ticketLimit).map(ticket => ({ ...ticket, qrDataUrl: undefined })),
-      scanHistory: (db.scanHistory || []).slice(0, 20),
+      orders: (db.orders || []).slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(orderOffset, orderOffset + orderLimit),
+      tickets: issuedTickets.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(ticketOffset, ticketOffset + ticketLimit).map(ticket => ({ ...ticket, qrDataUrl: undefined })),
+      scanHistory: (db.scanHistory || []).slice().sort((a, b) => new Date(b.scannedAt || 0) - new Date(a.scannedAt || 0)).slice(scanOffset, scanOffset + scanLimit),
       allOrders: db.orders || [],
       allTickets: db.tickets || [],
-      approvedCount: (db.tickets || []).filter(ticket => ['valid', 'used'].includes(ticket.status)).length
+      approvedCount: issuedTickets.length,
+      orderCount: (db.orders || []).length,
+      ticketCount: issuedTickets.length,
+      scanCount: (db.scanHistory || []).length
     };
   }
   await initDb();
   const p = getPool();
-  const [orders, tickets, scanHistory, allOrders, ticketCount] = await Promise.all([
-    p.query('SELECT data FROM orders ORDER BY created_at DESC LIMIT $1', [orderLimit]),
-    p.query(`SELECT data - 'qrDataUrl' AS data FROM tickets WHERE status IN ('valid', 'used') ORDER BY created_at DESC LIMIT $1`, [ticketLimit]),
-    p.query('SELECT ticket_id, scanned_by, result, scanned_at FROM scan_history ORDER BY scanned_at DESC LIMIT 20'),
+  const [orders, tickets, scanHistory, allOrders, orderCount, ticketCount, scanCount] = await Promise.all([
+    p.query('SELECT data FROM orders ORDER BY created_at DESC LIMIT $1 OFFSET $2', [orderLimit, orderOffset]),
+    p.query(`SELECT data - 'qrDataUrl' AS data FROM tickets WHERE status IN ('valid', 'used') ORDER BY created_at DESC LIMIT $1 OFFSET $2`, [ticketLimit, ticketOffset]),
+    p.query('SELECT ticket_id, scanned_by, result, scanned_at FROM scan_history ORDER BY scanned_at DESC LIMIT $1 OFFSET $2', [scanLimit, scanOffset]),
     p.query('SELECT data FROM orders'),
-    p.query(`SELECT COUNT(*)::int AS count FROM tickets WHERE status IN ('valid', 'used')`)
+    p.query('SELECT COUNT(*)::int AS count FROM orders'),
+    p.query(`SELECT COUNT(*)::int AS count FROM tickets WHERE status IN ('valid', 'used')`),
+    p.query('SELECT COUNT(*)::int AS count FROM scan_history')
   ]);
   return {
     orders: orders.rows.map(r => r.data),
@@ -115,7 +121,10 @@ async function readAdminDashboard({ orderLimit = 200, ticketLimit = 250 } = {}) 
     scanHistory: scanHistory.rows.map(r => ({ ticketId: r.ticket_id, scannedBy: r.scanned_by, result: r.result, scannedAt: r.scanned_at })),
     allOrders: allOrders.rows.map(r => r.data),
     allTickets: [],
-    approvedCount: ticketCount.rows[0]?.count || 0
+    approvedCount: ticketCount.rows[0]?.count || 0,
+    orderCount: orderCount.rows[0]?.count || 0,
+    ticketCount: ticketCount.rows[0]?.count || 0,
+    scanCount: scanCount.rows[0]?.count || 0
   };
 }
 
