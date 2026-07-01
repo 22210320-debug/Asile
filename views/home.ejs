@@ -109,7 +109,12 @@
       <form action="/reserve" method="post" id="ticketForm">
         <label>Buyer full name<input name="buyerName" required autocomplete="name" placeholder="Buyer name"></label>
         <label>Buyer email<input type="email" name="buyerEmail" required autocomplete="email" placeholder="you@example.com"></label>
-        <label>Quantity<input id="quantity" class="quantity-input" type="number" name="quantity" value="1" required inputmode="numeric"></label>
+        <label>Quantity
+          <span class="quantity-field">
+            <input id="quantity" class="quantity-input" type="text" name="quantity" value="1" required inputmode="numeric" autocomplete="off" placeholder="1">
+            <span>tickets</span>
+          </span>
+        </label>
         <p id="quantityWarning" class="bad hidden"></p>
         <div id="attendeeForms"></div>
         <p id="duplicateWarning" class="bad hidden">The same attendee name cannot be used twice.</p>
@@ -137,14 +142,16 @@ const checkoutStatus = document.getElementById('checkoutStatus');
 const reserveSubmit = document.querySelector('.reserve-submit');
 function money(cents){ return (cents / 100).toFixed(0) + ' NIS'; }
 function quantityError(){
-  const raw = Number(quantity.value || 0);
+  const value = quantity.value.trim();
+  if (!value) return 'Cannot order 0 tickets. Please order at least 1.';
+  const raw = Number(value);
   if (!Number.isFinite(raw) || raw < 1) return 'Cannot order 0 tickets. Please order at least 1.';
   if (!Number.isInteger(raw)) return 'Please enter a whole number of tickets.';
   if (raw > 10) return 'Cannot order more than 10 tickets at once.';
   return '';
 }
 function quantityForForms(){
-  const raw = Number(quantity.value || 0);
+  const raw = Number(quantity.value.trim() || 0);
   if (!Number.isFinite(raw) || raw < 1) return 1;
   return Math.min(10, Math.floor(raw));
 }
