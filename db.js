@@ -92,6 +92,15 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, ticketLimi
   if (!usePostgres()) {
     const db = await readDb();
     const issuedTickets = (db.tickets || []).filter(ticket => ['valid', 'used'].includes(ticket.status));
+    const activeOrders = (db.orders || []).filter(order => {
+      const inactive = ['denied_released', 'cancelled', 'rejected_refunded', 'payment_error', 'authorization_expired'];
+      if (inactive.includes(order.status)) return false;
+      if (['checkout_started', 'awaiting_payment_authorization'].includes(order.status)) {
+        const created = new Date(order.createdAt || 0).getTime();
+        return Date.now() - created < 30 * 60 * 1000;
+      }
+      return true;
+    });
     return {
       orders: (db.orders || []).slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(orderOffset, orderOffset + orderLimit),
       tickets: issuedTickets.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(ticketOffset, ticketOffset + ticketLimit).map(ticket => ({ ...ticket, qrDataUrl: undefined })),
@@ -101,30 +110,78 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, ticketLimi
       approvedCount: issuedTickets.length,
       orderCount: (db.orders || []).length,
       ticketCount: issuedTickets.length,
-      scanCount: (db.scanHistory || []).length
+      scanCount: (db.scanHistory || []).length,
+      stats: {
+        approvedCount: issuedTickets.length,
+        awaitingPaymentCount: (db.orders || []).filter(order => order.status === 'awaiting_payment_authorization').length,
+        stuckOrderCount: (db.orders || []).filter(order => {
+          if (['payment_error', 'cancelled'].includes(order.status)) return true;
+          if (['checkout_started', 'awaiting_payment_authorization'].includes(order.status)) {
+            const created = new Date(order.createdAt || 0).getTime();
+            return !created || Date.now() - created >= 30 * 60 * 1000;
+          }
+          return false;
+        }).length,
+        remainingSoldOrPending: activeOrders.reduce((sum, order) => sum + Number(order.qty || 0), 0),
+        pendingCount: (db.orders || [])
+          .filter(order => order.status === 'pending_admin_approval')
+          .reduce((sum, order) => sum + (order.attendees || []).length, 0)
+      }
     };
   }
   await initDb();
   const p = getPool();
-  const [orders, tickets, scanHistory, allOrders, orderCount, ticketCount, scanCount] = await Promise.all([
+  const [orders, tickets, scanHistory, orderCount, ticketCount, scanCount, orderStats] = await Promise.all([
     p.query('SELECT data FROM orders ORDER BY created_at DESC LIMIT $1 OFFSET $2', [orderLimit, orderOffset]),
     p.query(`SELECT data - 'qrDataUrl' AS data FROM tickets WHERE status IN ('valid', 'used') ORDER BY created_at DESC LIMIT $1 OFFSET $2`, [ticketLimit, ticketOffset]),
     p.query('SELECT ticket_id, scanned_by, result, scanned_at FROM scan_history ORDER BY scanned_at DESC LIMIT $1 OFFSET $2', [scanLimit, scanOffset]),
-    p.query('SELECT data FROM orders'),
     p.query('SELECT COUNT(*)::int AS count FROM orders'),
     p.query(`SELECT COUNT(*)::int AS count FROM tickets WHERE status IN ('valid', 'used')`),
-    p.query('SELECT COUNT(*)::int AS count FROM scan_history')
+    p.query('SELECT COUNT(*)::int AS count FROM scan_history'),
+    p.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE data->>'status' = 'awaiting_payment_authorization')::int AS awaiting_payment_count,
+        COUNT(*) FILTER (
+          WHERE data->>'status' IN ('payment_error', 'cancelled')
+             OR (data->>'status' IN ('checkout_started', 'awaiting_payment_authorization') AND created_at <= NOW() - INTERVAL '30 minutes')
+        )::int AS stuck_order_count,
+        COALESCE(SUM(
+          CASE WHEN data->>'status' = 'pending_admin_approval'
+            THEN jsonb_array_length(COALESCE(data->'attendees', '[]'::jsonb))
+            ELSE 0
+          END
+        ), 0)::int AS pending_count,
+        COALESCE(SUM(
+          CASE WHEN NOT (data->>'status' = ANY($1::text[]))
+            AND (
+              data->>'status' NOT IN ('checkout_started', 'awaiting_payment_authorization')
+              OR created_at > NOW() - INTERVAL '30 minutes'
+            )
+            THEN COALESCE((data->>'qty')::int, 0)
+            ELSE 0
+          END
+        ), 0)::int AS remaining_sold_or_pending
+      FROM orders
+    `, [['denied_released', 'cancelled', 'rejected_refunded', 'payment_error', 'authorization_expired']])
   ]);
+  const statsRow = orderStats.rows[0] || {};
   return {
     orders: orders.rows.map(r => r.data),
     tickets: tickets.rows.map(r => r.data),
     scanHistory: scanHistory.rows.map(r => ({ ticketId: r.ticket_id, scannedBy: r.scanned_by, result: r.result, scannedAt: r.scanned_at })),
-    allOrders: allOrders.rows.map(r => r.data),
+    allOrders: [],
     allTickets: [],
     approvedCount: ticketCount.rows[0]?.count || 0,
     orderCount: orderCount.rows[0]?.count || 0,
     ticketCount: ticketCount.rows[0]?.count || 0,
-    scanCount: scanCount.rows[0]?.count || 0
+    scanCount: scanCount.rows[0]?.count || 0,
+    stats: {
+      approvedCount: ticketCount.rows[0]?.count || 0,
+      awaitingPaymentCount: statsRow.awaiting_payment_count || 0,
+      stuckOrderCount: statsRow.stuck_order_count || 0,
+      remainingSoldOrPending: statsRow.remaining_sold_or_pending || 0,
+      pendingCount: statsRow.pending_count || 0
+    }
   };
 }
 

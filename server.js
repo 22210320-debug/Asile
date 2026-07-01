@@ -137,6 +137,16 @@ function adminStats(db, approvedCountOverride) {
     pendingCount: pendingAttendees.length
   };
 }
+function dashboardStats(stats) {
+  if (!stats) return null;
+  return {
+    approvedCount: stats.approvedCount || 0,
+    awaitingPaymentCount: stats.awaitingPaymentCount || 0,
+    stuckOrderCount: stats.stuckOrderCount || 0,
+    remaining: Math.max(0, CAPACITY - Number(stats.remainingSoldOrPending || 0)),
+    pendingCount: stats.pendingCount || 0
+  };
+}
 function orderStatusLabel(status) {
   const labels = {
     checkout_started: 'Checkout started',
@@ -514,7 +524,7 @@ app.get('/admin', requireAdmin, async (req, res) => {
       scans: pageMeta(pages.scansPage, dashboard.scanCount, pageSize)
     },
     adminPageUrl,
-    stats: adminStats({ orders: dashboard.allOrders, tickets: dashboard.allTickets }, dashboard.approvedCount),
+    stats: dashboardStats(dashboard.stats) || adminStats({ orders: dashboard.allOrders, tickets: dashboard.allTickets }, dashboard.approvedCount),
     ...eventInfo,
     money,
     orderStatusLabel,
