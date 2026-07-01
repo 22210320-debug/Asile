@@ -109,12 +109,7 @@
       <form action="/reserve" method="post" id="ticketForm">
         <label>Buyer full name<input name="buyerName" required autocomplete="name" placeholder="Buyer name"></label>
         <label>Buyer email<input type="email" name="buyerEmail" required autocomplete="email" placeholder="you@example.com"></label>
-        <label>Quantity</label>
-        <div class="quantity-control">
-          <button type="button" class="quantity-step" data-quantity-step="-1" aria-label="Decrease quantity">-</button>
-          <input id="quantity" type="number" name="quantity" min="1" max="10" value="1" required inputmode="numeric">
-          <button type="button" class="quantity-step" data-quantity-step="1" aria-label="Increase quantity">+</button>
-        </div>
+        <label>Quantity<input id="quantity" class="quantity-input" type="number" name="quantity" min="1" max="10" value="1" required inputmode="numeric"></label>
         <div id="attendeeForms"></div>
         <p id="duplicateWarning" class="bad hidden">The same attendee name cannot be used twice.</p>
         <p class="note"><b>Important:</b> each ticket name must match the attendee ID at the door. Every attendee must wear <%= DRESS_CODE %>. After approval, check spam/junk if you do not see the QR ticket email.</p>
@@ -218,13 +213,6 @@ function validateForm(){
 }
 function checkDuplicates(){ return validateForm(); }
 quantity.addEventListener('input', renderForms);
-document.querySelectorAll('[data-quantity-step]').forEach(button => {
-  button.addEventListener('click', () => {
-    const next = Math.max(1, Math.min(10, Number(quantity.value || 1) + Number(button.dataset.quantityStep)));
-    quantity.value = next;
-    renderForms();
-  });
-});
 document.addEventListener('input', e => {
   if(e.target.matches('.attendee-dob')) formatDobInput(e.target);
   if(e.target.matches('.attendee-name-part,.attendee-dob,.attendee-gender')) validateForm();
