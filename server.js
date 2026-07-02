@@ -648,39 +648,58 @@ app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
 });
 
 app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
+  console.log('APPROVE:start', req.params.id);
   const order = await getOrderById(req.params.id);
+  console.log('APPROVE:order-loaded', req.params.id, 'status=', order && order.status, 'hasPaymentIntent=', Boolean(order && order.paymentIntentId));
   if (!order || order.status !== 'pending_admin_approval') return res.status(400).send('Order is not pending approval.');
   if (!stripe) return res.status(503).render('message', { title: 'Stripe setup needed', message: 'STRIPE_SECRET_KEY is missing on the server.' });
+  if (!order.paymentIntentId) return res.status(400).render('message', { title: 'No payment on file', message: 'This order has no Stripe payment to capture. It may not have completed checkout.' });
   try {
+    console.log('APPROVE:capturing', order.paymentIntentId);
     await stripe.paymentIntents.capture(order.paymentIntentId);
+    console.log('APPROVE:captured', order.paymentIntentId);
   } catch (err) {
-    // Manual-capture authorizations expire after about 7 days. If the hold is
-    // gone, mark the order so its name/capacity is released and ask the buyer
-    // to re-book, instead of leaving a dead order that blocks approval.
-    let expired = false;
+    // Capture failed — inspect the real payment state before deciding. A previous
+    // attempt may have already captured (e.g. the response was lost), in which
+    // case we must still issue the ticket rather than leave the buyer charged
+    // with nothing. Manual-capture authorizations also expire after ~7 days.
+    console.warn('APPROVE:capture-failed', order.paymentIntentId, '-', err.message);
+    let intentStatus = null;
     try {
       const intent = await stripe.paymentIntents.retrieve(order.paymentIntentId);
-      expired = ['canceled', 'requires_payment_method'].includes(intent.status);
+      intentStatus = intent.status;
     } catch (lookupErr) {
       console.error('Payment intent lookup failed:', lookupErr.message);
     }
-    if (expired) {
+    if (intentStatus === 'succeeded') {
+      console.warn('APPROVE:already-captured', order.id, '- continuing to issue tickets.');
+    } else if (['canceled', 'requires_payment_method'].includes(intentStatus)) {
       order.status = 'authorization_expired';
       order.paymentError = err.message;
       await upsertOrder(order);
       sendMailInBackground({ to: order.buyerEmail, subject: `${EVENT_NAME} - please re-book your ticket`, html: `<p>We could not finalize your ${EVENT_NAME} ticket because the payment authorization expired (card holds expire after about 7 days). No charge was made.</p><p>Please reserve again here: <a href="${BASE_URL}/">${BASE_URL}</a></p>` });
       return res.status(409).render('message', { title: 'Authorization expired', message: 'The payment hold expired (Stripe authorizations last about 7 days). The order was released and the buyer was emailed to re-book.' });
+    } else {
+      return res.status(502).render('message', { title: 'Payment capture failed', message: err.message });
     }
-    return res.status(502).render('message', { title: 'Payment capture failed', message: err.message });
   }
-  order.status = 'approved_captured'; order.approvedAt = new Date().toISOString();
-  const newTickets = [];
-  for (const attendee of order.attendees) {
-    const ticket = await createTicketForAttendee(order, attendee);
-    newTickets.push(ticket);
-  }
+  // Persist captured status immediately so a failure while issuing tickets can't
+  // leave a charged order stuck in "pending".
+  order.status = 'approved_captured'; order.approvedAt = order.approvedAt || new Date().toISOString();
   await upsertOrder(order);
-  for (const ticket of newTickets) await upsertTicket(ticket);
+  console.log('APPROVE:status-saved', order.id);
+  // Reuse tickets already issued for this order (idempotent on retry) instead of
+  // minting duplicates.
+  let newTickets = (await getTicketsByOrderId(order.id)).filter(t => t.status === 'valid');
+  if (newTickets.length < (order.attendees || []).length) {
+    newTickets = [];
+    for (const attendee of order.attendees) {
+      const ticket = await createTicketForAttendee(order, attendee);
+      newTickets.push(ticket);
+    }
+    for (const ticket of newTickets) await upsertTicket(ticket);
+  }
+  console.log('APPROVE:tickets-ready', order.id, 'count=', newTickets.length);
   const ticketHtml = newTickets.map(ticketEmailHtml).join('');
   const ticketText = newTickets.map(ticketEmailText).join('\n\n');
   const attachments = newTickets.map(qrAttachmentForTicket).filter(Boolean);
