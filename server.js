@@ -770,6 +770,20 @@ app.post('/admin/tickets/:id/check-in', requireAdmin, async (req, res) => {
   }
 });
 
+// Catch-all error handler: Express 5 forwards async route rejections here (e.g.
+// a Postgres query timeout in readDb). Without this, requests return a bare
+// "Internal Server Error"; here we log the cause and show a friendly page.
+app.use((err, req, res, next) => {
+  console.error('Unhandled route error:', req.method, req.originalUrl, '-', err && err.stack ? err.stack : err);
+  if (res.headersSent) return next(err);
+  res.status(500).render('message', { title: 'Something went wrong', message: 'A temporary error occurred. Please refresh and try again in a moment.' });
+});
+
+// Last-resort process guards: log instead of letting a stray rejection or
+// background error take the whole server down.
+process.on('unhandledRejection', reason => console.error('UNHANDLED REJECTION:', reason && reason.stack ? reason.stack : reason));
+process.on('uncaughtException', err => console.error('UNCAUGHT EXCEPTION:', err && err.stack ? err.stack : err));
+
 initDb().then(() => app.listen(PORT, () => console.log(`Running on ${BASE_URL}`))).catch(err => {
   console.error('Database startup failed:', err);
   process.exit(1);

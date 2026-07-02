@@ -23,10 +23,17 @@ function getPool() {
     pool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: process.env.DATABASE_SSL === 'false' ? false : { rejectUnauthorized: false },
+      max: Number(process.env.DATABASE_POOL_MAX || 10),
+      idleTimeoutMillis: Number(process.env.DATABASE_IDLE_TIMEOUT_MS || 30000),
       connectionTimeoutMillis: Number(process.env.DATABASE_CONNECT_TIMEOUT_MS || 8000),
       query_timeout: Number(process.env.DATABASE_QUERY_TIMEOUT_MS || 10000),
       statement_timeout: Number(process.env.DATABASE_STATEMENT_TIMEOUT_MS || 10000)
     });
+    // Managed Postgres (DigitalOcean) silently drops idle connections. Without
+    // this listener, pg re-emits that as an 'error' on the pool with no handler,
+    // which crashes the whole Node process -> intermittent 502s. Log and let the
+    // pool discard the dead client and reconnect on the next query.
+    pool.on('error', err => console.error('Postgres idle client error (recovered):', err.message));
   }
   return pool;
 }
