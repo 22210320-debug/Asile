@@ -51,6 +51,9 @@
       <form class="inline" method="post" action="/admin/orders/<%= order.id %>/approve"><button>Approve, capture payment, send ticket</button></form>
       <form class="inline" method="post" action="/admin/orders/<%= order.id %>/deny"><button class="danger">Deny and release payment</button></form>
     <% } %>
+    <% if(order.status === 'approved_captured'){ %>
+      <form class="inline" method="post" action="/admin/orders/<%= order.id %>/resend-ticket"><button>Resend ticket email</button></form>
+    <% } %>
 
     <h2>Generated tickets</h2>
     <% tickets.forEach(t=>{ %>

@@ -253,7 +253,7 @@ function htmlToText(html) {
 }
 
 async function sendMail({ to, subject, html, text, attachments = [] }) {
-  if (!to) return false;
+  if (!to) { console.warn('EMAIL SKIPPED - no recipient address for:', subject); return false; }
   if (!process.env.SMTP_HOST) { console.log('EMAIL NOT SENT - configure SMTP in .env:', subject, html); return false; }
   try {
     const transporter = nodemailer.createTransport({
@@ -265,7 +265,8 @@ async function sendMail({ to, subject, html, text, attachments = [] }) {
       greetingTimeout: 10000,
       socketTimeout: 15000
     });
-    await transporter.sendMail({ from: process.env.EMAIL_FROM || process.env.SMTP_USER, to, subject, html, text: text || htmlToText(html), attachments });
+    const info = await transporter.sendMail({ from: process.env.EMAIL_FROM || process.env.SMTP_USER, to, subject, html, text: text || htmlToText(html), attachments });
+    console.log('EMAIL SENT to', to, '-', subject, '- id:', info.messageId, '- accepted:', JSON.stringify(info.accepted), '- rejected:', JSON.stringify(info.rejected));
     return true;
   } catch (err) {
     console.error('EMAIL SEND FAILED:', err.message);
@@ -730,6 +731,21 @@ app.post('/admin/orders/:id/replacement-ticket', requireAdmin, async (req, res) 
     attachments
   });
   res.redirect(`/admin/orders/${order.id}`);
+});
+
+// Resend the ticket email for an already-approved order without minting new
+// tickets — for buyers who lost the email or when a send silently failed.
+app.post('/admin/orders/:id/resend-ticket', requireAdmin, async (req, res) => {
+  const db = await readDb();
+  const order = db.orders.find(o => o.id === req.params.id);
+  if (!order || order.status !== 'approved_captured') return res.status(400).render('message', { title: 'Cannot resend', message: 'Ticket email can only be resent for approved paid orders.' });
+  if (!order.buyerEmail) return res.status(400).render('message', { title: 'No email on file', message: 'This order has no buyer email address to send to.' });
+  const validTickets = db.tickets.filter(t => t.orderId === order.id && t.status === 'valid');
+  if (!validTickets.length) return res.status(400).render('message', { title: 'No tickets', message: 'This order has no valid tickets to send.' });
+  const ticketHtml = validTickets.map(ticketEmailHtml).join('');
+  const attachments = validTickets.map(qrAttachmentForTicket).filter(Boolean);
+  const sent = await sendMail({ to: order.buyerEmail, subject: `Your ${EVENT_NAME} ticket`, html: `<p>Here is your ticket again.</p>${ticketHtml}`, attachments });
+  return res.render('message', { title: sent ? 'Ticket resent' : 'Resend failed', message: sent ? `Ticket email resent to ${order.buyerEmail}. Ask the buyer to check spam/promotions too.` : 'The email could not be sent. Check the server SMTP settings and logs.' });
 });
 
 app.post('/admin/orders/:id/deny', requireAdmin, async (req, res) => {
