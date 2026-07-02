@@ -1,7 +1,7 @@
 (function () {
-  const intervalMs = 30000;
+  const intervalMs = 60000;
   const idleMs = 4000;
-  const paymentSyncMs = 15000;
+  const paymentSyncMs = 30000;
   let lastInteraction = Date.now();
   let syncingPayments = false;
 

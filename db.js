@@ -464,4 +464,52 @@ async function reserveAtomic(validateAndBuild) {
   }
 }
 
-module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, usePostgres, getPool, reserveAtomic };
+// Targeted single-order reads so per-order admin routes don't load the whole
+// orders/tickets tables into memory on every request (the cause of query
+// timeouts under load). Postgres uses indexed lookups; the JSON file falls
+// back to an in-memory scan for local development.
+async function getOrderById(orderId) {
+  if (!orderId) return null;
+  if (!usePostgres()) {
+    const db = await readJsonFile();
+    return db.orders.find(o => o.id === orderId) || null;
+  }
+  await initDb();
+  const r = await getPool().query('SELECT data FROM orders WHERE id = $1', [orderId]);
+  return r.rows[0]?.data || null;
+}
+
+async function getTicketsByOrderId(orderId) {
+  if (!orderId) return [];
+  if (!usePostgres()) {
+    const db = await readJsonFile();
+    return (db.tickets || []).filter(t => t.orderId === orderId);
+  }
+  await initDb();
+  const r = await getPool().query('SELECT data FROM tickets WHERE order_id = $1 ORDER BY created_at DESC', [orderId]);
+  return r.rows.map(row => row.data);
+}
+
+async function getTicketById(ticketId) {
+  if (!ticketId) return null;
+  if (!usePostgres()) {
+    const db = await readJsonFile();
+    return (db.tickets || []).find(t => t.id === ticketId) || null;
+  }
+  await initDb();
+  const r = await getPool().query('SELECT data FROM tickets WHERE id = $1', [ticketId]);
+  return r.rows[0]?.data || null;
+}
+
+async function ticketIdExists(ticketId) {
+  if (!ticketId) return false;
+  if (!usePostgres()) {
+    const db = await readJsonFile();
+    return (db.tickets || []).some(t => t.id === ticketId);
+  }
+  await initDb();
+  const r = await getPool().query('SELECT 1 FROM tickets WHERE id = $1 LIMIT 1', [ticketId]);
+  return r.rowCount > 0;
+}
+
+module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getTicketById, ticketIdExists };

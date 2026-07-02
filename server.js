@@ -13,7 +13,7 @@ const crypto = require('crypto');
 
 const app = express();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY, { timeout: Number(process.env.STRIPE_TIMEOUT_MS || 10000) }) : null;
-const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, usePostgres, getPool, reserveAtomic } = require('./db');
+const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getTicketById, ticketIdExists } = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
@@ -204,9 +204,9 @@ function adminPasswordAllowed(password) {
     .split(',').map(p => p.trim()).filter(Boolean);
   return list.includes(raw);
 }
-async function makeUniqueTicketId(db) {
+async function makeUniqueTicketId() {
   let ticketId;
-  do { ticketId = `ASILE-${id(10)}`; } while (db.tickets.some(t => t.id === ticketId));
+  do { ticketId = `ASILE-${id(10)}`; } while (await ticketIdExists(ticketId));
   return ticketId;
 }
 function parseDobInput(value) {
@@ -349,8 +349,8 @@ function ticketEmailText(ticket) {
     'Bring this QR and matching ID.'
   ].join('\n');
 }
-async function createTicketForAttendee(db, order, attendee, overrides = {}) {
-  const ticketId = await makeUniqueTicketId(db);
+async function createTicketForAttendee(order, attendee, overrides = {}) {
+  const ticketId = await makeUniqueTicketId();
   const verifyUrl = `${BASE_URL}/admin/scan?ticket=${ticketId}`;
   const publicUrl = `${BASE_URL}/ticket/${ticketId}`;
   const qrDataUrl = await QRCode.toDataURL(verifyUrl);
@@ -460,10 +460,9 @@ app.post('/reserve', async (req, res) => {
 });
 
 app.get('/success', (req, res) => res.render('message', { title: 'Reservation received', message: `Your payment is authorized. Your ${EVENT_NAME} ticket will be sent only after admin approval. Please check your inbox and spam/junk folder for the ticket email.` }));
-app.get('/cancel', async (req, res) => { const db = await readDb(); const order = db.orders.find(o => o.id === req.query.order); if (order) { order.status = 'cancelled'; await upsertOrder(order); } res.render('message', { title: 'Checkout cancelled', message: 'No ticket was reserved.' }); });
+app.get('/cancel', async (req, res) => { const order = await getOrderById(req.query.order); if (order) { order.status = 'cancelled'; await upsertOrder(order); } res.render('message', { title: 'Checkout cancelled', message: 'No ticket was reserved.' }); });
 app.get('/ticket/:id', async (req, res) => {
-  const db = await readDb();
-  const ticket = db.tickets.find(t => t.id === req.params.id);
+  const ticket = await getTicketById(req.params.id);
   res.render('ticket-public', { ticket, ...eventInfo });
 });
 
@@ -478,10 +477,9 @@ app.post('/webhook', async (req, res) => {
     // could POST fake payment events and push orders to pending approval.
     return res.status(503).send('Webhook signature verification is not configured.');
   }
-  const db = await readDb();
   if (event.type === 'checkout.session.completed') {
     const s = event.data.object;
-    const order = db.orders.find(o => o.id === s.client_reference_id);
+    const order = await getOrderById(s.client_reference_id);
     if (order) {
       await markOrderPendingApproval(order, s.payment_intent);
       await upsertOrder(order);
@@ -535,14 +533,14 @@ app.get('/admin', requireAdmin, async (req, res) => {
   });
 });
 app.get('/admin/orders/:id', requireAdmin, async (req, res) => {
-  const db = await readDb();
-  const order = db.orders.find(o => o.id === req.params.id);
+  const order = await getOrderById(req.params.id);
   try {
     if (await syncOrderFromStripe(order)) await upsertOrder(order);
   } catch (err) {
     console.error('Stripe order sync failed:', err.message);
   }
-  res.render('order', { order, tickets: db.tickets.filter(t => t.orderId === req.params.id), ...eventInfo, money });
+  const tickets = order ? await getTicketsByOrderId(order.id) : [];
+  res.render('order', { order, tickets, ...eventInfo, money });
 });
 
 app.post('/admin/orders/delete-stuck', requireAdmin, async (req, res) => {
@@ -569,8 +567,7 @@ app.post('/admin/orders/sync-payments.json', requireAdmin, async (req, res) => {
 });
 
 app.post('/admin/orders/:id/delete', requireAdmin, async (req, res) => {
-  const db = await readDb();
-  const order = db.orders.find(o => o.id === req.params.id);
+  const order = await getOrderById(req.params.id);
   if (stripe && order?.paymentIntentId && ['pending_admin_approval', 'awaiting_payment_authorization'].includes(order.status)) {
     try { await stripe.paymentIntents.cancel(order.paymentIntentId); }
     catch (err) { console.error('Stripe payment release before delete failed:', err.message); }
@@ -619,7 +616,7 @@ app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
   const reservation = await reserveAtomic(async freshDb => {
     if (usedNameKeys(freshDb).has(nameKey(attendeeName))) return { error: 'duplicate' };
     if (soldOrPendingCount(freshDb) + 1 > CAPACITY) return { error: 'soldout' };
-    const ticket = await createTicketForAttendee(freshDb, order, order.attendees[0], {
+    const ticket = await createTicketForAttendee(order, order.attendees[0], {
       manual: true,
       price: 'Manual ticket',
       createdAt
@@ -651,7 +648,7 @@ app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
 });
 
 app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
-  const db = await readDb(); const order = db.orders.find(o => o.id === req.params.id);
+  const order = await getOrderById(req.params.id);
   if (!order || order.status !== 'pending_admin_approval') return res.status(400).send('Order is not pending approval.');
   if (!stripe) return res.status(503).render('message', { title: 'Stripe setup needed', message: 'STRIPE_SECRET_KEY is missing on the server.' });
   try {
@@ -679,8 +676,7 @@ app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
   order.status = 'approved_captured'; order.approvedAt = new Date().toISOString();
   const newTickets = [];
   for (const attendee of order.attendees) {
-    const ticket = await createTicketForAttendee(db, order, attendee);
-    db.tickets.push(ticket);
+    const ticket = await createTicketForAttendee(order, attendee);
     newTickets.push(ticket);
   }
   await upsertOrder(order);
@@ -699,28 +695,26 @@ app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
 });
 
 app.post('/admin/orders/:id/replacement-ticket', requireAdmin, async (req, res) => {
-  const db = await readDb();
-  const order = db.orders.find(o => o.id === req.params.id);
+  const order = await getOrderById(req.params.id);
   if (!order || order.status !== 'approved_captured') return res.status(400).send('Replacement tickets can only be generated for approved paid orders.');
   const attendeeIndex = Number(req.body.attendeeIndex);
   const attendee = order.attendees?.[attendeeIndex];
   if (!attendee) return res.status(400).send('Attendee not found.');
 
-  const ticket = await createTicketForAttendee(db, order, attendee, {
+  const ticket = await createTicketForAttendee(order, attendee, {
     replacement: true,
     replacementForName: attendee.name
   });
   const now = new Date().toISOString();
   const replacedTickets = [];
-  for (const existing of db.tickets) {
-    if (existing.orderId === order.id && existing.attendeeName === attendee.name && existing.status === 'valid') {
+  for (const existing of await getTicketsByOrderId(order.id)) {
+    if (existing.attendeeName === attendee.name && existing.status === 'valid') {
       existing.status = 'void_replaced';
       existing.replacedAt = now;
       existing.replacedByTicketId = ticket.id;
       replacedTickets.push(existing);
     }
   }
-  db.tickets.push(ticket);
   for (const changedTicket of [...replacedTickets, ticket]) await upsertTicket(changedTicket);
   const attachments = [qrAttachmentForTicket(ticket)].filter(Boolean);
   sendMailInBackground({
@@ -736,11 +730,10 @@ app.post('/admin/orders/:id/replacement-ticket', requireAdmin, async (req, res) 
 // Resend the ticket email for an already-approved order without minting new
 // tickets — for buyers who lost the email or when a send silently failed.
 app.post('/admin/orders/:id/resend-ticket', requireAdmin, async (req, res) => {
-  const db = await readDb();
-  const order = db.orders.find(o => o.id === req.params.id);
+  const order = await getOrderById(req.params.id);
   if (!order || order.status !== 'approved_captured') return res.status(400).render('message', { title: 'Cannot resend', message: 'Ticket email can only be resent for approved paid orders.' });
   if (!order.buyerEmail) return res.status(400).render('message', { title: 'No email on file', message: 'This order has no buyer email address to send to.' });
-  const validTickets = db.tickets.filter(t => t.orderId === order.id && t.status === 'valid');
+  const validTickets = (await getTicketsByOrderId(order.id)).filter(t => t.status === 'valid');
   if (!validTickets.length) return res.status(400).render('message', { title: 'No tickets', message: 'This order has no valid tickets to send.' });
   const ticketHtml = validTickets.map(ticketEmailHtml).join('');
   const attachments = validTickets.map(qrAttachmentForTicket).filter(Boolean);
@@ -749,7 +742,7 @@ app.post('/admin/orders/:id/resend-ticket', requireAdmin, async (req, res) => {
 });
 
 app.post('/admin/orders/:id/deny', requireAdmin, async (req, res) => {
-  const db = await readDb(); const order = db.orders.find(o => o.id === req.params.id);
+  const order = await getOrderById(req.params.id);
   if (!order || order.status !== 'pending_admin_approval') return res.status(400).send('Order is not pending approval.');
   if (!stripe) return res.status(503).render('message', { title: 'Stripe setup needed', message: 'STRIPE_SECRET_KEY is missing on the server.' });
   try { await stripe.paymentIntents.cancel(order.paymentIntentId); }
@@ -760,7 +753,7 @@ app.post('/admin/orders/:id/deny', requireAdmin, async (req, res) => {
 });
 
 app.get('/admin/scanner', requireAdmin, (req, res) => res.render('scanner')); // Camera scanning requires HTTPS on phones, except localhost.
-app.get('/admin/scan', requireAdmin, async (req, res) => { const db = await readDb(); const ticket = db.tickets.find(t => t.id === req.query.ticket); res.render('scan-result', { ticket, ...eventInfo }); });
+app.get('/admin/scan', requireAdmin, async (req, res) => { const ticket = await getTicketById(req.query.ticket); res.render('scan-result', { ticket, ...eventInfo }); });
 app.post('/admin/tickets/:id/check-in', requireAdmin, async (req, res) => {
   try {
     await safeCheckIn(req.params.id, req.session.adminName || 'Admin');
