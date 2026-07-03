@@ -178,6 +178,7 @@ function adminPageUrl(currentPages, key, page, searches = {}) {
   if (nextPages.ticketsPage > 1) params.set('ticketsPage', nextPages.ticketsPage);
   if (nextPages.scansPage > 1) params.set('scansPage', nextPages.scansPage);
   if (searches.orderSearch) params.set('orderSearch', searches.orderSearch);
+  if (searches.orderStatus) params.set('orderStatus', searches.orderStatus);
   if (searches.ticketSearch) params.set('ticketSearch', searches.ticketSearch);
   const query = params.toString();
   return query ? `/admin?${query}` : '/admin';
@@ -503,6 +504,7 @@ app.get('/admin', requireAdmin, async (req, res) => {
   const pageSize = 10;
   const searches = {
     orderSearch: String(req.query.orderSearch || '').trim(),
+    orderStatus: String(req.query.orderStatus || '').trim(),
     ticketSearch: String(req.query.ticketSearch || '').trim()
   };
   const pages = {
@@ -514,6 +516,7 @@ app.get('/admin', requireAdmin, async (req, res) => {
     orderLimit: pageSize,
     orderOffset: (pages.ordersPage - 1) * pageSize,
     orderSearch: searches.orderSearch,
+    orderStatus: searches.orderStatus,
     ticketLimit: pageSize,
     ticketOffset: (pages.ticketsPage - 1) * pageSize,
     ticketSearch: searches.ticketSearch,

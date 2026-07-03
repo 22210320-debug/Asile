@@ -109,6 +109,25 @@ function orderMatchesSearch(order, query) {
     .some(value => String(value).toLowerCase().includes(query));
 }
 
+function cleanOrderStatus(value) {
+  const status = String(value || '').trim();
+  const allowed = new Set([
+    'awaiting_payment_authorization',
+    'pending_admin_approval',
+    'approved_captured',
+    'denied_released',
+    'authorization_expired',
+    'payment_error',
+    'cancelled',
+    'checkout_started'
+  ]);
+  return allowed.has(status) ? status : '';
+}
+
+function orderMatchesStatus(order, status) {
+  return !status || order.status === status;
+}
+
 function ticketMatchesSearch(ticket, query) {
   if (!query) return true;
   return [ticket.id, ticket.orderId, ticket.attendeeName, ticket.attendeeFirstName, ticket.attendeeLastName, ticket.buyerName, ticket.buyerEmail]
@@ -116,21 +135,24 @@ function ticketMatchesSearch(ticket, query) {
     .some(value => String(value).toLowerCase().includes(query));
 }
 
-function orderSearchWhere(index) {
-  return `
-    WHERE (
-      id ILIKE $${index}
-      OR data->>'buyerName' ILIKE $${index}
-      OR data->>'buyerEmail' ILIKE $${index}
+function orderFilterWhere(searchIndex, statusIndex) {
+  const clauses = [];
+  if (searchIndex) {
+    clauses.push(`(
+      id ILIKE $${searchIndex}
+      OR data->>'buyerName' ILIKE $${searchIndex}
+      OR data->>'buyerEmail' ILIKE $${searchIndex}
       OR EXISTS (
         SELECT 1
         FROM jsonb_array_elements(COALESCE(data->'attendees', '[]'::jsonb)) AS attendee
-        WHERE attendee->>'name' ILIKE $${index}
-           OR attendee->>'firstName' ILIKE $${index}
-           OR attendee->>'lastName' ILIKE $${index}
+        WHERE attendee->>'name' ILIKE $${searchIndex}
+           OR attendee->>'firstName' ILIKE $${searchIndex}
+           OR attendee->>'lastName' ILIKE $${searchIndex}
       )
-    )
-  `;
+    )`);
+  }
+  if (statusIndex) clauses.push(`data->>'status' = $${statusIndex}`);
+  return clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
 }
 
 function ticketSearchWhere(index, prefix = 'WHERE') {
@@ -147,13 +169,14 @@ function ticketSearchWhere(index, prefix = 'WHERE') {
   `;
 }
 
-async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearch = '', ticketLimit = 10, ticketOffset = 0, ticketSearch = '', scanLimit = 10, scanOffset = 0 } = {}) {
+async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearch = '', orderStatus = '', ticketLimit = 10, ticketOffset = 0, ticketSearch = '', scanLimit = 10, scanOffset = 0 } = {}) {
   const cleanOrderSearch = normalizeSearch(orderSearch);
+  const selectedOrderStatus = cleanOrderStatus(orderStatus);
   const cleanTicketSearch = normalizeSearch(ticketSearch);
   if (!usePostgres()) {
     const db = await readDb();
     const issuedTickets = (db.tickets || []).filter(ticket => ['valid', 'used'].includes(ticket.status));
-    const searchedOrders = (db.orders || []).filter(order => orderMatchesSearch(order, cleanOrderSearch));
+    const searchedOrders = (db.orders || []).filter(order => orderMatchesSearch(order, cleanOrderSearch) && orderMatchesStatus(order, selectedOrderStatus));
     const searchedTickets = issuedTickets.filter(ticket => ticketMatchesSearch(ticket, cleanTicketSearch));
     const activeOrders = (db.orders || []).filter(order => {
       const inactive = ['denied_released', 'cancelled', 'rejected_refunded', 'payment_error', 'authorization_expired'];
@@ -194,12 +217,32 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearc
   }
   await initDb();
   const p = getPool();
-  const orderSearchSql = cleanOrderSearch ? orderSearchWhere(3) : '';
-  const orderCountSearchSql = cleanOrderSearch ? orderSearchWhere(1) : '';
   const ticketSearchSql = cleanTicketSearch ? ticketSearchWhere(3, 'AND') : '';
   const ticketCountSearchSql = cleanTicketSearch ? ticketSearchWhere(1, 'AND') : '';
-  const orderSearchParams = cleanOrderSearch ? [orderLimit, orderOffset, `%${cleanOrderSearch}%`] : [orderLimit, orderOffset];
-  const orderCountParams = cleanOrderSearch ? [`%${cleanOrderSearch}%`] : [];
+  const orderSearchParams = [orderLimit, orderOffset];
+  let orderSearchIndex = 0;
+  let orderStatusIndex = 0;
+  if (cleanOrderSearch) {
+    orderSearchParams.push(`%${cleanOrderSearch}%`);
+    orderSearchIndex = orderSearchParams.length;
+  }
+  if (selectedOrderStatus) {
+    orderSearchParams.push(selectedOrderStatus);
+    orderStatusIndex = orderSearchParams.length;
+  }
+  const orderSearchSql = orderFilterWhere(orderSearchIndex, orderStatusIndex);
+  const orderCountParams = [];
+  let orderCountSearchIndex = 0;
+  let orderCountStatusIndex = 0;
+  if (cleanOrderSearch) {
+    orderCountParams.push(`%${cleanOrderSearch}%`);
+    orderCountSearchIndex = orderCountParams.length;
+  }
+  if (selectedOrderStatus) {
+    orderCountParams.push(selectedOrderStatus);
+    orderCountStatusIndex = orderCountParams.length;
+  }
+  const orderCountSearchSql = orderFilterWhere(orderCountSearchIndex, orderCountStatusIndex);
   const ticketSearchParams = cleanTicketSearch ? [ticketLimit, ticketOffset, `%${cleanTicketSearch}%`] : [ticketLimit, ticketOffset];
   const ticketCountParams = cleanTicketSearch ? [`%${cleanTicketSearch}%`] : [];
   const [orders, tickets, scanHistory, orderCount, ticketCount, scanCount, orderStats] = await Promise.all([

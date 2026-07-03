@@ -83,13 +83,24 @@
   <div class="section-heading admin-section-heading">
     <div>
       <h2>Orders</h2>
-      <p class="muted">Showing <%= orders.length %> of <%= pagination.orders.total %> order(s)<% if (pagination.searches.orderSearch) { %> matching "<%= pagination.searches.orderSearch %>"<% } %>. <span id="awaitingPaymentCount"><%= stats.awaitingPaymentCount %></span> order(s) are still waiting for customer payment.</p>
+      <p class="muted">Showing <%= orders.length %> of <%= pagination.orders.total %> order(s)<% if (pagination.searches.orderSearch) { %> matching "<%= pagination.searches.orderSearch %>"<% } %><% if (pagination.searches.orderStatus === 'pending_admin_approval') { %> with status Ready for approval<% } %>. <span id="awaitingPaymentCount"><%= stats.awaitingPaymentCount %></span> order(s) are still waiting for customer payment.</p>
     </div>
     <form class="ticket-search search-form" method="get" action="/admin">
       <% if (pagination.searches.ticketSearch) { %><input type="hidden" name="ticketSearch" value="<%= pagination.searches.ticketSearch %>"><% } %>
       <label>Search orders<input name="orderSearch" type="search" value="<%= pagination.searches.orderSearch %>" placeholder="Buyer, email, ticket name, order ID"></label>
+      <label>Status
+        <select name="orderStatus">
+          <option value="">All statuses</option>
+          <option value="pending_admin_approval" <%= pagination.searches.orderStatus === 'pending_admin_approval' ? 'selected' : '' %>>Ready for approval</option>
+          <option value="awaiting_payment_authorization" <%= pagination.searches.orderStatus === 'awaiting_payment_authorization' ? 'selected' : '' %>>Awaiting payment</option>
+          <option value="approved_captured" <%= pagination.searches.orderStatus === 'approved_captured' ? 'selected' : '' %>>Approved</option>
+          <option value="denied_released" <%= pagination.searches.orderStatus === 'denied_released' ? 'selected' : '' %>>Rejected</option>
+          <option value="authorization_expired" <%= pagination.searches.orderStatus === 'authorization_expired' ? 'selected' : '' %>>Expired</option>
+          <option value="cancelled" <%= pagination.searches.orderStatus === 'cancelled' ? 'selected' : '' %>>Cancelled</option>
+        </select>
+      </label>
       <button class="compact-action" type="submit">Search</button>
-      <% if (pagination.searches.orderSearch) { %><a class="button compact" href="<%= adminPageUrl({ ...pagination.pages, ordersPage: 1 }, 'ordersPage', 1, { ticketSearch: pagination.searches.ticketSearch }) %>">Clear</a><% } %>
+      <% if (pagination.searches.orderSearch || pagination.searches.orderStatus) { %><a class="button compact" href="<%= adminPageUrl({ ...pagination.pages, ordersPage: 1 }, 'ordersPage', 1, { ticketSearch: pagination.searches.ticketSearch }) %>">Clear</a><% } %>
     </form>
     <form class="inline" method="post" action="/admin/orders/sync-payments">
       <button class="compact-action" type="submit">Sync Stripe payments</button>
@@ -142,6 +153,7 @@
     </div>
     <form class="ticket-search search-form" method="get" action="/admin">
       <% if (pagination.searches.orderSearch) { %><input type="hidden" name="orderSearch" value="<%= pagination.searches.orderSearch %>"><% } %>
+      <% if (pagination.searches.orderStatus) { %><input type="hidden" name="orderStatus" value="<%= pagination.searches.orderStatus %>"><% } %>
       <label>Search tickets<input name="ticketSearch" type="search" value="<%= pagination.searches.ticketSearch %>" placeholder="Ticket ID, name, email, buyer"></label>
       <button class="compact-action" type="submit">Search</button>
       <% if (pagination.searches.ticketSearch) { %><a class="button compact" href="<%= adminPageUrl({ ...pagination.pages, ticketsPage: 1 }, 'ticketsPage', 1, { orderSearch: pagination.searches.orderSearch }) %>">Clear</a><% } %>
