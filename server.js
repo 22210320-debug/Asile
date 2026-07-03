@@ -13,7 +13,7 @@ const crypto = require('crypto');
 
 const app = express();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY, { timeout: Number(process.env.STRIPE_TIMEOUT_MS || 10000) }) : null;
-const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getTicketById, ticketIdExists } = require('./db');
+const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getTicketById, ticketIdExists } = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
@@ -573,6 +573,23 @@ app.post('/admin/orders/sync-payments', requireAdmin, async (req, res) => {
 app.post('/admin/orders/sync-payments.json', requireAdmin, async (req, res) => {
   const result = await syncWaitingOrdersFromStripe();
   res.json({ ok: true, ...result });
+});
+
+app.post('/admin/orders/repair-issued-statuses', requireAdmin, async (req, res) => {
+  const pendingOrders = await getPendingOrdersWithIssuedTickets(300);
+  let repaired = 0;
+  for (const order of pendingOrders) {
+    order.status = 'approved_captured';
+    order.approvedAt = order.approvedAt || order.updatedAt || new Date().toISOString();
+    order.repairedAt = new Date().toISOString();
+    order.repairReason = 'Order had issued tickets while still marked pending approval.';
+    await upsertOrder(order);
+    repaired++;
+  }
+  const message = repaired
+    ? `Marked ${repaired} issued ticket order(s) as approved. Use Review > Resend ticket email if a buyer did not receive the email.`
+    : 'No pending orders with issued tickets were found.';
+  res.redirect(`/admin?notice=${encodeURIComponent(message)}`);
 });
 
 app.post('/admin/orders/:id/delete', requireAdmin, async (req, res) => {

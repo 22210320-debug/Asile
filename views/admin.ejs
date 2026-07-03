@@ -94,6 +94,9 @@
     <form class="inline" method="post" action="/admin/orders/sync-payments">
       <button class="compact-action" type="submit">Sync Stripe payments</button>
     </form>
+    <form class="inline" method="post" action="/admin/orders/repair-issued-statuses" onsubmit="return confirm('Mark pending orders as approved only when tickets already exist for them? This will not charge Stripe or create new tickets.')">
+      <button class="compact-action" type="submit">Fix issued statuses</button>
+    </form>
     <form class="inline" method="post" action="/admin/orders/delete-stuck" onsubmit="return confirm('Delete stuck unpaid orders? Approved orders and tickets will not be deleted.')">
       <button class="danger compact-action" type="submit">Delete stuck orders (<%= stats.stuckOrderCount %>)</button>
     </form>

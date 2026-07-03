@@ -554,6 +554,34 @@ async function getTicketsByOrderId(orderId) {
   return r.rows.map(row => row.data);
 }
 
+async function getPendingOrdersWithIssuedTickets(limit = 200) {
+  if (!usePostgres()) {
+    const db = await readJsonFile();
+    const issuedOrderIds = new Set((db.tickets || [])
+      .filter(ticket => ['valid', 'used'].includes(ticket.status))
+      .map(ticket => ticket.orderId)
+      .filter(Boolean));
+    return (db.orders || [])
+      .filter(order => order.status === 'pending_admin_approval' && issuedOrderIds.has(order.id))
+      .slice(0, limit);
+  }
+  await initDb();
+  const r = await getPool().query(`
+    SELECT o.data
+    FROM orders o
+    WHERE o.data->>'status' = 'pending_admin_approval'
+      AND EXISTS (
+        SELECT 1
+        FROM tickets t
+        WHERE t.order_id = o.id
+          AND t.status IN ('valid', 'used')
+      )
+    ORDER BY o.created_at DESC
+    LIMIT $1
+  `, [limit]);
+  return r.rows.map(row => row.data);
+}
+
 async function getTicketById(ticketId) {
   if (!ticketId) return null;
   if (!usePostgres()) {
@@ -576,4 +604,4 @@ async function ticketIdExists(ticketId) {
   return r.rowCount > 0;
 }
 
-module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getTicketById, ticketIdExists };
+module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getTicketById, ticketIdExists };
