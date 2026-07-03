@@ -83,8 +83,14 @@
   <div class="section-heading admin-section-heading">
     <div>
       <h2>Orders</h2>
-      <p class="muted">Showing <%= orders.length %> of <%= pagination.orders.total %> order(s). <span id="awaitingPaymentCount"><%= stats.awaitingPaymentCount %></span> order(s) are still waiting for customer payment.</p>
+      <p class="muted">Showing <%= orders.length %> of <%= pagination.orders.total %> order(s)<% if (pagination.searches.orderSearch) { %> matching "<%= pagination.searches.orderSearch %>"<% } %>. <span id="awaitingPaymentCount"><%= stats.awaitingPaymentCount %></span> order(s) are still waiting for customer payment.</p>
     </div>
+    <form class="ticket-search search-form" method="get" action="/admin">
+      <% if (pagination.searches.ticketSearch) { %><input type="hidden" name="ticketSearch" value="<%= pagination.searches.ticketSearch %>"><% } %>
+      <label>Search orders<input name="orderSearch" type="search" value="<%= pagination.searches.orderSearch %>" placeholder="Buyer, email, ticket name, order ID"></label>
+      <button class="compact-action" type="submit">Search</button>
+      <% if (pagination.searches.orderSearch) { %><a class="button compact" href="<%= adminPageUrl({ ...pagination.pages, ordersPage: 1 }, 'ordersPage', 1, { ticketSearch: pagination.searches.ticketSearch }) %>">Clear</a><% } %>
+    </form>
     <form class="inline" method="post" action="/admin/orders/sync-payments">
       <button class="compact-action" type="submit">Sync Stripe payments</button>
     </form>
@@ -114,13 +120,13 @@
   </table>
   <nav class="pager" aria-label="Orders pages">
     <% if (pagination.orders.hasOlder) { %>
-      <a class="button compact" href="<%= adminPageUrl(pagination.pages, 'ordersPage', pagination.orders.page + 1) %>">Previous 10</a>
+      <a class="button compact" href="<%= adminPageUrl(pagination.pages, 'ordersPage', pagination.orders.page + 1, pagination.searches) %>">Previous 10</a>
     <% } else { %>
       <span></span>
     <% } %>
     <span>Page <%= pagination.orders.page %> of <%= pagination.orders.pageCount %></span>
     <% if (pagination.orders.hasNewer) { %>
-      <a class="button compact" href="<%= adminPageUrl(pagination.pages, 'ordersPage', pagination.orders.page - 1) %>">Next 10</a>
+      <a class="button compact" href="<%= adminPageUrl(pagination.pages, 'ordersPage', pagination.orders.page - 1, pagination.searches) %>">Next 10</a>
     <% } else { %>
       <span></span>
     <% } %>
@@ -129,15 +135,20 @@
   <div class="section-heading admin-section-heading">
     <div>
       <h2>Tickets</h2>
-      <p class="muted" id="ticketSearchCount"><%= tickets.length %> of <%= pagination.tickets.total %> ticket(s) shown</p>
+      <p class="muted"><%= tickets.length %> of <%= pagination.tickets.total %> ticket(s) shown<% if (pagination.searches.ticketSearch) { %> matching "<%= pagination.searches.ticketSearch %>"<% } %></p>
     </div>
-    <label class="ticket-search">Search<input id="ticketSearch" type="search" placeholder="Ticket ID or attendee name"></label>
+    <form class="ticket-search search-form" method="get" action="/admin">
+      <% if (pagination.searches.orderSearch) { %><input type="hidden" name="orderSearch" value="<%= pagination.searches.orderSearch %>"><% } %>
+      <label>Search tickets<input name="ticketSearch" type="search" value="<%= pagination.searches.ticketSearch %>" placeholder="Ticket ID, name, email, buyer"></label>
+      <button class="compact-action" type="submit">Search</button>
+      <% if (pagination.searches.ticketSearch) { %><a class="button compact" href="<%= adminPageUrl({ ...pagination.pages, ticketsPage: 1 }, 'ticketsPage', 1, { orderSearch: pagination.searches.orderSearch }) %>">Clear</a><% } %>
+    </form>
   </div>
 
   <table id="ticketsTable" class="admin-card-table">
     <tr><th>ID</th><th>Ticket name</th><th>DOB</th><th>Status</th><th></th></tr>
     <% tickets.forEach(t=>{ %>
-      <tr data-search="<%= `${t.id || ''} ${t.attendeeName || ''}`.toLowerCase() %>">
+      <tr>
         <td data-label="ID"><%= t.id %></td>
         <td data-label="Ticket name"><%= t.attendeeName %></td>
         <td data-label="DOB"><%= t.dateOfBirth %></td>
@@ -152,13 +163,13 @@
   </table>
   <nav class="pager" aria-label="Ticket pages">
     <% if (pagination.tickets.hasOlder) { %>
-      <a class="button compact" href="<%= adminPageUrl(pagination.pages, 'ticketsPage', pagination.tickets.page + 1) %>">Previous 10</a>
+      <a class="button compact" href="<%= adminPageUrl(pagination.pages, 'ticketsPage', pagination.tickets.page + 1, pagination.searches) %>">Previous 10</a>
     <% } else { %>
       <span></span>
     <% } %>
     <span>Page <%= pagination.tickets.page %> of <%= pagination.tickets.pageCount %></span>
     <% if (pagination.tickets.hasNewer) { %>
-      <a class="button compact" href="<%= adminPageUrl(pagination.pages, 'ticketsPage', pagination.tickets.page - 1) %>">Next 10</a>
+      <a class="button compact" href="<%= adminPageUrl(pagination.pages, 'ticketsPage', pagination.tickets.page - 1, pagination.searches) %>">Next 10</a>
     <% } else { %>
       <span></span>
     <% } %>
@@ -184,13 +195,13 @@
   </table>
   <nav class="pager" aria-label="Scan history pages">
     <% if (pagination.scans.hasOlder) { %>
-      <a class="button compact" href="<%= adminPageUrl(pagination.pages, 'scansPage', pagination.scans.page + 1) %>">Previous 10</a>
+      <a class="button compact" href="<%= adminPageUrl(pagination.pages, 'scansPage', pagination.scans.page + 1, pagination.searches) %>">Previous 10</a>
     <% } else { %>
       <span></span>
     <% } %>
     <span>Page <%= pagination.scans.page %> of <%= pagination.scans.pageCount %></span>
     <% if (pagination.scans.hasNewer) { %>
-      <a class="button compact" href="<%= adminPageUrl(pagination.pages, 'scansPage', pagination.scans.page - 1) %>">Next 10</a>
+      <a class="button compact" href="<%= adminPageUrl(pagination.pages, 'scansPage', pagination.scans.page - 1, pagination.searches) %>">Next 10</a>
     <% } else { %>
       <span></span>
     <% } %>
@@ -205,20 +216,6 @@
     input.value = formatted;
   }
   document.querySelector('.manual-dob')?.addEventListener('input', event => formatDobInput(event.target));
-
-  const ticketSearch = document.getElementById('ticketSearch');
-  const ticketRows = Array.from(document.querySelectorAll('#ticketsTable tr[data-search]'));
-  const ticketSearchCount = document.getElementById('ticketSearchCount');
-  ticketSearch?.addEventListener('input', () => {
-    const query = ticketSearch.value.trim().toLowerCase();
-    let visible = 0;
-    for (const row of ticketRows) {
-      const match = !query || row.dataset.search.includes(query);
-      row.classList.toggle('hidden', !match);
-      if (match) visible++;
-    }
-    ticketSearchCount.textContent = `${visible} ticket(s) shown`;
-  });
 </script>
 <script src="/public/admin-autorefresh.js"></script>
 </body>

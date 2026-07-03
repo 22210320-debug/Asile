@@ -171,12 +171,14 @@ function pageMeta(page, total, pageSize) {
   const pageCount = Math.max(1, Math.ceil(Number(total || 0) / pageSize));
   return { page, pageSize, total, pageCount, hasOlder: page < pageCount, hasNewer: page > 1 };
 }
-function adminPageUrl(currentPages, key, page) {
+function adminPageUrl(currentPages, key, page, searches = {}) {
   const params = new URLSearchParams();
   const nextPages = { ...currentPages, [key]: page };
   if (nextPages.ordersPage > 1) params.set('ordersPage', nextPages.ordersPage);
   if (nextPages.ticketsPage > 1) params.set('ticketsPage', nextPages.ticketsPage);
   if (nextPages.scansPage > 1) params.set('scansPage', nextPages.scansPage);
+  if (searches.orderSearch) params.set('orderSearch', searches.orderSearch);
+  if (searches.ticketSearch) params.set('ticketSearch', searches.ticketSearch);
   const query = params.toString();
   return query ? `/admin?${query}` : '/admin';
 }
@@ -499,6 +501,10 @@ app.post('/admin/login', async (req, res) => {
 app.get('/admin/logout', (req, res) => { req.session.destroy(() => res.redirect('/')); });
 app.get('/admin', requireAdmin, async (req, res) => {
   const pageSize = 10;
+  const searches = {
+    orderSearch: String(req.query.orderSearch || '').trim(),
+    ticketSearch: String(req.query.ticketSearch || '').trim()
+  };
   const pages = {
     ordersPage: pageNumber(req.query.ordersPage),
     ticketsPage: pageNumber(req.query.ticketsPage),
@@ -507,8 +513,10 @@ app.get('/admin', requireAdmin, async (req, res) => {
   const dashboard = await readAdminDashboard({
     orderLimit: pageSize,
     orderOffset: (pages.ordersPage - 1) * pageSize,
+    orderSearch: searches.orderSearch,
     ticketLimit: pageSize,
     ticketOffset: (pages.ticketsPage - 1) * pageSize,
+    ticketSearch: searches.ticketSearch,
     scanLimit: pageSize,
     scanOffset: (pages.scansPage - 1) * pageSize
   });
@@ -518,6 +526,7 @@ app.get('/admin', requireAdmin, async (req, res) => {
     scanHistory: dashboard.scanHistory || [],
     pagination: {
       pages,
+      searches,
       orders: pageMeta(pages.ordersPage, dashboard.orderCount, pageSize),
       tickets: pageMeta(pages.ticketsPage, dashboard.ticketCount, pageSize),
       scans: pageMeta(pages.scansPage, dashboard.scanCount, pageSize)

@@ -95,10 +95,66 @@ async function readDb() {
   };
 }
 
-async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, ticketLimit = 10, ticketOffset = 0, scanLimit = 10, scanOffset = 0 } = {}) {
+function normalizeSearch(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function orderMatchesSearch(order, query) {
+  if (!query) return true;
+  const attendeeText = (order.attendees || [])
+    .map(attendee => [attendee.name, attendee.firstName, attendee.lastName].filter(Boolean).join(' '))
+    .join(' ');
+  return [order.id, order.buyerName, order.buyerEmail, attendeeText]
+    .filter(Boolean)
+    .some(value => String(value).toLowerCase().includes(query));
+}
+
+function ticketMatchesSearch(ticket, query) {
+  if (!query) return true;
+  return [ticket.id, ticket.orderId, ticket.attendeeName, ticket.attendeeFirstName, ticket.attendeeLastName, ticket.buyerName, ticket.buyerEmail]
+    .filter(Boolean)
+    .some(value => String(value).toLowerCase().includes(query));
+}
+
+function orderSearchWhere(index) {
+  return `
+    WHERE (
+      id ILIKE $${index}
+      OR data->>'buyerName' ILIKE $${index}
+      OR data->>'buyerEmail' ILIKE $${index}
+      OR EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(COALESCE(data->'attendees', '[]'::jsonb)) AS attendee
+        WHERE attendee->>'name' ILIKE $${index}
+           OR attendee->>'firstName' ILIKE $${index}
+           OR attendee->>'lastName' ILIKE $${index}
+      )
+    )
+  `;
+}
+
+function ticketSearchWhere(index, prefix = 'WHERE') {
+  return `
+    ${prefix} (
+      id ILIKE $${index}
+      OR COALESCE(order_id, '') ILIKE $${index}
+      OR COALESCE(attendee_name, '') ILIKE $${index}
+      OR COALESCE(attendee_first_name, '') ILIKE $${index}
+      OR COALESCE(attendee_last_name, '') ILIKE $${index}
+      OR data->>'buyerName' ILIKE $${index}
+      OR data->>'buyerEmail' ILIKE $${index}
+    )
+  `;
+}
+
+async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearch = '', ticketLimit = 10, ticketOffset = 0, ticketSearch = '', scanLimit = 10, scanOffset = 0 } = {}) {
+  const cleanOrderSearch = normalizeSearch(orderSearch);
+  const cleanTicketSearch = normalizeSearch(ticketSearch);
   if (!usePostgres()) {
     const db = await readDb();
     const issuedTickets = (db.tickets || []).filter(ticket => ['valid', 'used'].includes(ticket.status));
+    const searchedOrders = (db.orders || []).filter(order => orderMatchesSearch(order, cleanOrderSearch));
+    const searchedTickets = issuedTickets.filter(ticket => ticketMatchesSearch(ticket, cleanTicketSearch));
     const activeOrders = (db.orders || []).filter(order => {
       const inactive = ['denied_released', 'cancelled', 'rejected_refunded', 'payment_error', 'authorization_expired'];
       if (inactive.includes(order.status)) return false;
@@ -109,14 +165,14 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, ticketLimi
       return true;
     });
     return {
-      orders: (db.orders || []).slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(orderOffset, orderOffset + orderLimit),
-      tickets: issuedTickets.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(ticketOffset, ticketOffset + ticketLimit).map(ticket => ({ ...ticket, qrDataUrl: undefined })),
+      orders: searchedOrders.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(orderOffset, orderOffset + orderLimit),
+      tickets: searchedTickets.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(ticketOffset, ticketOffset + ticketLimit).map(ticket => ({ ...ticket, qrDataUrl: undefined })),
       scanHistory: (db.scanHistory || []).slice().sort((a, b) => new Date(b.scannedAt || 0) - new Date(a.scannedAt || 0)).slice(scanOffset, scanOffset + scanLimit),
       allOrders: db.orders || [],
       allTickets: db.tickets || [],
       approvedCount: issuedTickets.length,
-      orderCount: (db.orders || []).length,
-      ticketCount: issuedTickets.length,
+      orderCount: searchedOrders.length,
+      ticketCount: searchedTickets.length,
       scanCount: (db.scanHistory || []).length,
       stats: {
         approvedCount: issuedTickets.length,
@@ -138,12 +194,20 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, ticketLimi
   }
   await initDb();
   const p = getPool();
+  const orderSearchSql = cleanOrderSearch ? orderSearchWhere(3) : '';
+  const orderCountSearchSql = cleanOrderSearch ? orderSearchWhere(1) : '';
+  const ticketSearchSql = cleanTicketSearch ? ticketSearchWhere(3, 'AND') : '';
+  const ticketCountSearchSql = cleanTicketSearch ? ticketSearchWhere(1, 'AND') : '';
+  const orderSearchParams = cleanOrderSearch ? [orderLimit, orderOffset, `%${cleanOrderSearch}%`] : [orderLimit, orderOffset];
+  const orderCountParams = cleanOrderSearch ? [`%${cleanOrderSearch}%`] : [];
+  const ticketSearchParams = cleanTicketSearch ? [ticketLimit, ticketOffset, `%${cleanTicketSearch}%`] : [ticketLimit, ticketOffset];
+  const ticketCountParams = cleanTicketSearch ? [`%${cleanTicketSearch}%`] : [];
   const [orders, tickets, scanHistory, orderCount, ticketCount, scanCount, orderStats] = await Promise.all([
-    p.query('SELECT data FROM orders ORDER BY created_at DESC LIMIT $1 OFFSET $2', [orderLimit, orderOffset]),
-    p.query(`SELECT data - 'qrDataUrl' AS data FROM tickets WHERE status IN ('valid', 'used') ORDER BY created_at DESC LIMIT $1 OFFSET $2`, [ticketLimit, ticketOffset]),
+    p.query(`SELECT data FROM orders ${orderSearchSql} ORDER BY created_at DESC LIMIT $1 OFFSET $2`, orderSearchParams),
+    p.query(`SELECT data - 'qrDataUrl' AS data FROM tickets WHERE status IN ('valid', 'used') ${ticketSearchSql} ORDER BY created_at DESC LIMIT $1 OFFSET $2`, ticketSearchParams),
     p.query('SELECT ticket_id, scanned_by, result, scanned_at FROM scan_history ORDER BY scanned_at DESC LIMIT $1 OFFSET $2', [scanLimit, scanOffset]),
-    p.query('SELECT COUNT(*)::int AS count FROM orders'),
-    p.query(`SELECT COUNT(*)::int AS count FROM tickets WHERE status IN ('valid', 'used')`),
+    p.query(`SELECT COUNT(*)::int AS count FROM orders ${orderCountSearchSql}`, orderCountParams),
+    p.query(`SELECT COUNT(*)::int AS count FROM tickets WHERE status IN ('valid', 'used') ${ticketCountSearchSql}`, ticketCountParams),
     p.query('SELECT COUNT(*)::int AS count FROM scan_history'),
     p.query(`
       SELECT
