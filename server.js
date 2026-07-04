@@ -69,7 +69,13 @@ app.set('trust proxy', 1);
 let sessionStore;
 if (usePostgres()) {
   const pgSession = require('connect-pg-simple')(session);
-  sessionStore = new pgSession({ pool: getPool(), createTableIfMissing: true });
+  sessionStore = new pgSession({
+    pool: getPool(),
+    createTableIfMissing: true,
+    disableTouch: true,
+    pruneSessionInterval: false,
+    ttl: Number(process.env.SESSION_TTL_SECONDS || 7 * 24 * 60 * 60)
+  });
 }
 app.use(session({
   store: sessionStore,
