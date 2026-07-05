@@ -802,7 +802,13 @@ app.post('/admin/orders/:id/deny', requireAdmin, async (req, res) => {
   try { await stripe.paymentIntents.cancel(order.paymentIntentId); }
   catch (err) { return res.status(502).render('message', { title: 'Payment release failed', message: err.message }); }
   order.status = 'denied_released'; order.deniedAt = new Date().toISOString(); await upsertOrder(order);
-  sendMailInBackground({ to: order.buyerEmail, subject: `${EVENT_NAME} reservation not approved`, html: `<p>Your reservation was not approved. Your payment authorization has been cancelled/released.</p>` });
+  const declineMessage = 'Unfortunately, we are unable to approve your ticket request. To maintain the atmosphere of the event, we carefully manage the overall guest balance, including the male-to-female ratio, and prioritize couples for admission.';
+  sendMailInBackground({
+    to: order.buyerEmail,
+    subject: `${EVENT_NAME} reservation not approved`,
+    html: ticketEmailBackground(`<p style="margin:0 0 12px;color:#fff4df">${declineMessage}</p><p style="margin:0;color:#d8bc8b">Your payment authorization has been cancelled/released.</p>`),
+    text: `${declineMessage}\n\nYour payment authorization has been cancelled/released.`
+  });
   res.redirect(`/admin/orders/${order.id}`);
 });
 
