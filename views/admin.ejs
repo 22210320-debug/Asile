@@ -130,7 +130,7 @@
         <td data-label="Qty"><%= o.qty %></td>
         <td data-label="Amount"><%= money(o.amount) %></td>
         <td data-label="Status"><span class="<%= statusClass(o.status) %>"><%= orderStatusLabel(o.status) %></span></td>
-        <td data-label="Action">
+        <td data-label="Action" class="row-actions-cell">
           <a class="button compact row-action" href="/admin/orders/<%= o.id %>">Review</a>
           <form class="inline" method="post" action="/admin/orders/<%= o.id %>/delete" onsubmit="return confirm('Delete this order and its tickets? This cannot be undone.')">
             <button class="danger compact-action row-action danger-row-action" type="submit">Delete</button>
@@ -177,7 +177,7 @@
         <td data-label="Ticket name"><%= t.attendeeName %></td>
         <td data-label="DOB"><%= t.dateOfBirth %></td>
         <td data-label="Status"><span class="status-pill"><%= t.status %></span></td>
-        <td data-label="Action">
+        <td data-label="Action" class="row-actions-cell">
           <form class="inline" method="post" action="/admin/tickets/<%= t.id %>/delete" onsubmit="return confirm('Delete this ticket? This cannot be undone.')">
             <button class="danger compact-action row-action danger-row-action" type="submit">Delete</button>
           </form>
