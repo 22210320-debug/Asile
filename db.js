@@ -38,11 +38,38 @@ function getPool() {
   return pool;
 }
 
+function isTransientDbError(err) {
+  const message = String(err?.message || '').toLowerCase();
+  return message.includes('timeout')
+    || message.includes('connection terminated')
+    || message.includes('connection closed')
+    || message.includes('terminating connection');
+}
+
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function pgQuery(sql, params = []) {
+  const attempts = Math.max(1, Number(process.env.DATABASE_QUERY_RETRIES || 2));
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await getPool().query(sql, params);
+    } catch (err) {
+      lastError = err;
+      if (attempt >= attempts || !isTransientDbError(err)) throw err;
+      console.warn(`Postgres query retry ${attempt}/${attempts}:`, err.message);
+      await wait(250 * attempt);
+    }
+  }
+  throw lastError;
+}
+
 async function initDb() {
   if (!usePostgres()) return;
   if (initPromise) return initPromise;
-  const p = getPool();
-  initPromise = p.query(`
+  initPromise = pgQuery(`
     CREATE TABLE IF NOT EXISTS orders (
       id TEXT PRIMARY KEY,
       data JSONB NOT NULL,
@@ -72,7 +99,10 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
     CREATE INDEX IF NOT EXISTS idx_tickets_attendee_name ON tickets(attendee_name);
     CREATE INDEX IF NOT EXISTS idx_tickets_attendee_first_last ON tickets(attendee_first_name, attendee_last_name);
-  `);
+  `).catch(err => {
+    initPromise = null;
+    throw err;
+  });
   return initPromise;
 }
 
@@ -82,11 +112,10 @@ async function readDb() {
     catch { const fresh = { orders: [], tickets: [], scanHistory: [] }; await writeDb(fresh); return fresh; }
   }
   await initDb();
-  const p = getPool();
   const [orders, tickets, scanHistory] = await Promise.all([
-    p.query('SELECT data FROM orders ORDER BY created_at DESC'),
-    p.query('SELECT data FROM tickets ORDER BY created_at DESC'),
-    p.query('SELECT ticket_id, scanned_by, result, scanned_at FROM scan_history ORDER BY scanned_at DESC LIMIT 200')
+    pgQuery('SELECT data FROM orders ORDER BY created_at DESC'),
+    pgQuery('SELECT data FROM tickets ORDER BY created_at DESC'),
+    pgQuery('SELECT ticket_id, scanned_by, result, scanned_at FROM scan_history ORDER BY scanned_at DESC LIMIT 200')
   ]);
   return {
     orders: orders.rows.map(r => r.data),
@@ -216,7 +245,6 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearc
     };
   }
   await initDb();
-  const p = getPool();
   const ticketSearchSql = cleanTicketSearch ? ticketSearchWhere(3, 'AND') : '';
   const ticketCountSearchSql = cleanTicketSearch ? ticketSearchWhere(1, 'AND') : '';
   const orderSearchParams = [orderLimit, orderOffset];
@@ -246,13 +274,13 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearc
   const ticketSearchParams = cleanTicketSearch ? [ticketLimit, ticketOffset, `%${cleanTicketSearch}%`] : [ticketLimit, ticketOffset];
   const ticketCountParams = cleanTicketSearch ? [`%${cleanTicketSearch}%`] : [];
   const [orders, tickets, scanHistory, orderCount, ticketCount, scanCount, orderStats] = await Promise.all([
-    p.query(`SELECT data FROM orders ${orderSearchSql} ORDER BY created_at DESC LIMIT $1 OFFSET $2`, orderSearchParams),
-    p.query(`SELECT data - 'qrDataUrl' AS data FROM tickets WHERE status IN ('valid', 'used') ${ticketSearchSql} ORDER BY created_at DESC LIMIT $1 OFFSET $2`, ticketSearchParams),
-    p.query('SELECT ticket_id, scanned_by, result, scanned_at FROM scan_history ORDER BY scanned_at DESC LIMIT $1 OFFSET $2', [scanLimit, scanOffset]),
-    p.query(`SELECT COUNT(*)::int AS count FROM orders ${orderCountSearchSql}`, orderCountParams),
-    p.query(`SELECT COUNT(*)::int AS count FROM tickets WHERE status IN ('valid', 'used') ${ticketCountSearchSql}`, ticketCountParams),
-    p.query('SELECT COUNT(*)::int AS count FROM scan_history'),
-    p.query(`
+    pgQuery(`SELECT data FROM orders ${orderSearchSql} ORDER BY created_at DESC LIMIT $1 OFFSET $2`, orderSearchParams),
+    pgQuery(`SELECT data - 'qrDataUrl' AS data FROM tickets WHERE status IN ('valid', 'used') ${ticketSearchSql} ORDER BY created_at DESC LIMIT $1 OFFSET $2`, ticketSearchParams),
+    pgQuery('SELECT ticket_id, scanned_by, result, scanned_at FROM scan_history ORDER BY scanned_at DESC LIMIT $1 OFFSET $2', [scanLimit, scanOffset]),
+    pgQuery(`SELECT COUNT(*)::int AS count FROM orders ${orderCountSearchSql}`, orderCountParams),
+    pgQuery(`SELECT COUNT(*)::int AS count FROM tickets WHERE status IN ('valid', 'used') ${ticketCountSearchSql}`, ticketCountParams),
+    pgQuery('SELECT COUNT(*)::int AS count FROM scan_history'),
+    pgQuery(`
       SELECT
         COUNT(*) FILTER (WHERE data->>'status' = 'awaiting_payment_authorization')::int AS awaiting_payment_count,
         COUNT(*) FILTER (
@@ -582,7 +610,7 @@ async function getOrderById(orderId) {
     return db.orders.find(o => o.id === orderId) || null;
   }
   await initDb();
-  const r = await getPool().query('SELECT data FROM orders WHERE id = $1', [orderId]);
+  const r = await pgQuery('SELECT data FROM orders WHERE id = $1', [orderId]);
   return r.rows[0]?.data || null;
 }
 
@@ -593,7 +621,7 @@ async function getTicketsByOrderId(orderId) {
     return (db.tickets || []).filter(t => t.orderId === orderId);
   }
   await initDb();
-  const r = await getPool().query('SELECT data FROM tickets WHERE order_id = $1 ORDER BY created_at DESC', [orderId]);
+  const r = await pgQuery('SELECT data FROM tickets WHERE order_id = $1 ORDER BY created_at DESC', [orderId]);
   return r.rows.map(row => row.data);
 }
 
@@ -609,7 +637,7 @@ async function getPendingOrdersWithIssuedTickets(limit = 200) {
       .slice(0, limit);
   }
   await initDb();
-  const r = await getPool().query(`
+  const r = await pgQuery(`
     SELECT o.data
     FROM orders o
     WHERE o.data->>'status' = 'pending_admin_approval'
@@ -633,7 +661,7 @@ async function getAwaitingPaymentOrders(limit = 50) {
       .slice(0, limit);
   }
   await initDb();
-  const r = await getPool().query(`
+  const r = await pgQuery(`
     SELECT data
     FROM orders
     WHERE data->>'status' = 'awaiting_payment_authorization'
@@ -651,7 +679,7 @@ async function getTicketById(ticketId) {
     return (db.tickets || []).find(t => t.id === ticketId) || null;
   }
   await initDb();
-  const r = await getPool().query('SELECT data FROM tickets WHERE id = $1', [ticketId]);
+  const r = await pgQuery('SELECT data FROM tickets WHERE id = $1', [ticketId]);
   return r.rows[0]?.data || null;
 }
 
@@ -662,7 +690,7 @@ async function ticketIdExists(ticketId) {
     return (db.tickets || []).some(t => t.id === ticketId);
   }
   await initDb();
-  const r = await getPool().query('SELECT 1 FROM tickets WHERE id = $1 LIMIT 1', [ticketId]);
+  const r = await pgQuery('SELECT 1 FROM tickets WHERE id = $1 LIMIT 1', [ticketId]);
   return r.rowCount > 0;
 }
 

@@ -506,58 +506,68 @@ app.post('/admin/login', async (req, res) => {
 });
 app.get('/admin/logout', (req, res) => { req.session.destroy(() => res.redirect('/')); });
 app.get('/admin', requireAdmin, async (req, res) => {
-  const pageSize = 10;
-  const searches = {
-    orderSearch: String(req.query.orderSearch || '').trim(),
-    orderStatus: String(req.query.orderStatus || '').trim(),
-    ticketSearch: String(req.query.ticketSearch || '').trim()
-  };
-  const pages = {
-    ordersPage: pageNumber(req.query.ordersPage),
-    ticketsPage: pageNumber(req.query.ticketsPage),
-    scansPage: pageNumber(req.query.scansPage)
-  };
-  const dashboard = await readAdminDashboard({
-    orderLimit: pageSize,
-    orderOffset: (pages.ordersPage - 1) * pageSize,
-    orderSearch: searches.orderSearch,
-    orderStatus: searches.orderStatus,
-    ticketLimit: pageSize,
-    ticketOffset: (pages.ticketsPage - 1) * pageSize,
-    ticketSearch: searches.ticketSearch,
-    scanLimit: pageSize,
-    scanOffset: (pages.scansPage - 1) * pageSize
-  });
-  res.render('admin', {
-    orders: dashboard.orders,
-    tickets: dashboard.tickets.filter(isIssuedTicket),
-    scanHistory: dashboard.scanHistory || [],
-    pagination: {
-      pages,
-      searches,
-      orders: pageMeta(pages.ordersPage, dashboard.orderCount, pageSize),
-      tickets: pageMeta(pages.ticketsPage, dashboard.ticketCount, pageSize),
-      scans: pageMeta(pages.scansPage, dashboard.scanCount, pageSize)
-    },
-    adminPageUrl,
-    stats: dashboardStats(dashboard.stats) || adminStats({ orders: dashboard.allOrders, tickets: dashboard.allTickets }, dashboard.approvedCount),
-    ...eventInfo,
-    money,
-    orderStatusLabel,
-    statusClass,
-    notice: req.query.notice || '',
-    usePostgres: usePostgres()
-  });
+  try {
+    const pageSize = 10;
+    const searches = {
+      orderSearch: String(req.query.orderSearch || '').trim(),
+      orderStatus: String(req.query.orderStatus || '').trim(),
+      ticketSearch: String(req.query.ticketSearch || '').trim()
+    };
+    const pages = {
+      ordersPage: pageNumber(req.query.ordersPage),
+      ticketsPage: pageNumber(req.query.ticketsPage),
+      scansPage: pageNumber(req.query.scansPage)
+    };
+    const dashboard = await readAdminDashboard({
+      orderLimit: pageSize,
+      orderOffset: (pages.ordersPage - 1) * pageSize,
+      orderSearch: searches.orderSearch,
+      orderStatus: searches.orderStatus,
+      ticketLimit: pageSize,
+      ticketOffset: (pages.ticketsPage - 1) * pageSize,
+      ticketSearch: searches.ticketSearch,
+      scanLimit: pageSize,
+      scanOffset: (pages.scansPage - 1) * pageSize
+    });
+    res.render('admin', {
+      orders: dashboard.orders,
+      tickets: dashboard.tickets.filter(isIssuedTicket),
+      scanHistory: dashboard.scanHistory || [],
+      pagination: {
+        pages,
+        searches,
+        orders: pageMeta(pages.ordersPage, dashboard.orderCount, pageSize),
+        tickets: pageMeta(pages.ticketsPage, dashboard.ticketCount, pageSize),
+        scans: pageMeta(pages.scansPage, dashboard.scanCount, pageSize)
+      },
+      adminPageUrl,
+      stats: dashboardStats(dashboard.stats) || adminStats({ orders: dashboard.allOrders, tickets: dashboard.allTickets }, dashboard.approvedCount),
+      ...eventInfo,
+      money,
+      orderStatusLabel,
+      statusClass,
+      notice: req.query.notice || '',
+      usePostgres: usePostgres()
+    });
+  } catch (err) {
+    console.error('Admin dashboard database unavailable:', err.message);
+    res.status(503).render('message', { title: 'Database temporarily unavailable', message: 'The admin database did not respond. Please refresh in a moment.' });
+  }
 });
 app.get('/admin/orders/:id', requireAdmin, async (req, res) => {
-  const order = await getOrderById(req.params.id);
   try {
-    if (await syncOrderFromStripe(order)) await upsertOrder(order);
+    const order = await getOrderById(req.params.id);
+    try {
+      if (await syncOrderFromStripe(order)) await upsertOrder(order);
+    } catch (err) {
+      console.error('Stripe order sync failed:', err.message);
+    }
+    const tickets = order ? await getTicketsByOrderId(order.id) : [];
+    res.render('order', { order, tickets, ...eventInfo, money });
   } catch (err) {
-    console.error('Stripe order sync failed:', err.message);
+    console.error('Admin order database unavailable:', req.params.id, err.message);
+    res.status(503).render('message', { title: 'Database temporarily unavailable', message: 'This order could not be loaded right now. Please refresh in a moment.' });
   }
-  const tickets = order ? await getTicketsByOrderId(order.id) : [];
-  res.render('order', { order, tickets, ...eventInfo, money });
 });
 
 app.post('/admin/orders/delete-stuck', requireAdmin, async (req, res) => {
