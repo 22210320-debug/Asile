@@ -103,19 +103,19 @@
         </select>
       </label>
       <div class="admin-search-actions">
-        <button class="compact-action" type="submit">Search</button>
-        <% if (pagination.searches.orderSearch || pagination.searches.orderStatus) { %><a class="button compact secondary" href="<%= adminPageUrl({ ...pagination.pages, ordersPage: 1 }, 'ordersPage', 1, { ticketSearch: pagination.searches.ticketSearch }) %>">Clear</a><% } %>
+        <button class="compact-action command-primary" type="submit">Apply</button>
+        <% if (pagination.searches.orderSearch || pagination.searches.orderStatus) { %><a class="button compact secondary command-secondary" href="<%= adminPageUrl({ ...pagination.pages, ordersPage: 1 }, 'ordersPage', 1, { ticketSearch: pagination.searches.ticketSearch }) %>">Reset</a><% } %>
       </div>
     </form>
     <div class="admin-actions-group" aria-label="Order tools">
       <form method="post" action="/admin/orders/sync-payments">
-        <button class="compact-action" type="submit">Sync Stripe payments</button>
+        <button class="compact-action command-tool" type="submit">Sync payments</button>
       </form>
       <form method="post" action="/admin/orders/repair-issued-statuses" onsubmit="return confirm('Mark pending orders as approved only when tickets already exist for them? This will not charge Stripe or create new tickets.')">
-        <button class="compact-action" type="submit">Fix issued statuses</button>
+        <button class="compact-action command-tool" type="submit">Fix statuses</button>
       </form>
       <form method="post" action="/admin/orders/delete-stuck" onsubmit="return confirm('Delete stuck unpaid orders? Approved orders and tickets will not be deleted.')">
-        <button class="danger compact-action" type="submit">Delete stuck orders (<%= stats.stuckOrderCount %>)</button>
+        <button class="danger compact-action command-danger" type="submit">Delete stuck (<%= stats.stuckOrderCount %>)</button>
       </form>
     </div>
   </div>
@@ -131,9 +131,9 @@
         <td data-label="Amount"><%= money(o.amount) %></td>
         <td data-label="Status"><span class="<%= statusClass(o.status) %>"><%= orderStatusLabel(o.status) %></span></td>
         <td data-label="Action">
-          <a class="button compact" href="/admin/orders/<%= o.id %>">Review</a>
+          <a class="button compact row-action" href="/admin/orders/<%= o.id %>">Review</a>
           <form class="inline" method="post" action="/admin/orders/<%= o.id %>/delete" onsubmit="return confirm('Delete this order and its tickets? This cannot be undone.')">
-            <button class="danger compact-action" type="submit">Delete</button>
+            <button class="danger compact-action row-action danger-row-action" type="submit">Delete</button>
           </form>
         </td>
       </tr>
@@ -163,8 +163,8 @@
       <% if (pagination.searches.orderStatus) { %><input type="hidden" name="orderStatus" value="<%= pagination.searches.orderStatus %>"><% } %>
       <label>Search tickets<input name="ticketSearch" type="search" value="<%= pagination.searches.ticketSearch %>" placeholder="Ticket ID, name, email, buyer"></label>
       <div class="admin-search-actions">
-        <button class="compact-action" type="submit">Search</button>
-        <% if (pagination.searches.ticketSearch) { %><a class="button compact secondary" href="<%= adminPageUrl({ ...pagination.pages, ticketsPage: 1 }, 'ticketsPage', 1, { orderSearch: pagination.searches.orderSearch }) %>">Clear</a><% } %>
+        <button class="compact-action command-primary" type="submit">Apply</button>
+        <% if (pagination.searches.ticketSearch) { %><a class="button compact secondary command-secondary" href="<%= adminPageUrl({ ...pagination.pages, ticketsPage: 1 }, 'ticketsPage', 1, { orderSearch: pagination.searches.orderSearch }) %>">Reset</a><% } %>
       </div>
     </form>
   </div>
@@ -179,7 +179,7 @@
         <td data-label="Status"><span class="status-pill"><%= t.status %></span></td>
         <td data-label="Action">
           <form class="inline" method="post" action="/admin/tickets/<%= t.id %>/delete" onsubmit="return confirm('Delete this ticket? This cannot be undone.')">
-            <button class="danger compact-action" type="submit">Delete</button>
+            <button class="danger compact-action row-action danger-row-action" type="submit">Delete</button>
           </form>
         </td>
       </tr>
