@@ -625,6 +625,25 @@ async function getPendingOrdersWithIssuedTickets(limit = 200) {
   return r.rows.map(row => row.data);
 }
 
+async function getAwaitingPaymentOrders(limit = 50) {
+  if (!usePostgres()) {
+    const db = await readJsonFile();
+    return (db.orders || [])
+      .filter(order => order.status === 'awaiting_payment_authorization' && order.stripeSessionId)
+      .slice(0, limit);
+  }
+  await initDb();
+  const r = await getPool().query(`
+    SELECT data
+    FROM orders
+    WHERE data->>'status' = 'awaiting_payment_authorization'
+      AND COALESCE(data->>'stripeSessionId', '') <> ''
+    ORDER BY created_at DESC
+    LIMIT $1
+  `, [limit]);
+  return r.rows.map(row => row.data);
+}
+
 async function getTicketById(ticketId) {
   if (!ticketId) return null;
   if (!usePostgres()) {
@@ -647,4 +666,4 @@ async function ticketIdExists(ticketId) {
   return r.rowCount > 0;
 }
 
-module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getTicketById, ticketIdExists };
+module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists };

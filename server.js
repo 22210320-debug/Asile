@@ -13,7 +13,7 @@ const crypto = require('crypto');
 
 const app = express();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY, { timeout: Number(process.env.STRIPE_TIMEOUT_MS || 10000) }) : null;
-const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getTicketById, ticketIdExists } = require('./db');
+const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists } = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
@@ -190,10 +190,9 @@ function adminPageUrl(currentPages, key, page, searches = {}) {
   return query ? `/admin?${query}` : '/admin';
 }
 async function syncWaitingOrdersFromStripe() {
-  const db = await readDb();
   let synced = 0;
   let failed = 0;
-  const waitingOrders = db.orders.filter(order => order.status === 'awaiting_payment_authorization' && order.stripeSessionId);
+  const waitingOrders = await getAwaitingPaymentOrders(Number(process.env.PAYMENT_SYNC_LIMIT || 50));
   for (const order of waitingOrders) {
     try {
       if (await syncOrderFromStripe(order)) {
@@ -572,16 +571,26 @@ app.post('/admin/orders/delete-stuck', requireAdmin, async (req, res) => {
 });
 
 app.post('/admin/orders/sync-payments', requireAdmin, async (req, res) => {
-  const result = await syncWaitingOrdersFromStripe();
-  const message = result.failed
-    ? `Synced ${result.synced} payment(s). ${result.failed} could not be checked.`
-    : `Synced ${result.synced} payment(s).`;
-  res.redirect(`/admin?notice=${encodeURIComponent(message)}`);
+  try {
+    const result = await syncWaitingOrdersFromStripe();
+    const message = result.failed
+      ? `Synced ${result.synced} payment(s). ${result.failed} could not be checked.`
+      : `Synced ${result.synced} payment(s).`;
+    res.redirect(`/admin?notice=${encodeURIComponent(message)}`);
+  } catch (err) {
+    console.error('Payment sync failed:', err.message);
+    res.redirect(`/admin?notice=${encodeURIComponent('Payment sync is temporarily unavailable. Please try again in a minute.')}`);
+  }
 });
 
 app.post('/admin/orders/sync-payments.json', requireAdmin, async (req, res) => {
-  const result = await syncWaitingOrdersFromStripe();
-  res.json({ ok: true, ...result });
+  try {
+    const result = await syncWaitingOrdersFromStripe();
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('Payment sync JSON failed:', err.message);
+    res.status(503).json({ ok: false, checked: 0, synced: 0, failed: 1, error: 'Payment sync is temporarily unavailable.' });
+  }
 });
 
 app.post('/admin/orders/repair-issued-statuses', requireAdmin, async (req, res) => {
