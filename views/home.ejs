@@ -56,18 +56,18 @@
         <p>Every reservation is reviewed before tickets are issued. Approved guests receive named QR tickets, and the name on each ticket must match ID at entry.</p>
         <div class="detail-actions">
           <a class="button" href="#reserve">Reserve now</a>
-          <a class="button secondary" href="https://wa.me/<%= WHATSAPP_1 %>" target="_blank" rel="noopener">WhatsApp</a>
+          <a class="button secondary whatsapp-button" href="https://wa.me/<%= WHATSAPP_1 %>" target="_blank" rel="noopener">WhatsApp</a>
         </div>
       </div>
       <div class="event-detail-grid">
         <span><b>Theme</b><%= EVENT_THEME %></span>
-        <span><b>Location</b><%= EVENT_LOCATION %></span>
+        <a class="detail-bubble detail-link" href="<%= MAP_URL %>" target="_blank" rel="noopener"><b>Location</b><%= EVENT_LOCATION %></a>
         <span><b>Dress</b><%= DRESS_CODE %></span>
         <span><b>Capacity</b>Limited guest list</span>
         <span><b>Bar</b><%= BAR_PARTNER %></span>
         <span><b>Sponsor</b><%= SPONSOR_NAME %></span>
         <span><b>Included</b><%= PHOTO_BOOTH_PARTNER %></span>
-        <span><b>Payment</b>Stripe checkout</span>
+        <span><b>Payment</b>Apple Pay, Visa card, Google Pay</span>
       </div>
     </div>
   </section>
@@ -96,8 +96,8 @@
     <div class="reserve-intro">
       <p class="eyebrow">Reserve tickets</p>
       <h2><%= money(TICKET_PRICE) %> per ticket</h2>
-      <p class="muted">Apple Pay, Google Pay, Visa, and Mastercard. After approval, check your inbox and spam/junk folder for the QR ticket email.</p>
-      <div class="payment-badges"><span>Apple Pay</span><span>Google Pay</span><span>Visa</span><span>Mastercard</span></div>
+      <p class="muted">Apple Pay, Visa card, and Google Pay. After approval, check your inbox and spam/junk folder for the QR ticket email.</p>
+      <div class="payment-badges"><span>Apple Pay</span><span>Visa card</span><span>Google Pay</span></div>
       <div class="sponsor-card fast-sponsor">
         <p class="eyebrow">Event sponsor</p>
         <img src="<%= SPONSOR_LOGO_URL %>" alt="<%= SPONSOR_NAME %> sponsor logo" loading="lazy" decoding="async">
@@ -246,8 +246,8 @@ ticketForm.addEventListener('submit', e => {
     return;
   }
   reserveSubmit.disabled = true;
-  reserveSubmit.textContent = 'Opening secure checkout...';
-  checkoutStatus.textContent = 'Creating your secure Stripe checkout. Please do not close this page.';
+  reserveSubmit.textContent = 'Opening secure payment...';
+  checkoutStatus.textContent = 'Opening secure payment. Please do not close this page.';
   checkoutStatus.classList.remove('hidden');
   window.setTimeout(() => {
     if(document.visibilityState === 'visible'){

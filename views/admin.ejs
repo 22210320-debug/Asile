@@ -176,7 +176,7 @@
         <td data-label="ID"><%= t.id %></td>
         <td data-label="Ticket name"><%= t.attendeeName %></td>
         <td data-label="DOB"><%= t.dateOfBirth %></td>
-        <td data-label="Status"><span class="status-pill"><%= t.status %></span></td>
+        <td data-label="Status"><span class="status-pill ticket-status-<%= String(t.status || 'unknown').replace(/[^a-z0-9_-]/gi, '-') %>"><%= t.status %></span></td>
         <td data-label="Action" class="row-actions-cell">
           <form class="inline" method="post" action="/admin/tickets/<%= t.id %>/delete" onsubmit="return confirm('Delete this ticket? This cannot be undone.')">
             <button class="danger compact-action row-action danger-row-action" type="submit">Delete</button>
