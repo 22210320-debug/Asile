@@ -80,12 +80,15 @@
     <p class="note">This creates a new valid QR ticket without Stripe. Use it only for admin-approved manual tickets.</p>
   </details>
 
-  <div class="section-heading admin-section-heading">
-    <div>
+  <div class="admin-section-header">
+    <div class="admin-section-title">
       <h2>Orders</h2>
       <p class="muted">Showing <%= orders.length %> of <%= pagination.orders.total %> order(s)<% if (pagination.searches.orderSearch) { %> matching "<%= pagination.searches.orderSearch %>"<% } %><% if (pagination.searches.orderStatus === 'pending_admin_approval') { %> with status Ready for approval<% } %>. <span id="awaitingPaymentCount"><%= stats.awaitingPaymentCount %></span> order(s) are still waiting for customer payment.</p>
     </div>
-    <form class="ticket-search search-form" method="get" action="/admin">
+  </div>
+
+  <div class="admin-toolbar">
+    <form class="admin-search-form" method="get" action="/admin">
       <% if (pagination.searches.ticketSearch) { %><input type="hidden" name="ticketSearch" value="<%= pagination.searches.ticketSearch %>"><% } %>
       <label>Search orders<input name="orderSearch" type="search" value="<%= pagination.searches.orderSearch %>" placeholder="Buyer, email, ticket name, order ID"></label>
       <label>Status
@@ -99,18 +102,22 @@
           <option value="cancelled" <%= pagination.searches.orderStatus === 'cancelled' ? 'selected' : '' %>>Cancelled</option>
         </select>
       </label>
-      <button class="compact-action" type="submit">Search</button>
-      <% if (pagination.searches.orderSearch || pagination.searches.orderStatus) { %><a class="button compact" href="<%= adminPageUrl({ ...pagination.pages, ordersPage: 1 }, 'ordersPage', 1, { ticketSearch: pagination.searches.ticketSearch }) %>">Clear</a><% } %>
+      <div class="admin-search-actions">
+        <button class="compact-action" type="submit">Search</button>
+        <% if (pagination.searches.orderSearch || pagination.searches.orderStatus) { %><a class="button compact secondary" href="<%= adminPageUrl({ ...pagination.pages, ordersPage: 1 }, 'ordersPage', 1, { ticketSearch: pagination.searches.ticketSearch }) %>">Clear</a><% } %>
+      </div>
     </form>
-    <form class="inline" method="post" action="/admin/orders/sync-payments">
-      <button class="compact-action" type="submit">Sync Stripe payments</button>
-    </form>
-    <form class="inline" method="post" action="/admin/orders/repair-issued-statuses" onsubmit="return confirm('Mark pending orders as approved only when tickets already exist for them? This will not charge Stripe or create new tickets.')">
-      <button class="compact-action" type="submit">Fix issued statuses</button>
-    </form>
-    <form class="inline" method="post" action="/admin/orders/delete-stuck" onsubmit="return confirm('Delete stuck unpaid orders? Approved orders and tickets will not be deleted.')">
-      <button class="danger compact-action" type="submit">Delete stuck orders (<%= stats.stuckOrderCount %>)</button>
-    </form>
+    <div class="admin-actions-group" aria-label="Order tools">
+      <form method="post" action="/admin/orders/sync-payments">
+        <button class="compact-action" type="submit">Sync Stripe payments</button>
+      </form>
+      <form method="post" action="/admin/orders/repair-issued-statuses" onsubmit="return confirm('Mark pending orders as approved only when tickets already exist for them? This will not charge Stripe or create new tickets.')">
+        <button class="compact-action" type="submit">Fix issued statuses</button>
+      </form>
+      <form method="post" action="/admin/orders/delete-stuck" onsubmit="return confirm('Delete stuck unpaid orders? Approved orders and tickets will not be deleted.')">
+        <button class="danger compact-action" type="submit">Delete stuck orders (<%= stats.stuckOrderCount %>)</button>
+      </form>
+    </div>
   </div>
 
   <table class="admin-card-table">
@@ -146,17 +153,19 @@
     <% } %>
   </nav>
 
-  <div class="section-heading admin-section-heading">
-    <div>
+  <div class="admin-section-header">
+    <div class="admin-section-title">
       <h2>Tickets</h2>
       <p class="muted"><%= tickets.length %> of <%= pagination.tickets.total %> ticket(s) shown<% if (pagination.searches.ticketSearch) { %> matching "<%= pagination.searches.ticketSearch %>"<% } %></p>
     </div>
-    <form class="ticket-search search-form" method="get" action="/admin">
+    <form class="admin-search-form compact-search" method="get" action="/admin">
       <% if (pagination.searches.orderSearch) { %><input type="hidden" name="orderSearch" value="<%= pagination.searches.orderSearch %>"><% } %>
       <% if (pagination.searches.orderStatus) { %><input type="hidden" name="orderStatus" value="<%= pagination.searches.orderStatus %>"><% } %>
       <label>Search tickets<input name="ticketSearch" type="search" value="<%= pagination.searches.ticketSearch %>" placeholder="Ticket ID, name, email, buyer"></label>
-      <button class="compact-action" type="submit">Search</button>
-      <% if (pagination.searches.ticketSearch) { %><a class="button compact" href="<%= adminPageUrl({ ...pagination.pages, ticketsPage: 1 }, 'ticketsPage', 1, { orderSearch: pagination.searches.orderSearch }) %>">Clear</a><% } %>
+      <div class="admin-search-actions">
+        <button class="compact-action" type="submit">Search</button>
+        <% if (pagination.searches.ticketSearch) { %><a class="button compact secondary" href="<%= adminPageUrl({ ...pagination.pages, ticketsPage: 1 }, 'ticketsPage', 1, { orderSearch: pagination.searches.orderSearch }) %>">Clear</a><% } %>
+      </div>
     </form>
   </div>
 
@@ -191,8 +200,8 @@
   </nav>
   <p class="note"><b>Entry note:</b> Each ticket must match the attendee ID. All guests must be wearing <%= DRESS_CODE %>.</p>
 
-  <div class="section-heading admin-section-heading">
-    <div>
+  <div class="admin-section-header">
+    <div class="admin-section-title">
       <h2>Recent scan history</h2>
       <p class="muted">Showing <%= (scanHistory || []).length %> of <%= pagination.scans.total %> scan(s).</p>
     </div>
