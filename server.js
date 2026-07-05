@@ -63,11 +63,12 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.set('trust proxy', 1);
 
-// Use a Postgres-backed session store when a database is configured so admin
-// logins survive restarts/redeploys and are shared across multiple instances.
-// Falls back to the in-memory store only for local development without a DB.
+// Keep admin sessions out of the main database by default. Supabase/managed
+// Postgres connection hiccups should not break the public site or admin page
+// before the route can even load. Set SESSION_STORE=postgres only if shared
+// sessions across multiple app instances are more important than this isolation.
 let sessionStore;
-if (usePostgres()) {
+if (process.env.SESSION_STORE === 'postgres' && usePostgres()) {
   const pgSession = require('connect-pg-simple')(session);
   sessionStore = new pgSession({
     pool: getPool(),
@@ -77,13 +78,17 @@ if (usePostgres()) {
     ttl: Number(process.env.SESSION_TTL_SECONDS || 7 * 24 * 60 * 60)
   });
 }
-app.use(session({
+const adminSession = session({
   store: sessionStore,
   secret: process.env.SESSION_SECRET || 'change-this-secret',
   resave: false,
   saveUninitialized: false,
   cookie: { sameSite: 'lax', secure: process.env.NODE_ENV === 'production' }
-}));
+});
+app.use((req, res, next) => {
+  if (req.path.startsWith('/admin')) return adminSession(req, res, next);
+  return next();
+});
 
 function id(size = 12) { return crypto.randomBytes(size).toString('hex').slice(0, size).toUpperCase(); }
 function money(amount = TICKET_PRICE) { return `${(amount / 100).toFixed(0)} NIS`; }
