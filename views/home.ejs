@@ -20,7 +20,7 @@
   <link rel="icon" type="image/png" sizes="512x512" href="/public/favicon.png?v=20260705a">
   <link rel="apple-touch-icon" sizes="512x512" href="/public/favicon.png?v=20260705a">
   <link rel="preload" href="/public/vineyard-sunset.svg" as="image">
-  <link rel="stylesheet" href="/public/style.css?v=20260707a">
+  <link rel="stylesheet" href="/public/style.css?v=20260707b">
 </head>
 <body>
   <main class="home-hero modern-home">
@@ -71,7 +71,7 @@
         <span><b>Theme</b><%= EVENT_THEME %></span>
         <a class="detail-bubble detail-link" href="<%= MAP_URL %>" target="_blank" rel="noopener"><b>Location</b><%= EVENT_LOCATION %></a>
         <span><b>Dress</b><%= DRESS_CODE %></span>
-        <span><b>Capacity</b><%= ticketAvailability && ticketAvailability.soldOut ? `Sold out · ${CAPACITY}/${CAPACITY}` : `${ticketAvailability ? ticketAvailability.soldOrPending : 0}/${CAPACITY} reserved` %></span>
+        <span><b>Capacity</b><%= ticketAvailability && ticketAvailability.soldOut ? `Sold out · ${CAPACITY}/${CAPACITY}` : `${ticketAvailability ? ticketAvailability.soldOrPending : 0}/${CAPACITY} reserved` %><small><%= ticketAvailability && ticketAvailability.soldOut ? '0 tickets left' : `${ticketAvailability ? ticketAvailability.remaining : CAPACITY} tickets left` %></small></span>
         <span><b>Bar</b><%= BAR_PARTNER %></span>
         <span><b>Sponsor</b><%= SPONSOR_NAME %></span>
         <span><b>Included</b><%= PHOTO_BOOTH_PARTNER %></span>
