@@ -13,7 +13,7 @@ const crypto = require('crypto');
 
 const app = express();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY, { timeout: Number(process.env.STRIPE_TIMEOUT_MS || 10000) }) : null;
-const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount } = require('./db');
+const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount } = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
@@ -135,6 +135,15 @@ function normalizeGender(value) {
   if (['male', 'm'].includes(v)) return 'Male';
   if (['female', 'f'].includes(v)) return 'Female';
   return '';
+}
+function normalizeVipCode(value) {
+  return String(value || '').trim().toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9_-]/g, '');
+}
+function vipCodeUsage(db, code) {
+  const key = normalizeVipCode(code);
+  return (db.orders || [])
+    .filter(order => isActiveOrder(order) && normalizeVipCode(order.vipCode) === key)
+    .reduce((sum, order) => sum + Number(order.qty || 0), 0);
 }
 function adminStats(db, approvedCountOverride) {
   const activeTickets = db.tickets.filter(isIssuedTicket);
@@ -447,6 +456,7 @@ app.get(VIP_RESERVE_PATH, (req, res) => renderHomePage(req, res, { privateReserv
 async function handleReserve(req, res, { bypassCapacity = false } = {}) {
   const buyerName = cleanName(req.body.buyerName);
   const buyerEmail = String(req.body.buyerEmail || '').trim();
+  const vipCodeInput = normalizeVipCode(req.body.vipCode);
   const attendeeFirstNames = asArray(req.body.attendeeFirstName).map(cleanName);
   const attendeeLastNames = asArray(req.body.attendeeLastName).map(cleanName);
   const legacyNames = asArray(req.body.attendeeName).map(cleanName);
@@ -455,6 +465,7 @@ async function handleReserve(req, res, { bypassCapacity = false } = {}) {
   const attendeeNames = legacyNames.length ? legacyNames : attendeeFirstNames.map((first, i) => combineName(first, attendeeLastNames[i]));
   const qty = Number(req.body.quantity || attendeeNames.length || 1);
   if (!buyerName || !buyerEmail) return res.status(400).render('message', { title: 'Missing information', message: 'Buyer name and email are required.' });
+  if (bypassCapacity && !vipCodeInput) return res.status(400).render('message', { title: 'VIP code required', message: 'Enter your private invite code to use this checkout link.' });
   if (!Number.isFinite(qty) || qty < 1) return res.status(400).render('message', { title: 'Invalid quantity', message: 'Cannot order 0 tickets. Please order at least 1.' });
   if (!Number.isInteger(qty)) return res.status(400).render('message', { title: 'Invalid quantity', message: 'Please enter a whole number of tickets.' });
   if (qty > 10) return res.status(400).render('message', { title: 'Invalid quantity', message: 'Cannot order more than 10 tickets at once.' });
@@ -474,6 +485,16 @@ async function handleReserve(req, res, { bypassCapacity = false } = {}) {
     reservation = await reserveAtomic(freshDb => {
       if (keys.some(k => usedNameKeys(freshDb).has(k))) return { error: 'duplicate' };
       if (!bypassCapacity && soldOrPendingCount(freshDb) + qty > CAPACITY) return { error: 'soldout' };
+      if (bypassCapacity) {
+        const vipCode = (freshDb.vipCodes || []).find(item => normalizeVipCode(item.code) === vipCodeInput);
+        if (!vipCode || vipCode.active === false) return { error: 'invalid_vip_code' };
+        const usedTickets = vipCodeUsage(freshDb, vipCodeInput);
+        const maxTickets = Math.max(1, Number(vipCode.maxTickets || 1));
+        if (usedTickets + qty > maxTickets) return { error: 'vip_limit', vipCode, usedTickets, maxTickets };
+        order.vipCode = vipCode.code;
+        order.vipName = vipCode.name || '';
+        order.vipMaxTickets = maxTickets;
+      }
       return { order };
     });
   } catch (err) {
@@ -482,6 +503,8 @@ async function handleReserve(req, res, { bypassCapacity = false } = {}) {
   }
   if (reservation.error === 'duplicate') return res.status(400).render('message', { title: 'Duplicate name', message: 'One of these attendee names has already been used for another ticket.' });
   if (reservation.error === 'soldout') return res.status(400).render('message', { title: 'Sold out', message: 'This order goes over the event capacity.' });
+  if (reservation.error === 'invalid_vip_code') return res.status(400).render('message', { title: 'Invalid VIP code', message: 'This invite code is not valid or is no longer active.' });
+  if (reservation.error === 'vip_limit') return res.status(400).render('message', { title: 'VIP code limit reached', message: `This invite code allows ${reservation.maxTickets} ticket(s), and ${reservation.usedTickets} are already reserved.` });
   if (reservation.error) return res.status(500).render('message', { title: 'Reservation error', message: 'The reservation could not be completed. Please try again.' });
   if (!stripe) {
     order.status = 'payment_error';
@@ -582,6 +605,7 @@ app.get('/admin', requireAdmin, async (req, res) => {
       orders: dashboard.orders,
       tickets: dashboard.tickets.filter(isIssuedTicket),
       scanHistory: dashboard.scanHistory || [],
+      vipCodes: dashboard.vipCodes || [],
       pagination: {
         pages,
         searches,
@@ -669,6 +693,27 @@ app.post('/admin/orders/repair-issued-statuses', requireAdmin, async (req, res) 
   res.redirect(`/admin?notice=${encodeURIComponent(message)}`);
 });
 
+app.post('/admin/vip-codes', requireAdmin, async (req, res) => {
+  const rawCode = normalizeVipCode(req.body.code);
+  const name = cleanName(req.body.name);
+  const maxTickets = Number(req.body.maxTickets || 1);
+  if (!rawCode || !Number.isInteger(maxTickets) || maxTickets < 1 || maxTickets > 10) {
+    return res.status(400).render('message', { title: 'Invalid VIP code', message: 'Enter a code and a max ticket number from 1 to 10.' });
+  }
+  await upsertVipCode({ code: rawCode, name, maxTickets, active: true });
+  res.redirect(`/admin?notice=${encodeURIComponent(`VIP code ${rawCode} is ready.`)}`);
+});
+
+app.post('/admin/vip-codes/:code/disable', requireAdmin, async (req, res) => {
+  await setVipCodeActive(req.params.code, false);
+  res.redirect(`/admin?notice=${encodeURIComponent(`VIP code ${normalizeVipCode(req.params.code)} was disabled.`)}`);
+});
+
+app.post('/admin/vip-codes/:code/enable', requireAdmin, async (req, res) => {
+  await setVipCodeActive(req.params.code, true);
+  res.redirect(`/admin?notice=${encodeURIComponent(`VIP code ${normalizeVipCode(req.params.code)} was enabled.`)}`);
+});
+
 app.post('/admin/orders/:id/delete', requireAdmin, async (req, res) => {
   const order = await getOrderById(req.params.id);
   if (stripe && order?.paymentIntentId && ['pending_admin_approval', 'awaiting_payment_authorization'].includes(order.status)) {
@@ -718,7 +763,6 @@ app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
   // one atomic step, consistent with the buyer reservation flow.
   const reservation = await reserveAtomic(async freshDb => {
     if (usedNameKeys(freshDb).has(nameKey(attendeeName))) return { error: 'duplicate' };
-    if (soldOrPendingCount(freshDb) + 1 > CAPACITY) return { error: 'soldout' };
     const ticket = await createTicketForAttendee(order, order.attendees[0], {
       manual: true,
       price: 'Manual ticket',
@@ -728,9 +772,6 @@ app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
   });
   if (reservation.error === 'duplicate') {
     return res.status(400).render('message', { title: 'Duplicate name', message: 'This attendee name already has a ticket or active order.' });
-  }
-  if (reservation.error === 'soldout') {
-    return res.status(400).render('message', { title: 'Sold out', message: 'This manual ticket goes over the event capacity.' });
   }
   if (reservation.error) {
     return res.status(500).render('message', { title: 'Manual ticket error', message: 'The ticket could not be created. Please try again.' });

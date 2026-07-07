@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Admin</title>
-  <link rel="stylesheet" href="/public/style.css?v=20260708b">
+  <link rel="stylesheet" href="/public/style.css?v=20260708c">
 </head>
 <body>
 <main class="wrap admin-wrap" data-admin-dashboard="true" data-awaiting-payments="<%= stats.awaitingPaymentCount %>">
@@ -85,6 +85,44 @@
     <p class="note">This creates a new valid QR ticket without Stripe. Use it only for admin-approved manual tickets.</p>
   </details>
 
+  <details class="panel admin-collapse">
+    <summary>
+      <span>VIP invite codes</span>
+      <span class="summary-action">Open</span>
+    </summary>
+    <form method="post" action="/admin/vip-codes" class="manual-ticket-form">
+      <div class="name-grid">
+        <label>Invite code<input name="code" required placeholder="RANIA-VIP-001" autocapitalize="characters"></label>
+        <label>Guest label<input name="name" placeholder="Rania / Table 5"></label>
+      </div>
+      <label>Max tickets<input name="maxTickets" type="number" min="1" max="10" value="1" required></label>
+      <button type="submit">Create VIP code</button>
+    </form>
+    <table class="admin-card-table">
+      <tr><th>Code</th><th>Guest</th><th>Used</th><th>Status</th><th></th></tr>
+      <% (vipCodes || []).forEach(code => { %>
+        <tr>
+          <td data-label="Code"><%= code.code %></td>
+          <td data-label="Guest"><%= code.name || 'VIP guest' %></td>
+          <td data-label="Used"><%= code.usedTickets || 0 %> / <%= code.maxTickets || 1 %></td>
+          <td data-label="Status"><span class="status-pill <%= code.active === false ? 'status-cancelled' : 'ticket-status-valid' %>"><%= code.active === false ? 'Disabled' : 'Active' %></span></td>
+          <td data-label="Action" class="row-actions-cell">
+            <% if (code.active === false) { %>
+              <form class="inline" method="post" action="/admin/vip-codes/<%= code.code %>/enable">
+                <button class="compact-action row-action" type="submit">Enable</button>
+              </form>
+            <% } else { %>
+              <form class="inline" method="post" action="/admin/vip-codes/<%= code.code %>/disable" onsubmit="return confirm('Disable this VIP code?')">
+                <button class="danger compact-action row-action danger-row-action" type="submit">Disable</button>
+              </form>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+    </table>
+    <p class="note">VIP codes work only on <b>/private-reserve-asile-2026</b>. Each code can reserve up to its max tickets and still requires admin approval.</p>
+  </details>
+
   <div class="admin-section-header">
     <div class="admin-section-title">
       <h2>Orders</h2>
@@ -129,7 +167,7 @@
     <tr><th>Buyer</th><th>Ticket names</th><th>Email</th><th>Qty</th><th>Amount</th><th>Status</th><th></th></tr>
     <% orders.forEach(o=>{ %>
       <tr>
-        <td data-label="Buyer"><%= o.buyerName %></td>
+        <td data-label="Buyer"><%= o.buyerName %><% if (o.vipCode) { %><small class="table-subtext">VIP: <%= o.vipCode %></small><% } %></td>
         <td data-label="Ticket names"><%= (o.attendees || []).map(a => a.name).filter(Boolean).join(', ') || o.buyerName %></td>
         <td data-label="Email"><%= o.buyerEmail %></td>
         <td data-label="Qty"><%= o.qty %></td>

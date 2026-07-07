@@ -20,7 +20,7 @@
   <link rel="icon" type="image/png" sizes="512x512" href="/public/favicon.png?v=20260705a">
   <link rel="apple-touch-icon" sizes="512x512" href="/public/favicon.png?v=20260705a">
   <link rel="preload" href="/public/vineyard-sunset.svg" as="image">
-  <link rel="stylesheet" href="/public/style.css?v=20260708b">
+  <link rel="stylesheet" href="/public/style.css?v=20260708c">
 </head>
 <body>
   <main class="home-hero modern-home">
@@ -136,6 +136,9 @@
       <% } else { %>
       <p class="muted">Each ticket needs a unique attendee first name, last name, date of birth in DD/MM/YYYY format, and gender. All attendees must be <%= MIN_AGE %>+.</p>
       <form action="<%= formAction || '/reserve' %>" method="post" id="ticketForm">
+        <% if (privateReserve) { %>
+          <label>VIP invite code<input name="vipCode" required autocomplete="off" autocapitalize="characters" placeholder="VIP-CODE"></label>
+        <% } %>
         <label>Buyer full name<input name="buyerName" required autocomplete="name" placeholder="Buyer name"></label>
         <label>Buyer email<input type="email" name="buyerEmail" required autocomplete="email" placeholder="you@example.com"></label>
         <label>Quantity

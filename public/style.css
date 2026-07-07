@@ -55,3 +55,4 @@ h2{font-family:Georgia,'Times New Roman',serif;font-size:clamp(30px,4vw,52px);li
 .event-detail-grid small{display:block;margin-top:5px;color:var(--muted);font-size:13px;font-weight:800;letter-spacing:0;text-transform:none}
 .ratio-card small{display:block;margin-top:7px;color:var(--gold);font-size:15px;font-weight:900}
 .private-reserve-wrap{padding-top:48px}.private-invite-card{display:grid;gap:10px;margin-top:18px}.private-invite-card span{padding:14px;border:1px solid rgba(245,229,204,.13);border-radius:16px;background:rgba(0,0,0,.22);color:var(--muted);font-weight:900}.private-invite-card b{display:block;color:#fff6e8;font-size:18px}
+.table-subtext{display:block;margin-top:5px;color:var(--gold);font-size:12px;font-weight:900}

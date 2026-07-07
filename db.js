@@ -12,7 +12,7 @@ const RESERVE_LOCK_KEY = 728492;
 
 async function readJsonFile() {
   try { return JSON.parse(await fs.readFile(dbFile, 'utf8')); }
-  catch { return { orders: [], tickets: [], scanHistory: [] }; }
+  catch { return { orders: [], tickets: [], scanHistory: [], vipCodes: [] }; }
 }
 
 function usePostgres() { return Boolean(process.env.DATABASE_URL); }
@@ -95,6 +95,12 @@ async function initDb() {
       result TEXT NOT NULL,
       scanned_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS vip_codes (
+      code TEXT PRIMARY KEY,
+      data JSONB NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
     CREATE INDEX IF NOT EXISTS idx_orders_status ON orders ((data->>'status'));
     CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
     CREATE INDEX IF NOT EXISTS idx_tickets_attendee_name ON tickets(attendee_name);
@@ -109,23 +115,42 @@ async function initDb() {
 async function readDb() {
   if (!usePostgres()) {
     try { return JSON.parse(await fs.readFile(dbFile, 'utf8')); }
-    catch { const fresh = { orders: [], tickets: [], scanHistory: [] }; await writeDb(fresh); return fresh; }
+    catch { const fresh = { orders: [], tickets: [], scanHistory: [], vipCodes: [] }; await writeDb(fresh); return fresh; }
   }
   await initDb();
-  const [orders, tickets, scanHistory] = await Promise.all([
+  const [orders, tickets, scanHistory, vipCodes] = await Promise.all([
     pgQuery('SELECT data FROM orders ORDER BY created_at DESC'),
     pgQuery('SELECT data FROM tickets ORDER BY created_at DESC'),
-    pgQuery('SELECT ticket_id, scanned_by, result, scanned_at FROM scan_history ORDER BY scanned_at DESC LIMIT 200')
+    pgQuery('SELECT ticket_id, scanned_by, result, scanned_at FROM scan_history ORDER BY scanned_at DESC LIMIT 200'),
+    pgQuery('SELECT data FROM vip_codes ORDER BY created_at DESC')
   ]);
   return {
     orders: orders.rows.map(r => r.data),
     tickets: tickets.rows.map(r => r.data),
-    scanHistory: scanHistory.rows.map(r => ({ ticketId: r.ticket_id, scannedBy: r.scanned_by, result: r.result, scannedAt: r.scanned_at }))
+    scanHistory: scanHistory.rows.map(r => ({ ticketId: r.ticket_id, scannedBy: r.scanned_by, result: r.result, scannedAt: r.scanned_at })),
+    vipCodes: vipCodes.rows.map(r => r.data)
   };
 }
 
 function normalizeSearch(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+function isActiveReservationOrder(order) {
+  const inactive = ['denied_released', 'cancelled', 'rejected_refunded', 'payment_error', 'authorization_expired'];
+  if (!order || inactive.includes(order.status)) return false;
+  if (['checkout_started', 'awaiting_payment_authorization'].includes(order.status)) {
+    const created = new Date(order.createdAt || 0).getTime();
+    return Boolean(created) && Date.now() - created < 30 * 60 * 1000;
+  }
+  return true;
+}
+
+function vipCodeUsageFromOrders(orders = [], code = '') {
+  const key = String(code || '').trim().toUpperCase();
+  return (orders || [])
+    .filter(order => isActiveReservationOrder(order) && String(order.vipCode || '').trim().toUpperCase() === key)
+    .reduce((sum, order) => sum + Number(order.qty || 0), 0);
 }
 
 function orderMatchesSearch(order, query) {
@@ -216,12 +241,18 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearc
       }
       return true;
     });
+    const vipCodes = (db.vipCodes || []).map(code => ({
+      ...code,
+      usedTickets: vipCodeUsageFromOrders(db.orders || [], code.code),
+      remainingTickets: Math.max(0, Number(code.maxTickets || 0) - vipCodeUsageFromOrders(db.orders || [], code.code))
+    }));
     return {
       orders: searchedOrders.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(orderOffset, orderOffset + orderLimit),
       tickets: searchedTickets.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(ticketOffset, ticketOffset + ticketLimit).map(ticket => ({ ...ticket, qrDataUrl: undefined })),
       scanHistory: (db.scanHistory || []).slice().sort((a, b) => new Date(b.scannedAt || 0) - new Date(a.scannedAt || 0)).slice(scanOffset, scanOffset + scanLimit),
       allOrders: db.orders || [],
       allTickets: db.tickets || [],
+      vipCodes,
       approvedCount: issuedTickets.length,
       orderCount: searchedOrders.length,
       ticketCount: searchedTickets.length,
@@ -273,7 +304,7 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearc
   const orderCountSearchSql = orderFilterWhere(orderCountSearchIndex, orderCountStatusIndex);
   const ticketSearchParams = cleanTicketSearch ? [ticketLimit, ticketOffset, `%${cleanTicketSearch}%`] : [ticketLimit, ticketOffset];
   const ticketCountParams = cleanTicketSearch ? [`%${cleanTicketSearch}%`] : [];
-  const [orders, tickets, scanHistory, orderCount, ticketCount, scanCount, orderStats] = await Promise.all([
+  const [orders, tickets, scanHistory, orderCount, ticketCount, scanCount, orderStats, vipCodes] = await Promise.all([
     pgQuery(`SELECT data FROM orders ${orderSearchSql} ORDER BY created_at DESC LIMIT $1 OFFSET $2`, orderSearchParams),
     pgQuery(`SELECT data - 'qrDataUrl' AS data FROM tickets WHERE status IN ('valid', 'used') ${ticketSearchSql} ORDER BY created_at DESC LIMIT $1 OFFSET $2`, ticketSearchParams),
     pgQuery('SELECT ticket_id, scanned_by, result, scanned_at FROM scan_history ORDER BY scanned_at DESC LIMIT $1 OFFSET $2', [scanLimit, scanOffset]),
@@ -329,6 +360,37 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearc
             AND LOWER(COALESCE(attendee->>'gender', '')) = 'male'
         ) AS male_count
       FROM orders
+    `, [['denied_released', 'cancelled', 'rejected_refunded', 'payment_error', 'authorization_expired']]),
+    pgQuery(`
+      SELECT
+        vc.data ||
+        jsonb_build_object(
+          'usedTickets', COALESCE(SUM(
+            CASE WHEN NOT (o.data->>'status' = ANY($1::text[]))
+              AND (
+                o.data->>'status' NOT IN ('checkout_started', 'awaiting_payment_authorization')
+                OR o.created_at > NOW() - INTERVAL '30 minutes'
+              )
+              THEN COALESCE((o.data->>'qty')::int, 0)
+              ELSE 0
+            END
+          ), 0)::int,
+          'remainingTickets', GREATEST(0, COALESCE((vc.data->>'maxTickets')::int, 0) - COALESCE(SUM(
+            CASE WHEN NOT (o.data->>'status' = ANY($1::text[]))
+              AND (
+                o.data->>'status' NOT IN ('checkout_started', 'awaiting_payment_authorization')
+                OR o.created_at > NOW() - INTERVAL '30 minutes'
+              )
+              THEN COALESCE((o.data->>'qty')::int, 0)
+              ELSE 0
+            END
+          ), 0)::int)
+        ) AS data
+      FROM vip_codes vc
+      LEFT JOIN orders o ON UPPER(o.data->>'vipCode') = vc.code
+      GROUP BY vc.code, vc.data, vc.created_at
+      ORDER BY vc.created_at DESC
+      LIMIT 50
     `, [['denied_released', 'cancelled', 'rejected_refunded', 'payment_error', 'authorization_expired']])
   ]);
   const statsRow = orderStats.rows[0] || {};
@@ -338,6 +400,7 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearc
     scanHistory: scanHistory.rows.map(r => ({ ticketId: r.ticket_id, scannedBy: r.scanned_by, result: r.result, scannedAt: r.scanned_at })),
     allOrders: [],
     allTickets: [],
+    vipCodes: vipCodes.rows.map(r => r.data),
     approvedCount: ticketCount.rows[0]?.count || 0,
     orderCount: orderCount.rows[0]?.count || 0,
     ticketCount: ticketCount.rows[0]?.count || 0,
@@ -377,6 +440,13 @@ async function writeDb(data) {
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, NOW())
          ON CONFLICT (id) DO UPDATE SET order_id = EXCLUDED.order_id, status = EXCLUDED.status, attendee_name = EXCLUDED.attendee_name, attendee_first_name = EXCLUDED.attendee_first_name, attendee_last_name = EXCLUDED.attendee_last_name, gender = EXCLUDED.gender, data = EXCLUDED.data, updated_at = NOW()`,
         [ticket.id, ticket.orderId || null, ticket.status || 'valid', ticket.attendeeName || null, ticket.attendeeFirstName || null, ticket.attendeeLastName || null, ticket.gender || null, JSON.stringify(ticket)]
+      );
+    }
+    for (const vipCode of data.vipCodes || []) {
+      await client.query(
+        `INSERT INTO vip_codes (code, data, updated_at) VALUES ($1, $2::jsonb, NOW())
+         ON CONFLICT (code) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+        [String(vipCode.code || '').trim().toUpperCase(), JSON.stringify({ ...vipCode, code: String(vipCode.code || '').trim().toUpperCase() })]
       );
     }
     await client.query('COMMIT');
@@ -422,6 +492,55 @@ async function upsertTicket(ticket) {
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, NOW())
      ON CONFLICT (id) DO UPDATE SET order_id = EXCLUDED.order_id, status = EXCLUDED.status, attendee_name = EXCLUDED.attendee_name, attendee_first_name = EXCLUDED.attendee_first_name, attendee_last_name = EXCLUDED.attendee_last_name, gender = EXCLUDED.gender, data = EXCLUDED.data, updated_at = NOW()`,
     [ticket.id, ticket.orderId || null, ticket.status || 'valid', ticket.attendeeName || null, ticket.attendeeFirstName || null, ticket.attendeeLastName || null, ticket.gender || null, JSON.stringify(ticket)]
+  );
+}
+
+async function upsertVipCode(vipCode) {
+  const code = String(vipCode.code || '').trim().toUpperCase();
+  if (!code) throw new Error('VIP code is required');
+  const data = {
+    ...vipCode,
+    code,
+    name: String(vipCode.name || '').trim(),
+    maxTickets: Math.max(1, Number(vipCode.maxTickets || 1)),
+    active: vipCode.active !== false,
+    createdAt: vipCode.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  if (!usePostgres()) {
+    const db = await readDb();
+    db.vipCodes = db.vipCodes || [];
+    const index = db.vipCodes.findIndex(item => String(item.code || '').toUpperCase() === code);
+    if (index >= 0) db.vipCodes[index] = data;
+    else db.vipCodes.unshift(data);
+    await writeDb(db);
+    return data;
+  }
+  await initDb();
+  await pgQuery(
+    `INSERT INTO vip_codes (code, data, updated_at) VALUES ($1, $2::jsonb, NOW())
+     ON CONFLICT (code) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+    [code, JSON.stringify(data)]
+  );
+  return data;
+}
+
+async function setVipCodeActive(codeValue, active) {
+  const code = String(codeValue || '').trim().toUpperCase();
+  if (!code) return;
+  if (!usePostgres()) {
+    const db = await readDb();
+    db.vipCodes = (db.vipCodes || []).map(item => String(item.code || '').toUpperCase() === code ? { ...item, active, updatedAt: new Date().toISOString() } : item);
+    await writeDb(db);
+    return;
+  }
+  await initDb();
+  await pgQuery(
+    `UPDATE vip_codes
+     SET data = jsonb_set(data || jsonb_build_object('updatedAt', to_jsonb(NOW()::text)), '{active}', to_jsonb($2::boolean)),
+         updated_at = NOW()
+     WHERE code = $1`,
+    [code, active]
   );
 }
 
@@ -573,6 +692,7 @@ async function reserveAtomic(validateAndBuild) {
     let outcome = { error: 'unknown' };
     dbWriteQueue = dbWriteQueue.then(async () => {
       const db = await readJsonFile();
+      db.vipCodes = db.vipCodes || [];
       outcome = await validateAndBuild(db);
       if (outcome.error) return;
       if (outcome.order) {
@@ -594,11 +714,12 @@ async function reserveAtomic(validateAndBuild) {
   try {
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock($1)', [RESERVE_LOCK_KEY]);
-    const [orders, tickets] = await Promise.all([
+    const [orders, tickets, vipCodes] = await Promise.all([
       client.query('SELECT data FROM orders'),
-      client.query('SELECT data FROM tickets')
+      client.query('SELECT data FROM tickets'),
+      client.query('SELECT data FROM vip_codes')
     ]);
-    const db = { orders: orders.rows.map(r => r.data), tickets: tickets.rows.map(r => r.data), scanHistory: [] };
+    const db = { orders: orders.rows.map(r => r.data), tickets: tickets.rows.map(r => r.data), scanHistory: [], vipCodes: vipCodes.rows.map(r => r.data) };
     const outcome = await validateAndBuild(db);
     if (outcome.error) { await client.query('ROLLBACK'); return outcome; }
     if (outcome.order) {
@@ -751,4 +872,4 @@ async function getSoldOrPendingCount() {
   return result.rows[0]?.count || 0;
 }
 
-module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount };
+module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount };
