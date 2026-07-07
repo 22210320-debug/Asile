@@ -159,14 +159,19 @@ function adminStats(db, approvedCountOverride) {
 }
 function dashboardStats(stats) {
   if (!stats) return null;
+  const femaleCount = stats.femaleCount || 0;
+  const maleCount = stats.maleCount || 0;
+  const ratioTotal = femaleCount + maleCount;
   return {
     approvedCount: stats.approvedCount || 0,
     awaitingPaymentCount: stats.awaitingPaymentCount || 0,
     stuckOrderCount: stats.stuckOrderCount || 0,
     remaining: Math.max(0, CAPACITY - Number(stats.remainingSoldOrPending || 0)),
     pendingCount: stats.pendingCount || 0,
-    femaleCount: stats.femaleCount || 0,
-    maleCount: stats.maleCount || 0
+    femaleCount,
+    maleCount,
+    femalePercent: ratioTotal ? Math.round((femaleCount / ratioTotal) * 100) : 0,
+    malePercent: ratioTotal ? Math.round((maleCount / ratioTotal) * 100) : 0
   };
 }
 function orderStatusLabel(status) {

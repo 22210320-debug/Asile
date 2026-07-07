@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Admin</title>
-  <link rel="stylesheet" href="/public/style.css?v=20260707b">
+  <link rel="stylesheet" href="/public/style.css?v=20260708a">
 </head>
 <body>
 <main class="wrap admin-wrap" data-admin-dashboard="true" data-awaiting-payments="<%= stats.awaitingPaymentCount %>">
@@ -33,13 +33,10 @@
       <span>Pending</span>
       <b><%= stats.pendingCount %></b>
     </div>
-    <div class="metric-card">
-      <span>Female</span>
-      <b><%= stats.femaleCount || 0 %></b>
-    </div>
-    <div class="metric-card">
-      <span>Male</span>
-      <b><%= stats.maleCount || 0 %></b>
+    <div class="metric-card ratio-card">
+      <span>Female / Male</span>
+      <b><%= stats.femaleCount || 0 %> / <%= stats.maleCount || 0 %></b>
+      <small><%= stats.femalePercent || 0 %>% / <%= stats.malePercent || 0 %>%</small>
     </div>
     <div class="metric-card alert-card">
       <span>Stuck orders</span>
