@@ -501,7 +501,6 @@ async function upsertVipCode(vipCode) {
   const data = {
     ...vipCode,
     code,
-    name: String(vipCode.name || '').trim(),
     maxTickets: Math.max(1, Number(vipCode.maxTickets || 1)),
     active: vipCode.active !== false,
     createdAt: vipCode.createdAt || new Date().toISOString(),

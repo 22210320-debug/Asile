@@ -91,19 +91,15 @@
       <span class="summary-action">Open</span>
     </summary>
     <form method="post" action="/admin/vip-codes" class="manual-ticket-form">
-      <div class="name-grid">
-        <label>Invite code<input name="code" required placeholder="RANIA-VIP-001" autocapitalize="characters"></label>
-        <label>Guest label<input name="name" placeholder="Rania / Table 5"></label>
-      </div>
+      <label>Invite code<input name="code" required placeholder="VIP-001" autocapitalize="characters"></label>
       <label>Max tickets<input name="maxTickets" type="number" min="1" max="10" value="1" required></label>
       <button type="submit">Create VIP code</button>
     </form>
     <table class="admin-card-table">
-      <tr><th>Code</th><th>Guest</th><th>Used</th><th>Status</th><th></th></tr>
+      <tr><th>Code</th><th>Used</th><th>Status</th><th></th></tr>
       <% (vipCodes || []).forEach(code => { %>
         <tr>
           <td data-label="Code"><%= code.code %></td>
-          <td data-label="Guest"><%= code.name || 'VIP guest' %></td>
           <td data-label="Used"><%= code.usedTickets || 0 %> / <%= code.maxTickets || 1 %></td>
           <td data-label="Status"><span class="status-pill <%= code.active === false ? 'status-cancelled' : 'ticket-status-valid' %>"><%= code.active === false ? 'Disabled' : 'Active' %></span></td>
           <td data-label="Action" class="row-actions-cell">

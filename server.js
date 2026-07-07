@@ -492,7 +492,6 @@ async function handleReserve(req, res, { bypassCapacity = false } = {}) {
         const maxTickets = Math.max(1, Number(vipCode.maxTickets || 1));
         if (usedTickets + qty > maxTickets) return { error: 'vip_limit', vipCode, usedTickets, maxTickets };
         order.vipCode = vipCode.code;
-        order.vipName = vipCode.name || '';
         order.vipMaxTickets = maxTickets;
       }
       return { order };
@@ -695,12 +694,11 @@ app.post('/admin/orders/repair-issued-statuses', requireAdmin, async (req, res) 
 
 app.post('/admin/vip-codes', requireAdmin, async (req, res) => {
   const rawCode = normalizeVipCode(req.body.code);
-  const name = cleanName(req.body.name);
   const maxTickets = Number(req.body.maxTickets || 1);
   if (!rawCode || !Number.isInteger(maxTickets) || maxTickets < 1 || maxTickets > 10) {
     return res.status(400).render('message', { title: 'Invalid VIP code', message: 'Enter a code and a max ticket number from 1 to 10.' });
   }
-  await upsertVipCode({ code: rawCode, name, maxTickets, active: true });
+  await upsertVipCode({ code: rawCode, maxTickets, active: true });
   res.redirect(`/admin?notice=${encodeURIComponent(`VIP code ${rawCode} is ready.`)}`);
 });
 
