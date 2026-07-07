@@ -20,7 +20,7 @@
   <link rel="icon" type="image/png" sizes="512x512" href="/public/favicon.png?v=20260705a">
   <link rel="apple-touch-icon" sizes="512x512" href="/public/favicon.png?v=20260705a">
   <link rel="preload" href="/public/vineyard-sunset.svg" as="image">
-  <link rel="stylesheet" href="/public/style.css?v=20260705b">
+  <link rel="stylesheet" href="/public/style.css?v=20260707a">
 </head>
 <body>
   <main class="home-hero modern-home">
@@ -35,7 +35,11 @@
       <h1><%= EVENT_NAME %></h1>
       <p class="subtitle">A private all-white sunset house party in <%= EVENT_LOCATION %>, built around house music, approved guest-list entry, QR tickets, <%= BAR_PARTNER %> at the bar, <%= SPONSOR_NAME %> sponsorship, and one free <%= PHOTO_BOOTH_PARTNER %> picture for every approved guest.</p>
       <div class="hero-actions">
-        <a class="button" href="#reserve">Reserve now</a>
+        <% if (ticketAvailability && ticketAvailability.soldOut) { %>
+          <a class="button sold-out-button" href="#reserve">Sold out</a>
+        <% } else { %>
+          <a class="button" href="#reserve">Reserve now</a>
+        <% } %>
         <a class="button secondary" href="<%= MAP_URL %>" target="_blank" rel="noopener">Pinned location</a>
       </div>
     </section>
@@ -43,7 +47,7 @@
     <aside class="hero-ticket" aria-label="Event summary">
       <span><b><%= EVENT_DATE %></b>Date</span>
       <span><b><%= EVENT_TIME %></b>Time</span>
-      <span><b><%= money(TICKET_PRICE) %></b>Ticket</span>
+      <span><b><%= ticketAvailability && ticketAvailability.soldOut ? 'Sold out' : money(TICKET_PRICE) %></b>Ticket</span>
       <span><b><%= MIN_AGE %>+</b>Age</span>
     </aside>
   </main>
@@ -55,7 +59,11 @@
         <h2>All-white sunset energy, controlled from checkout to the door.</h2>
         <p>Every reservation is reviewed before tickets are issued. Approved guests receive named QR tickets, and the name on each ticket must match ID at entry.</p>
         <div class="detail-actions">
-          <a class="button" href="#reserve">Reserve now</a>
+          <% if (ticketAvailability && ticketAvailability.soldOut) { %>
+            <a class="button sold-out-button" href="#reserve">Sold out</a>
+          <% } else { %>
+            <a class="button" href="#reserve">Reserve now</a>
+          <% } %>
           <a class="button secondary whatsapp-button" href="https://wa.me/<%= WHATSAPP_1 %>" target="_blank" rel="noopener">WhatsApp</a>
         </div>
       </div>
@@ -63,7 +71,7 @@
         <span><b>Theme</b><%= EVENT_THEME %></span>
         <a class="detail-bubble detail-link" href="<%= MAP_URL %>" target="_blank" rel="noopener"><b>Location</b><%= EVENT_LOCATION %></a>
         <span><b>Dress</b><%= DRESS_CODE %></span>
-        <span><b>Capacity</b>Limited guest list</span>
+        <span><b>Capacity</b><%= ticketAvailability && ticketAvailability.soldOut ? 'Sold out' : `${ticketAvailability ? ticketAvailability.remaining : CAPACITY} tickets remaining` %></span>
         <span><b>Bar</b><%= BAR_PARTNER %></span>
         <span><b>Sponsor</b><%= SPONSOR_NAME %></span>
         <span><b>Included</b><%= PHOTO_BOOTH_PARTNER %></span>
@@ -95,8 +103,8 @@
   <section class="wrap reserve-wrap" id="reserve">
     <div class="reserve-intro">
       <p class="eyebrow">Reserve tickets</p>
-      <h2><%= money(TICKET_PRICE) %> per ticket</h2>
-      <p class="muted">Apple Pay, Visa card, and Google Pay. After approval, check your inbox and spam/junk folder for the QR ticket email.</p>
+      <h2><%= ticketAvailability && ticketAvailability.soldOut ? 'Sold out' : `${money(TICKET_PRICE)} per ticket` %></h2>
+      <p class="muted"><%= ticketAvailability && ticketAvailability.soldOut ? 'Tickets are sold out. Follow Instagram or WhatsApp for event updates.' : 'Apple Pay, Visa card, and Google Pay. After approval, check your inbox and spam/junk folder for the QR ticket email.' %></p>
       <div class="payment-badges"><span>Apple Pay</span><span>Visa card</span><span>Google Pay</span></div>
       <div class="sponsor-card fast-sponsor">
         <p class="eyebrow">Event sponsor</p>
@@ -105,6 +113,17 @@
     </div>
 
     <div class="panel reserve-panel">
+      <% if (ticketAvailability && ticketAvailability.soldOut) { %>
+        <div class="sold-out-panel">
+          <p class="eyebrow">Tickets sold out</p>
+          <h2>Guest list is full.</h2>
+          <p class="muted">All <%= CAPACITY %> tickets are currently reserved or approved. For updates, contact us on WhatsApp or Instagram.</p>
+          <div class="hero-actions">
+            <a class="button secondary whatsapp-button" href="https://wa.me/<%= WHATSAPP_1 %>" target="_blank" rel="noopener">WhatsApp</a>
+            <a class="button secondary" href="<%= INSTAGRAM_URL %>" target="_blank" rel="noopener">Instagram</a>
+          </div>
+        </div>
+      <% } else { %>
       <p class="muted">Each ticket needs a unique attendee first name, last name, date of birth in DD/MM/YYYY format, and gender. All attendees must be <%= MIN_AGE %>+.</p>
       <form action="/reserve" method="post" id="ticketForm">
         <label>Buyer full name<input name="buyerName" required autocomplete="name" placeholder="Buyer name"></label>
@@ -124,9 +143,11 @@
         <p class="summary"><b>Total:</b> <span id="total"><%= money(TICKET_PRICE) %></span></p>
         <button class="button reserve-submit" type="submit">Reserve & Pay</button>
       </form>
+      <% } %>
     </div>
   </section>
 
+<% if (!ticketAvailability || !ticketAvailability.soldOut) { %>
 <script>
 const priceCents = <%= TICKET_PRICE %>;
 const minAge = <%= MIN_AGE %>;
@@ -259,5 +280,6 @@ ticketForm.addEventListener('submit', e => {
 });
 renderForms();
 </script>
+<% } %>
 </body>
 </html>

@@ -13,7 +13,7 @@ const crypto = require('crypto');
 
 const app = express();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY, { timeout: Number(process.env.STRIPE_TIMEOUT_MS || 10000) }) : null;
-const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists } = require('./db');
+const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount } = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
@@ -25,7 +25,7 @@ const EVENT_TIME = process.env.EVENT_TIME || '5:30 PM–11:00 PM';
 const EVENT_THEME = process.env.EVENT_THEME || 'House Music & Sunset Party';
 const DRESS_CODE = process.env.DRESS_CODE || 'All White';
 const MIN_AGE = Number(process.env.MIN_AGE || 18);
-const CAPACITY = Number(process.env.CAPACITY || 1000);
+const CAPACITY = Number(process.env.TICKET_LIMIT || 500);
 const TICKET_PRICE = Number(process.env.TICKET_PRICE || 8000); // 8000 agorot = 80.00 ILS/NIS
 const CURRENCY = (process.env.CURRENCY || 'ils').toLowerCase();
 const MAP_URL = process.env.MAP_URL || 'https://www.google.com/maps?q=Cremisan';
@@ -400,7 +400,25 @@ async function createTicketForAttendee(order, attendee, overrides = {}) {
 app.get('/healthz', (req, res) => res.status(200).json({ ok: true, service: 'asile-ticket-site' }));
 
 app.get('/', async (req, res) => {
-  res.render('home', { ...eventInfo, money });
+  try {
+    const soldOrPending = await getSoldOrPendingCount();
+    res.render('home', {
+      ...eventInfo,
+      money,
+      ticketAvailability: {
+        soldOrPending,
+        remaining: Math.max(0, CAPACITY - soldOrPending),
+        soldOut: soldOrPending >= CAPACITY
+      }
+    });
+  } catch (err) {
+    console.error('Home availability unavailable:', err.message);
+    res.render('home', {
+      ...eventInfo,
+      money,
+      ticketAvailability: { soldOrPending: 0, remaining: CAPACITY, soldOut: false }
+    });
+  }
 });
 
 app.post('/reserve', async (req, res) => {

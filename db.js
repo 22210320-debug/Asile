@@ -694,4 +694,34 @@ async function ticketIdExists(ticketId) {
   return r.rowCount > 0;
 }
 
-module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists };
+async function getSoldOrPendingCount() {
+  const inactive = ['denied_released', 'cancelled', 'rejected_refunded', 'payment_error', 'authorization_expired'];
+  if (!usePostgres()) {
+    const db = await readJsonFile();
+    return (db.orders || []).reduce((sum, order) => {
+      if (inactive.includes(order.status)) return sum;
+      if (['checkout_started', 'awaiting_payment_authorization'].includes(order.status)) {
+        const created = new Date(order.createdAt || 0).getTime();
+        if (!created || Date.now() - created >= 30 * 60 * 1000) return sum;
+      }
+      return sum + Number(order.qty || 0);
+    }, 0);
+  }
+  await initDb();
+  const result = await pgQuery(`
+    SELECT COALESCE(SUM(
+      CASE WHEN NOT (data->>'status' = ANY($1::text[]))
+        AND (
+          data->>'status' NOT IN ('checkout_started', 'awaiting_payment_authorization')
+          OR created_at > NOW() - INTERVAL '30 minutes'
+        )
+        THEN COALESCE((data->>'qty')::int, 0)
+        ELSE 0
+      END
+    ), 0)::int AS count
+    FROM orders
+  `, [inactive]);
+  return result.rows[0]?.count || 0;
+}
+
+module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount };
