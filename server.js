@@ -40,6 +40,7 @@ const SITE_IMAGE_URL = process.env.SITE_IMAGE_URL || `${BASE_URL}/public/favicon
 const PAYMENT_METHODS = ['Apple Pay', 'Google Pay', 'Visa', 'Mastercard'];
 const PAYMENT_PROVIDER_LABEL = process.env.PAYMENT_PROVIDER_LABEL || 'Stripe';
 const PHOTO_BOOTH_PARTNER = process.env.PHOTO_BOOTH_PARTNER || 'Picka pic photo booth';
+const VIP_RESERVE_PATH = '/private-reserve-asile-2026';
 
 const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_TIME, EVENT_THEME, DRESS_CODE, MIN_AGE, CAPACITY, TICKET_PRICE, CURRENCY, MAP_URL, WHATSAPP_1, INSTAGRAM_URL, BAR_PARTNER, SPONSOR_NAME, SPONSOR_LOGO_URL, DJ_NAME, DJ_IMAGE_URL, SITE_IMAGE_URL, PAYMENT_METHODS, PAYMENT_PROVIDER_LABEL, PHOTO_BOOTH_PARTNER };
 
@@ -399,16 +400,18 @@ async function createTicketForAttendee(order, attendee, overrides = {}) {
 
 app.get('/healthz', (req, res) => res.status(200).json({ ok: true, service: 'asile-ticket-site' }));
 
-app.get('/', async (req, res) => {
+async function renderHomePage(req, res, { privateReserve = false } = {}) {
   try {
     const soldOrPending = await getSoldOrPendingCount();
     res.render('home', {
       ...eventInfo,
       money,
+      privateReserve,
+      formAction: privateReserve ? VIP_RESERVE_PATH : '/reserve',
       ticketAvailability: {
         soldOrPending,
         remaining: Math.max(0, CAPACITY - soldOrPending),
-        soldOut: soldOrPending >= CAPACITY
+        soldOut: !privateReserve && soldOrPending >= CAPACITY
       }
     });
   } catch (err) {
@@ -416,12 +419,17 @@ app.get('/', async (req, res) => {
     res.render('home', {
       ...eventInfo,
       money,
+      privateReserve,
+      formAction: privateReserve ? VIP_RESERVE_PATH : '/reserve',
       ticketAvailability: { soldOrPending: 0, remaining: CAPACITY, soldOut: false }
     });
   }
-});
+}
 
-app.post('/reserve', async (req, res) => {
+app.get('/', (req, res) => renderHomePage(req, res));
+app.get(VIP_RESERVE_PATH, (req, res) => renderHomePage(req, res, { privateReserve: true }));
+
+async function handleReserve(req, res, { bypassCapacity = false } = {}) {
   const buyerName = cleanName(req.body.buyerName);
   const buyerEmail = String(req.body.buyerEmail || '').trim();
   const attendeeFirstNames = asArray(req.body.attendeeFirstName).map(cleanName);
@@ -450,7 +458,7 @@ app.post('/reserve', async (req, res) => {
   try {
     reservation = await reserveAtomic(freshDb => {
       if (keys.some(k => usedNameKeys(freshDb).has(k))) return { error: 'duplicate' };
-      if (soldOrPendingCount(freshDb) + qty > CAPACITY) return { error: 'soldout' };
+      if (!bypassCapacity && soldOrPendingCount(freshDb) + qty > CAPACITY) return { error: 'soldout' };
       return { order };
     });
   } catch (err) {
@@ -488,7 +496,10 @@ app.post('/reserve', async (req, res) => {
     order.status = 'payment_error'; order.paymentError = err.message; await upsertOrder(order);
     return res.status(503).render('message', { title: 'Payment problem', message: `Stripe checkout did not open: ${err.message}` });
   }
-});
+}
+
+app.post('/reserve', (req, res) => handleReserve(req, res));
+app.post(VIP_RESERVE_PATH, (req, res) => handleReserve(req, res, { bypassCapacity: true }));
 
 app.get('/success', (req, res) => res.render('message', { title: 'Reservation received', message: `Your payment is authorized. Your ${EVENT_NAME} ticket will be sent only after admin approval. Please check your inbox and spam/junk folder for the ticket email.` }));
 app.get('/cancel', async (req, res) => { const order = await getOrderById(req.query.order); if (order) { order.status = 'cancelled'; await upsertOrder(order); } res.render('message', { title: 'Checkout cancelled', message: 'No ticket was reserved.' }); });

@@ -102,9 +102,9 @@
 
   <section class="wrap reserve-wrap" id="reserve">
     <div class="reserve-intro">
-      <p class="eyebrow">Reserve tickets</p>
+      <p class="eyebrow"><%= privateReserve ? 'Private reserve' : 'Reserve tickets' %></p>
       <h2><%= ticketAvailability && ticketAvailability.soldOut ? 'Sold out' : `${money(TICKET_PRICE)} per ticket` %></h2>
-      <p class="muted"><%= ticketAvailability && ticketAvailability.soldOut ? 'Tickets are sold out. Follow Instagram or WhatsApp for event updates.' : 'Apple Pay, Visa card, and Google Pay. After approval, check your inbox and spam/junk folder for the QR ticket email.' %></p>
+      <p class="muted"><%= privateReserve ? 'Private invited-guest checkout. Payment still needs admin approval before tickets are sent.' : (ticketAvailability && ticketAvailability.soldOut ? 'Tickets are sold out. Follow Instagram or WhatsApp for event updates.' : 'Apple Pay, Visa card, and Google Pay. After approval, check your inbox and spam/junk folder for the QR ticket email.') %></p>
       <div class="payment-badges"><span>Apple Pay</span><span>Visa card</span><span>Google Pay</span></div>
       <div class="sponsor-card fast-sponsor">
         <p class="eyebrow">Event sponsor</p>
@@ -125,7 +125,7 @@
         </div>
       <% } else { %>
       <p class="muted">Each ticket needs a unique attendee first name, last name, date of birth in DD/MM/YYYY format, and gender. All attendees must be <%= MIN_AGE %>+.</p>
-      <form action="/reserve" method="post" id="ticketForm">
+      <form action="<%= formAction || '/reserve' %>" method="post" id="ticketForm">
         <label>Buyer full name<input name="buyerName" required autocomplete="name" placeholder="Buyer name"></label>
         <label>Buyer email<input type="email" name="buyerEmail" required autocomplete="email" placeholder="you@example.com"></label>
         <label>Quantity
@@ -137,7 +137,7 @@
         <p id="quantityWarning" class="bad hidden"></p>
         <div id="attendeeForms"></div>
         <p id="duplicateWarning" class="bad hidden">The same attendee name cannot be used twice.</p>
-        <p class="note"><b>Important:</b> each ticket name must match the attendee ID at the door. Every attendee must wear <%= DRESS_CODE %>. After approval, check spam/junk if you do not see the QR ticket email.</p>
+        <p class="note"><b>Important:</b> <%= privateReserve ? 'this is a private invite link. ' : '' %>Each ticket name must match the attendee ID at the door. Every attendee must wear <%= DRESS_CODE %>. After approval, check spam/junk if you do not see the QR ticket email.</p>
         <p id="ageWarning" class="bad hidden">All attendees must be <%= MIN_AGE %>+ on <%= EVENT_DATE %>.</p>
         <p id="checkoutStatus" class="note hidden"></p>
         <p class="summary"><b>Total:</b> <span id="total"><%= money(TICKET_PRICE) %></span></p>
