@@ -141,12 +141,20 @@ function adminStats(db, approvedCountOverride) {
   const pendingAttendees = db.orders
     .filter(o => o.status === 'pending_admin_approval')
     .flatMap(o => o.attendees || []);
+  const ratioPeople = [
+    ...activeTickets.map(ticket => ({ gender: ticket.gender })),
+    ...pendingAttendees
+  ];
+  const femaleCount = ratioPeople.filter(person => normalizeGender(person.gender) === 'Female').length;
+  const maleCount = ratioPeople.filter(person => normalizeGender(person.gender) === 'Male').length;
   return {
     approvedCount: typeof approvedCountOverride === 'number' ? approvedCountOverride : activeTickets.length,
     awaitingPaymentCount: db.orders.filter(o => o.status === 'awaiting_payment_authorization').length,
     stuckOrderCount: db.orders.filter(isStuckOrder).length,
     remaining: Math.max(0, CAPACITY - soldOrPendingCount(db)),
-    pendingCount: pendingAttendees.length
+    pendingCount: pendingAttendees.length,
+    femaleCount,
+    maleCount
   };
 }
 function dashboardStats(stats) {
@@ -156,7 +164,9 @@ function dashboardStats(stats) {
     awaitingPaymentCount: stats.awaitingPaymentCount || 0,
     stuckOrderCount: stats.stuckOrderCount || 0,
     remaining: Math.max(0, CAPACITY - Number(stats.remainingSoldOrPending || 0)),
-    pendingCount: stats.pendingCount || 0
+    pendingCount: stats.pendingCount || 0,
+    femaleCount: stats.femaleCount || 0,
+    maleCount: stats.maleCount || 0
   };
 }
 function orderStatusLabel(status) {

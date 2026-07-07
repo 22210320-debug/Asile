@@ -303,6 +303,31 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearc
             ELSE 0
           END
         ), 0)::int AS remaining_sold_or_pending
+        ,
+        (
+          SELECT COUNT(*)::int
+          FROM tickets
+          WHERE status IN ('valid', 'used')
+            AND LOWER(COALESCE(data->>'gender', gender, '')) = 'female'
+        ) + (
+          SELECT COUNT(*)::int
+          FROM orders o
+          CROSS JOIN LATERAL jsonb_array_elements(COALESCE(o.data->'attendees', '[]'::jsonb)) attendee
+          WHERE o.data->>'status' = 'pending_admin_approval'
+            AND LOWER(COALESCE(attendee->>'gender', '')) = 'female'
+        ) AS female_count,
+        (
+          SELECT COUNT(*)::int
+          FROM tickets
+          WHERE status IN ('valid', 'used')
+            AND LOWER(COALESCE(data->>'gender', gender, '')) = 'male'
+        ) + (
+          SELECT COUNT(*)::int
+          FROM orders o
+          CROSS JOIN LATERAL jsonb_array_elements(COALESCE(o.data->'attendees', '[]'::jsonb)) attendee
+          WHERE o.data->>'status' = 'pending_admin_approval'
+            AND LOWER(COALESCE(attendee->>'gender', '')) = 'male'
+        ) AS male_count
       FROM orders
     `, [['denied_released', 'cancelled', 'rejected_refunded', 'payment_error', 'authorization_expired']])
   ]);
@@ -322,7 +347,9 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearc
       awaitingPaymentCount: statsRow.awaiting_payment_count || 0,
       stuckOrderCount: statsRow.stuck_order_count || 0,
       remainingSoldOrPending: statsRow.remaining_sold_or_pending || 0,
-      pendingCount: statsRow.pending_count || 0
+      pendingCount: statsRow.pending_count || 0,
+      femaleCount: statsRow.female_count || 0,
+      maleCount: statsRow.male_count || 0
     }
   };
 }

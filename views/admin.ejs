@@ -33,6 +33,14 @@
       <span>Pending</span>
       <b><%= stats.pendingCount %></b>
     </div>
+    <div class="metric-card">
+      <span>Female</span>
+      <b><%= stats.femaleCount || 0 %></b>
+    </div>
+    <div class="metric-card">
+      <span>Male</span>
+      <b><%= stats.maleCount || 0 %></b>
+    </div>
     <div class="metric-card alert-card">
       <span>Stuck orders</span>
       <b><%= stats.stuckOrderCount %></b>
