@@ -20,27 +20,27 @@
   <link rel="icon" type="image/png" sizes="512x512" href="/public/favicon.png?v=20260705a">
   <link rel="apple-touch-icon" sizes="512x512" href="/public/favicon.png?v=20260705a">
   <link rel="preload" href="/public/vineyard-sunset.svg" as="image">
-  <link rel="stylesheet" href="/public/style.css?v=20260708a">
+  <link rel="stylesheet" href="/public/style.css?v=20260708b">
 </head>
 <body>
   <main class="home-hero modern-home">
     <nav class="home-nav" aria-label="Event links">
-      <a href="#details">Details</a>
+      <% if (!privateReserve) { %><a href="#details">Details</a><% } %>
       <a href="#reserve">Reserve</a>
       <a href="<%= INSTAGRAM_URL %>" target="_blank" rel="noopener">Instagram</a>
     </nav>
 
     <section class="hero-copy">
       <p class="brand"><%= COMPANY_NAME %></p>
-      <h1><%= EVENT_NAME %></h1>
-      <p class="subtitle">A private all-white sunset house party in <%= EVENT_LOCATION %>, built around house music, approved guest-list entry, QR tickets, <%= BAR_PARTNER %> at the bar, <%= SPONSOR_NAME %> sponsorship, and one free <%= PHOTO_BOOTH_PARTNER %> picture for every approved guest.</p>
+      <h1><%= privateReserve ? 'Private Reserve' : EVENT_NAME %></h1>
+      <p class="subtitle"><%= privateReserve ? `Invite-only access for ${EVENT_NAME}. Complete checkout here, then admin approval confirms the final QR ticket.` : `A private all-white sunset house party in ${EVENT_LOCATION}, built around house music, approved guest-list entry, QR tickets, ${BAR_PARTNER} at the bar, ${SPONSOR_NAME} sponsorship, and one free ${PHOTO_BOOTH_PARTNER} picture for every approved guest.` %></p>
       <div class="hero-actions">
         <% if (ticketAvailability && ticketAvailability.soldOut) { %>
           <a class="button sold-out-button" href="#reserve">Sold out</a>
         <% } else { %>
           <a class="button" href="#reserve">Reserve now</a>
         <% } %>
-        <a class="button secondary" href="<%= MAP_URL %>" target="_blank" rel="noopener">Pinned location</a>
+        <% if (!privateReserve) { %><a class="button secondary" href="<%= MAP_URL %>" target="_blank" rel="noopener">Pinned location</a><% } %>
       </div>
     </section>
 
@@ -52,6 +52,7 @@
     </aside>
   </main>
 
+  <% if (!privateReserve) { %>
   <section class="wrap home-wrap" id="details">
     <div class="event-detail-panel">
       <div class="event-detail-copy">
@@ -99,17 +100,26 @@
       <p><%= DRESS_CODE %>, sunset views, house music, and a free <%= PHOTO_BOOTH_PARTNER %> picture.</p>
     </article>
   </section>
+  <% } %>
 
-  <section class="wrap reserve-wrap" id="reserve">
+  <section class="wrap reserve-wrap <%= privateReserve ? 'private-reserve-wrap' : '' %>" id="reserve">
     <div class="reserve-intro">
       <p class="eyebrow"><%= privateReserve ? 'Private reserve' : 'Reserve tickets' %></p>
       <h2><%= ticketAvailability && ticketAvailability.soldOut ? 'Sold out' : `${money(TICKET_PRICE)} per ticket` %></h2>
-      <p class="muted"><%= privateReserve ? 'Private invited-guest checkout. Payment still needs admin approval before tickets are sent.' : (ticketAvailability && ticketAvailability.soldOut ? 'Tickets are sold out. Follow Instagram or WhatsApp for event updates.' : 'Apple Pay, Visa card, and Google Pay. After approval, check your inbox and spam/junk folder for the QR ticket email.') %></p>
+      <p class="muted"><%= privateReserve ? 'This page is for invited guests only. Payment authorization is held first; tickets are sent only after admin approval.' : (ticketAvailability && ticketAvailability.soldOut ? 'Tickets are sold out. Follow Instagram or WhatsApp for event updates.' : 'Apple Pay, Visa card, and Google Pay. After approval, check your inbox and spam/junk folder for the QR ticket email.') %></p>
       <div class="payment-badges"><span>Apple Pay</span><span>Visa card</span><span>Google Pay</span></div>
-      <div class="sponsor-card fast-sponsor">
-        <p class="eyebrow">Event sponsor</p>
-        <img src="<%= SPONSOR_LOGO_URL %>" alt="<%= SPONSOR_NAME %> sponsor logo" loading="lazy" decoding="async">
-      </div>
+      <% if (privateReserve) { %>
+        <div class="private-invite-card">
+          <span><b><%= EVENT_DATE %></b>Date</span>
+          <span><b><%= EVENT_TIME %></b>Time</span>
+          <span><b><%= DRESS_CODE %></b>Dress</span>
+        </div>
+      <% } else { %>
+        <div class="sponsor-card fast-sponsor">
+          <p class="eyebrow">Event sponsor</p>
+          <img src="<%= SPONSOR_LOGO_URL %>" alt="<%= SPONSOR_NAME %> sponsor logo" loading="lazy" decoding="async">
+        </div>
+      <% } %>
     </div>
 
     <div class="panel reserve-panel">
