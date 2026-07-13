@@ -13,7 +13,7 @@ const crypto = require('crypto');
 
 const app = express();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY, { timeout: Number(process.env.STRIPE_TIMEOUT_MS || 10000) }) : null;
-const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount } = require('./db');
+const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount, upsertWaitlistEntry, readWaitlistDashboard, updateWaitlistStatus, exportWaitlistEntries, WAITLIST_STATUSES } = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
@@ -41,6 +41,11 @@ const PAYMENT_METHODS = ['Apple Pay', 'Google Pay', 'Visa', 'Mastercard'];
 const PAYMENT_PROVIDER_LABEL = process.env.PAYMENT_PROVIDER_LABEL || 'Stripe';
 const PHOTO_BOOTH_PARTNER = process.env.PHOTO_BOOTH_PARTNER || 'Picka pic photo booth';
 const VIP_RESERVE_PATH = '/private-reserve-asile-2026';
+const WAITLIST_PATH = '/waitlist';
+const WAITLIST_RATE_WINDOW_MS = Number(process.env.WAITLIST_RATE_WINDOW_MS || 15 * 60 * 1000);
+const WAITLIST_RATE_LIMIT = Number(process.env.WAITLIST_RATE_LIMIT || 5);
+const ASILE_LOGO_PATH = path.join(__dirname, 'public', 'favicon.png');
+const waitlistAttempts = new Map();
 
 const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_TIME, EVENT_THEME, DRESS_CODE, MIN_AGE, CAPACITY, TICKET_PRICE, CURRENCY, MAP_URL, WHATSAPP_1, INSTAGRAM_URL, BAR_PARTNER, SPONSOR_NAME, SPONSOR_LOGO_URL, DJ_NAME, DJ_IMAGE_URL, SITE_IMAGE_URL, PAYMENT_METHODS, PAYMENT_PROVIDER_LABEL, PHOTO_BOOTH_PARTNER };
 
@@ -90,10 +95,15 @@ app.use((req, res, next) => {
   if (req.path.startsWith('/admin')) return adminSession(req, res, next);
   return next();
 });
+app.use('/admin', (req, res, next) => {
+  res.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  next();
+});
 
 function id(size = 12) { return crypto.randomBytes(size).toString('hex').slice(0, size).toUpperCase(); }
 function money(amount = TICKET_PRICE) { return `${(amount / 100).toFixed(0)} NIS`; }
 function cleanName(value) { return String(value || '').trim().replace(/\s+/g, ' '); }
+function cleanText(value, maxLength = 120) { return String(value || '').replace(/[\u0000-\u001F\u007F]/g, '').trim().replace(/\s+/g, ' ').slice(0, maxLength); }
 function nameKey(value) { return cleanName(value).toLowerCase(); }
 function combineName(first, last) { return cleanName(`${cleanName(first)} ${cleanName(last)}`); }
 function asArray(value) { return Array.isArray(value) ? value : (value ? [value] : []); }
@@ -274,6 +284,55 @@ function isOldEnough(dob) {
 }
 function requireAdmin(req, res, next) { if (req.session.admin) return next(); res.redirect('/admin/login'); }
 
+function normalizeWaitlistPhone(value) {
+  let phone = String(value || '').trim().replace(/[\s().-]/g, '');
+  if (phone.startsWith('00')) phone = `+${phone.slice(2)}`;
+  if (!phone.startsWith('+') && /^0?5\d{8}$/.test(phone)) phone = `+970${phone.replace(/^0/, '')}`;
+  else if (!phone.startsWith('+') && /^970\d{7,12}$/.test(phone)) phone = `+${phone}`;
+  else if (!phone.startsWith('+')) phone = `+${phone}`;
+  return /^\+[1-9]\d{7,14}$/.test(phone) ? phone : '';
+}
+
+function normalizeInstagramUsername(value) {
+  const username = cleanText(value, 31).replace(/^@+/, '');
+  return /^[a-zA-Z0-9._]{1,30}$/.test(username) ? username.toLowerCase() : '';
+}
+
+function waitlistRateAllowed(req) {
+  const key = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const attempts = (waitlistAttempts.get(key) || []).filter(time => now - time < WAITLIST_RATE_WINDOW_MS);
+  if (attempts.length >= WAITLIST_RATE_LIMIT) return false;
+  attempts.push(now);
+  waitlistAttempts.set(key, attempts);
+  return true;
+}
+
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
+}
+
+function priorityAccessEmail(entry) {
+  const safeName = escapeHtml(entry.fullName);
+  return `<div style="margin:0;padding:32px 16px;background:#080808;color:#F5F1E8;font-family:Arial,sans-serif">
+    <div style="max-width:560px;margin:0 auto;border:1px solid #C6A56B;background:#161616;padding:34px 28px">
+      <div style="text-align:center;margin-bottom:30px"><img src="cid:asile-priority-logo" width="96" height="96" alt="ASIL'E" style="display:inline-block;max-width:96px;height:auto"></div>
+      <p style="margin:0 0 12px;color:#C6A56B;font-size:12px;font-weight:bold;letter-spacing:2px">PRIVATE ACCESS</p>
+      <h1 style="margin:0 0 22px;color:#F5F1E8;font-size:28px;font-weight:normal">Welcome to Asile, ${safeName}.</h1>
+      <p style="line-height:1.65">Welcome to the Asile community.</p>
+      <p style="line-height:1.65">You have been added to Asile Priority Access.</p>
+      <p style="line-height:1.65">We’ll contact you if availability opens or when access to our next experience becomes available.</p>
+      <p style="line-height:1.65">Please remember that registration does not guarantee admission or a ticket.</p>
+      <p style="line-height:1.65">This is just the beginning.</p>
+      <p style="margin:26px 0 0;color:#C6A56B">Asile Events</p>
+    </div>
+  </div>`;
+}
+
+function priorityAccessSuccess(res) {
+  return res.render('waitlist', { success: true, error: null, values: {}, INSTAGRAM_URL, SITE_IMAGE_URL });
+}
+
 function htmlToText(html) {
   return String(html || '')
     .replace(/<br\s*\/?>/gi, '\n')
@@ -423,6 +482,65 @@ async function createTicketForAttendee(order, attendee, overrides = {}) {
 }
 
 app.get('/healthz', (req, res) => res.status(200).json({ ok: true, service: 'asile-ticket-site' }));
+
+app.get(WAITLIST_PATH, (req, res) => {
+  res.render('waitlist', { success: false, error: null, values: {}, INSTAGRAM_URL, SITE_IMAGE_URL });
+});
+
+app.post(WAITLIST_PATH, async (req, res) => {
+  const values = {
+    fullName: cleanText(req.body.fullName, 100),
+    phone: cleanText(req.body.phone, 32),
+    email: cleanText(req.body.email, 254).toLowerCase(),
+    instagramUsername: cleanText(req.body.instagramUsername, 31),
+    attendedBefore: cleanText(req.body.attendedBefore, 3),
+    referralSource: cleanText(req.body.referralSource, 32)
+  };
+  const showError = (message, status = 400) => res.status(status).render('waitlist', { success: false, error: message, values, INSTAGRAM_URL, SITE_IMAGE_URL });
+
+  // Bots normally fill invisible fields. Reply with the normal success state
+  // without saving anything so the check does not reveal itself.
+  if (cleanText(req.body.company, 100)) return priorityAccessSuccess(res);
+  if (!waitlistRateAllowed(req)) return showError('Too many attempts. Please wait a few minutes, then try again.', 429);
+  if (!values.fullName) return showError('Enter your full name.');
+  const phone = normalizeWaitlistPhone(values.phone);
+  if (!phone) return showError('Enter a valid phone number with a country code. Palestine numbers can start with +970 or 05.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) return showError('Enter a valid email address.');
+  const instagramUsername = normalizeInstagramUsername(values.instagramUsername);
+  if (!instagramUsername) return showError('Enter a valid Instagram username using letters, numbers, dots, or underscores.');
+  if (values.attendedBefore && !['Yes', 'No'].includes(values.attendedBefore)) return showError('Choose Yes or No for previous attendance.');
+  const referralOptions = ['Instagram', 'Friend', 'Previous Asile event', 'TikTok', 'Other'];
+  if (values.referralSource && !referralOptions.includes(values.referralSource)) return showError('Choose how you heard about Asile from the list.');
+  if (req.body.consent !== 'on') return showError('You need to agree before joining Priority Access.');
+
+  try {
+    const result = await upsertWaitlistEntry({
+      id: `WAIT-${id(14)}`,
+      fullName: values.fullName,
+      phone,
+      email: values.email,
+      instagramUsername,
+      attendedBefore: values.attendedBefore || null,
+      referralSource: values.referralSource || null,
+      consent: true,
+      status: 'waitlisted'
+    });
+    if (result.error) return showError('We found conflicting details in an existing entry. Please contact Asile directly so we can help.', 409);
+    if (result.created) {
+      sendMailInBackground({
+        to: result.entry.email,
+        subject: 'You’re on the Asile Priority Access List',
+        html: priorityAccessEmail(result.entry),
+        text: `Welcome to the Asile community.\n\nYou have been added to Asile Priority Access.\n\nWe’ll contact you if availability opens or when access to our next experience becomes available.\n\nPlease remember that registration does not guarantee admission or a ticket.\n\nThis is just the beginning.\n\nAsile Events`,
+        attachments: [{ filename: 'asile-logo.png', path: ASILE_LOGO_PATH, cid: 'asile-priority-logo', contentType: 'image/png' }]
+      });
+    }
+    return priorityAccessSuccess(res);
+  } catch (err) {
+    console.error('Priority access submission failed:', err.message);
+    return showError('We could not save your information right now. Please try again in a moment.', 503);
+  }
+});
 
 async function renderHomePage(req, res, { privateReserve = false } = {}) {
   try {
@@ -626,6 +744,79 @@ app.get('/admin', requireAdmin, async (req, res) => {
     res.status(503).render('message', { title: 'Database temporarily unavailable', message: 'The admin database did not respond. Please refresh in a moment.' });
   }
 });
+
+function csvCell(value) {
+  const text = String(value ?? '');
+  const safe = /^[=+\-@]/.test(text) ? `'${text}` : text;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
+
+app.get('/admin/waitlist', requireAdmin, async (req, res) => {
+  try {
+    const pageSize = 50;
+    const page = pageNumber(req.query.page);
+    const search = cleanText(req.query.search, 120);
+    const status = String(req.query.status || '').trim().toLowerCase();
+    const dashboard = await readWaitlistDashboard({
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+      search,
+      status
+    });
+    const pageInfo = pageMeta(page, dashboard.total, pageSize);
+    res.render('waitlist-admin', {
+      entries: dashboard.entries,
+      totalAll: dashboard.totalAll,
+      newToday: dashboard.newToday,
+      search,
+      selectedStatus: WAITLIST_STATUSES.includes(status) ? status : '',
+      statuses: WAITLIST_STATUSES,
+      pageInfo,
+      waitlistPageUrl: (targetPage) => {
+        const params = new URLSearchParams();
+        if (search) params.set('search', search);
+        if (WAITLIST_STATUSES.includes(status)) params.set('status', status);
+        params.set('page', String(targetPage));
+        return `/admin/waitlist?${params.toString()}`;
+      },
+      notice: cleanText(req.query.notice, 180)
+    });
+  } catch (err) {
+    console.error('Waitlist admin database unavailable:', err.message);
+    res.status(503).render('message', { title: 'Database temporarily unavailable', message: 'Priority Access records could not be loaded. Please refresh in a moment.' });
+  }
+});
+
+app.post('/admin/waitlist/:id/status', requireAdmin, async (req, res) => {
+  try {
+    const status = String(req.body.status || '').trim().toLowerCase();
+    if (!WAITLIST_STATUSES.includes(status)) return res.status(400).render('message', { title: 'Invalid status', message: 'Choose a valid Priority Access status.' });
+    const entry = await updateWaitlistStatus(req.params.id, status);
+    if (!entry) return res.status(404).render('message', { title: 'Entry not found', message: 'This Priority Access entry no longer exists.' });
+    res.redirect('/admin/waitlist?notice=Status%20updated');
+  } catch (err) {
+    console.error('Waitlist status update failed:', err.message);
+    res.status(503).render('message', { title: 'Update failed', message: 'The status could not be saved. Please try again.' });
+  }
+});
+
+app.get('/admin/waitlist/export.csv', requireAdmin, async (req, res) => {
+  try {
+    const entries = await exportWaitlistEntries();
+    const columns = ['ID', 'Full name', 'Phone', 'Email', 'Instagram username', 'Attended before', 'Referral source', 'Consent', 'Status', 'Submitted at', 'Updated at'];
+    const rows = entries.map(entry => [entry.id, entry.fullName, entry.phone, entry.email, entry.instagramUsername, entry.attendedBefore, entry.referralSource, entry.consent ? 'Yes' : 'No', entry.status, entry.createdAt, entry.updatedAt]);
+    res.set({
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="asile-priority-access.csv"',
+      'Cache-Control': 'no-store'
+    });
+    res.send(`\uFEFF${[columns, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n')}`);
+  } catch (err) {
+    console.error('Waitlist CSV export failed:', err.message);
+    res.status(503).render('message', { title: 'Export failed', message: 'The Priority Access CSV could not be created. Please try again.' });
+  }
+});
+
 app.get('/admin/orders/:id', requireAdmin, async (req, res) => {
   try {
     const order = await getOrderById(req.params.id);

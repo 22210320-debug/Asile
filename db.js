@@ -12,7 +12,7 @@ const RESERVE_LOCK_KEY = 728492;
 
 async function readJsonFile() {
   try { return JSON.parse(await fs.readFile(dbFile, 'utf8')); }
-  catch { return { orders: [], tickets: [], scanHistory: [], vipCodes: [] }; }
+  catch { return { orders: [], tickets: [], scanHistory: [], vipCodes: [], waitlistEntries: [] }; }
 }
 
 function usePostgres() { return Boolean(process.env.DATABASE_URL); }
@@ -101,10 +101,22 @@ async function initDb() {
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS waitlist_entries (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      phone TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'waitlisted',
+      data JSONB NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
     CREATE INDEX IF NOT EXISTS idx_orders_status ON orders ((data->>'status'));
     CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
     CREATE INDEX IF NOT EXISTS idx_tickets_attendee_name ON tickets(attendee_name);
     CREATE INDEX IF NOT EXISTS idx_tickets_attendee_first_last ON tickets(attendee_first_name, attendee_last_name);
+    CREATE INDEX IF NOT EXISTS idx_waitlist_status_created_at ON waitlist_entries (status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_waitlist_email ON waitlist_entries (email);
+    CREATE INDEX IF NOT EXISTS idx_waitlist_phone ON waitlist_entries (phone);
   `).catch(err => {
     initPromise = null;
     throw err;
@@ -115,7 +127,7 @@ async function initDb() {
 async function readDb() {
   if (!usePostgres()) {
     try { return JSON.parse(await fs.readFile(dbFile, 'utf8')); }
-    catch { const fresh = { orders: [], tickets: [], scanHistory: [], vipCodes: [] }; await writeDb(fresh); return fresh; }
+    catch { const fresh = { orders: [], tickets: [], scanHistory: [], vipCodes: [], waitlistEntries: [] }; await writeDb(fresh); return fresh; }
   }
   await initDb();
   const [orders, tickets, scanHistory, vipCodes] = await Promise.all([
@@ -130,6 +142,171 @@ async function readDb() {
     scanHistory: scanHistory.rows.map(r => ({ ticketId: r.ticket_id, scannedBy: r.scanned_by, result: r.result, scannedAt: r.scanned_at })),
     vipCodes: vipCodes.rows.map(r => r.data)
   };
+}
+
+const WAITLIST_STATUSES = ['waitlisted', 'contacted', 'invited', 'confirmed', 'removed'];
+
+function cleanWaitlistStatus(value) {
+  const status = String(value || '').trim().toLowerCase();
+  return WAITLIST_STATUSES.includes(status) ? status : '';
+}
+
+function waitlistMatchesSearch(entry, query) {
+  if (!query) return true;
+  return [entry.id, entry.fullName, entry.phone, entry.email, entry.instagramUsername]
+    .filter(Boolean)
+    .some(value => String(value).toLowerCase().includes(query));
+}
+
+async function upsertWaitlistEntry(entry) {
+  const now = new Date().toISOString();
+  const incoming = {
+    ...entry,
+    email: String(entry.email || '').trim().toLowerCase(),
+    phone: String(entry.phone || '').trim(),
+    status: cleanWaitlistStatus(entry.status) || 'waitlisted',
+    createdAt: entry.createdAt || now,
+    updatedAt: now
+  };
+
+  if (!usePostgres()) {
+    let outcome;
+    dbWriteQueue = dbWriteQueue.then(async () => {
+      const db = await readJsonFile();
+      db.waitlistEntries = db.waitlistEntries || [];
+      const matches = db.waitlistEntries.filter(item => item.email === incoming.email || item.phone === incoming.phone);
+      if (matches.length > 1) {
+        outcome = { error: 'conflicting_duplicate' };
+        return;
+      }
+      if (matches.length === 1) {
+        const existing = matches[0];
+        const updated = { ...existing, ...incoming, id: existing.id, status: existing.status || 'waitlisted', createdAt: existing.createdAt || now, updatedAt: now };
+        db.waitlistEntries[db.waitlistEntries.indexOf(existing)] = updated;
+        outcome = { entry: updated, created: false };
+      } else {
+        db.waitlistEntries.unshift(incoming);
+        outcome = { entry: incoming, created: true };
+      }
+      await fs.writeFile(dbFile, JSON.stringify(db, null, 2));
+    });
+    await dbWriteQueue;
+    return outcome;
+  }
+
+  await initDb();
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const matches = await client.query(
+      'SELECT id, data, status, created_at FROM waitlist_entries WHERE email=$1 OR phone=$2 FOR UPDATE',
+      [incoming.email, incoming.phone]
+    );
+    if (matches.rowCount > 1) {
+      await client.query('ROLLBACK');
+      return { error: 'conflicting_duplicate' };
+    }
+    if (matches.rowCount === 1) {
+      const existing = matches.rows[0];
+      const updated = {
+        ...existing.data,
+        ...incoming,
+        id: existing.id,
+        status: existing.status || existing.data.status || 'waitlisted',
+        createdAt: existing.data.createdAt || existing.created_at?.toISOString?.() || now,
+        updatedAt: now
+      };
+      await client.query(
+        'UPDATE waitlist_entries SET email=$2, phone=$3, status=$4, data=$5::jsonb, updated_at=NOW() WHERE id=$1',
+        [existing.id, updated.email, updated.phone, updated.status, JSON.stringify(updated)]
+      );
+      await client.query('COMMIT');
+      return { entry: updated, created: false };
+    }
+    await client.query(
+      'INSERT INTO waitlist_entries (id, email, phone, status, data) VALUES ($1, $2, $3, $4, $5::jsonb)',
+      [incoming.id, incoming.email, incoming.phone, incoming.status, JSON.stringify(incoming)]
+    );
+    await client.query('COMMIT');
+    return { entry: incoming, created: true };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err.code === '23505') return { error: 'duplicate_race' };
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function readWaitlistDashboard({ limit = 50, offset = 0, search = '', status = '' } = {}) {
+  const cleanSearch = normalizeSearch(search);
+  const selectedStatus = cleanWaitlistStatus(status);
+  if (!usePostgres()) {
+    const db = await readDb();
+    const all = (db.waitlistEntries || []).slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    const filtered = all.filter(entry => waitlistMatchesSearch(entry, cleanSearch) && (!selectedStatus || entry.status === selectedStatus));
+    const today = new Date().toISOString().slice(0, 10);
+    return {
+      entries: filtered.slice(offset, offset + limit),
+      total: filtered.length,
+      totalAll: all.length,
+      newToday: all.filter(entry => String(entry.createdAt || '').slice(0, 10) === today).length
+    };
+  }
+  await initDb();
+  const params = [];
+  const clauses = [];
+  if (cleanSearch) {
+    params.push(`%${cleanSearch}%`);
+    clauses.push(`(id ILIKE $${params.length} OR email ILIKE $${params.length} OR phone ILIKE $${params.length} OR data->>'fullName' ILIKE $${params.length} OR data->>'instagramUsername' ILIKE $${params.length})`);
+  }
+  if (selectedStatus) {
+    params.push(selectedStatus);
+    clauses.push(`status = $${params.length}`);
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const entriesParams = [...params, limit, offset];
+  const [entries, total, totals] = await Promise.all([
+    pgQuery(`SELECT data FROM waitlist_entries ${where} ORDER BY created_at DESC LIMIT $${entriesParams.length - 1} OFFSET $${entriesParams.length}`, entriesParams),
+    pgQuery(`SELECT COUNT(*)::int AS count FROM waitlist_entries ${where}`, params),
+    pgQuery("SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE)::int AS new_today FROM waitlist_entries")
+  ]);
+  return {
+    entries: entries.rows.map(row => row.data),
+    total: total.rows[0]?.count || 0,
+    totalAll: totals.rows[0]?.total || 0,
+    newToday: totals.rows[0]?.new_today || 0
+  };
+}
+
+async function updateWaitlistStatus(id, status) {
+  const cleanStatus = cleanWaitlistStatus(status);
+  if (!id || !cleanStatus) return null;
+  const now = new Date().toISOString();
+  if (!usePostgres()) {
+    const db = await readDb();
+    const index = (db.waitlistEntries || []).findIndex(entry => entry.id === id);
+    if (index < 0) return null;
+    db.waitlistEntries[index] = { ...db.waitlistEntries[index], status: cleanStatus, updatedAt: now };
+    await writeDb(db);
+    return db.waitlistEntries[index];
+  }
+  await initDb();
+  const result = await pgQuery(
+    "UPDATE waitlist_entries SET status=$2, data=jsonb_set(data, '{status}', to_jsonb($2::text)) || jsonb_build_object('updatedAt', $3), updated_at=NOW() WHERE id=$1 RETURNING data",
+    [id, cleanStatus, now]
+  );
+  return result.rows[0]?.data || null;
+}
+
+async function exportWaitlistEntries() {
+  if (!usePostgres()) {
+    const db = await readDb();
+    return (db.waitlistEntries || []).slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  }
+  await initDb();
+  const result = await pgQuery('SELECT data FROM waitlist_entries ORDER BY created_at DESC');
+  return result.rows.map(row => row.data);
 }
 
 function normalizeSearch(value) {
@@ -871,4 +1048,4 @@ async function getSoldOrPendingCount() {
   return result.rows[0]?.count || 0;
 }
 
-module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount };
+module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount, upsertWaitlistEntry, readWaitlistDashboard, updateWaitlistStatus, exportWaitlistEntries, WAITLIST_STATUSES };

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Join Asile Priority Access for future ticket releases, exclusive announcements, and invitations.">
+  <meta property="og:title" content="Asile Priority Access">
+  <meta property="og:description" content="Future ticket releases, exclusive announcements, and invitations from Asile Events.">
+  <meta property="og:image" content="<%= SITE_IMAGE_URL %>">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Asile Priority Access">
+  <meta name="twitter:description" content="Future ticket releases, exclusive announcements, and invitations from Asile Events.">
+  <meta name="twitter:image" content="<%= SITE_IMAGE_URL %>">
+  <title>Asile Priority Access</title>
+  <link rel="icon" type="image/png" sizes="512x512" href="/public/favicon.png?v=20260705a">
+  <link rel="apple-touch-icon" sizes="512x512" href="/public/favicon.png?v=20260705a">
+  <link rel="stylesheet" href="/public/style.css?v=20260714a">
+</head>
+<body class="priority-body">
+  <main class="priority-shell">
+    <a class="priority-logo-link" href="/" aria-label="Return to Asile.site"><img class="priority-logo" src="/public/favicon.png?v=20260705a" alt="Asile Events"></a>
+
+    <% if (success) { %>
+      <section class="priority-card priority-success" aria-live="polite">
+        <p class="priority-kicker">PRIVATE ACCESS</p>
+        <h1>YOU’RE ON THE LIST</h1>
+        <p>Thank you for joining the Asile community.</p>
+        <p>We’ll contact you if availability opens or when Priority Access becomes available for our next experience.</p>
+        <p class="priority-note">Joining the list does not guarantee admission or a ticket.</p>
+        <div class="priority-actions">
+          <a class="priority-button" href="<%= INSTAGRAM_URL %>" target="_blank" rel="noopener">FOLLOW ASILE ON INSTAGRAM</a>
+          <a class="priority-button priority-button-secondary" href="/">RETURN TO ASILE.SITE</a>
+        </div>
+      </section>
+    <% } else { %>
+      <section class="priority-card">
+        <p class="priority-kicker">PRIVATE ACCESS</p>
+        <h1>JOIN ASILE PRIORITY ACCESS</h1>
+        <p class="priority-intro">Be the first to receive future ticket releases, exclusive announcements, and invitations to upcoming Asile experiences.</p>
+        <p class="priority-soldout">Our latest event is officially sold out. Join Priority Access to hear first if spaces become available or when our next experience is announced.</p>
+
+        <% if (error) { %><p class="priority-error" role="alert"><%= error %></p><% } %>
+        <form method="post" action="/waitlist" class="priority-form" id="priorityForm" novalidate>
+          <div class="priority-honeypot" aria-hidden="true">
+            <label>Company<input name="company" tabindex="-1" autocomplete="off"></label>
+          </div>
+          <label for="fullName">FULL NAME<input id="fullName" name="fullName" required autocomplete="name" maxlength="100" value="<%= values.fullName || '' %>"></label>
+          <label for="phone">PHONE NUMBER<input id="phone" name="phone" type="tel" required inputmode="tel" autocomplete="tel" maxlength="32" placeholder="+970 5X XXX XXXX" value="<%= values.phone || '+970 ' %>" aria-describedby="phoneHint"></label>
+          <span id="phoneHint" class="priority-hint">Palestine is selected by default. Include your country code.</span>
+          <label for="email">EMAIL ADDRESS<input id="email" name="email" type="email" required autocomplete="email" maxlength="254" value="<%= values.email || '' %>"></label>
+          <label for="instagramUsername">INSTAGRAM USERNAME<input id="instagramUsername" name="instagramUsername" required autocapitalize="none" autocomplete="off" maxlength="31" placeholder="yourusername" value="<%= values.instagramUsername || '' %>"></label>
+          <label for="attendedBefore">HAVE YOU ATTENDED AN ASILE EVENT BEFORE? <span>OPTIONAL</span>
+            <select id="attendedBefore" name="attendedBefore">
+              <option value="">Select an answer</option>
+              <option value="Yes" <%= values.attendedBefore === 'Yes' ? 'selected' : '' %>>Yes</option>
+              <option value="No" <%= values.attendedBefore === 'No' ? 'selected' : '' %>>No</option>
+            </select>
+          </label>
+          <label for="referralSource">HOW DID YOU HEAR ABOUT ASILE? <span>OPTIONAL</span>
+            <select id="referralSource" name="referralSource">
+              <option value="">Select an answer</option>
+              <% ['Instagram', 'Friend', 'Previous Asile event', 'TikTok', 'Other'].forEach(source => { %><option value="<%= source %>" <%= values.referralSource === source ? 'selected' : '' %>><%= source %></option><% }) %>
+            </select>
+          </label>
+          <label class="priority-consent" for="consent"><input id="consent" name="consent" type="checkbox" required> <span>I agree to receive event updates and Priority Access announcements from Asile Events. I understand that joining the list does not guarantee a ticket or admission.</span></label>
+          <p class="priority-privacy">Your information will only be used for Asile event communication and guest management. We will not sell your information.</p>
+          <button class="priority-button priority-submit" type="submit">JOIN PRIORITY ACCESS</button>
+          <p id="priorityLoading" class="priority-loading" aria-live="polite"></p>
+        </form>
+      </section>
+    <% } %>
+  </main>
+  <% if (!success) { %>
+  <script>
+    (() => {
+      const form = document.getElementById('priorityForm');
+      const phone = document.getElementById('phone');
+      const email = document.getElementById('email');
+      const instagram = document.getElementById('instagramUsername');
+      const button = form.querySelector('button[type="submit"]');
+      const loading = document.getElementById('priorityLoading');
+      const validPhone = value => /^\+[1-9]\d{7,14}$/.test(value.replace(/[\s().-]/g, '').replace(/^009/, '+9')) || /^0?5\d{8}$/.test(value.replace(/[\s().-]/g, ''));
+      phone.addEventListener('input', () => phone.setCustomValidity(''));
+      email.addEventListener('input', () => email.value = email.value.trim().toLowerCase());
+      instagram.addEventListener('input', () => instagram.value = instagram.value.replace(/^@+/, '').toLowerCase());
+      form.addEventListener('submit', event => {
+        phone.setCustomValidity(validPhone(phone.value) ? '' : 'Enter a valid phone number with a country code.');
+        instagram.setCustomValidity(/^[a-zA-Z0-9._]{1,30}$/.test(instagram.value.replace(/^@+/, '')) ? '' : 'Use letters, numbers, dots, or underscores only.');
+        if (!form.checkValidity()) { event.preventDefault(); form.reportValidity(); return; }
+        button.disabled = true;
+        button.textContent = 'JOINING...';
+        loading.textContent = 'Saving your Priority Access request...';
+      });
+    })();
+  </script>
+  <% } %>
+</body>
+</html>

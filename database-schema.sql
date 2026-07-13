@@ -35,7 +35,20 @@ CREATE TABLE IF NOT EXISTS vip_codes (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS waitlist_entries (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  phone TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL DEFAULT 'waitlisted',
+  data JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders ((data->>'status'));
 CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
 CREATE INDEX IF NOT EXISTS idx_tickets_attendee_name ON tickets(attendee_name);
 CREATE INDEX IF NOT EXISTS idx_tickets_attendee_first_last ON tickets(attendee_first_name, attendee_last_name);
+CREATE INDEX IF NOT EXISTS idx_waitlist_status_created_at ON waitlist_entries (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_waitlist_email ON waitlist_entries (email);
+CREATE INDEX IF NOT EXISTS idx_waitlist_phone ON waitlist_entries (phone);

@@ -42,6 +42,7 @@ Developer-ready Node/Express ticket reservation website for ASIL'E. This package
 - Mobile-responsive public and admin pages
 - Admin-only male/female ratio summary for approved and pending attendees
 - Ticket status changes to used after check-in
+- Priority Access waitlist at `/waitlist`, with duplicate protection, confirmation email, and protected CSV export at `/admin/waitlist`
 
 ## Important payment note
 This project uses **Stripe** as the only payment gateway. Stripe Checkout is wired server-side with manual capture so the buyer can authorize payment first, then the admin approves before the charge is captured and tickets are issued.

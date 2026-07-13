@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
   <title>Admin</title>
-  <link rel="stylesheet" href="/public/style.css?v=20260708c">
+  <link rel="stylesheet" href="/public/style.css?v=20260714a">
 </head>
 <body>
 <main class="wrap admin-wrap" data-admin-dashboard="true" data-awaiting-payments="<%= stats.awaitingPaymentCount %>">
@@ -15,6 +16,7 @@
       <p class="muted">Database mode: <b><%= usePostgres ? "PostgreSQL production database" : "Local JSON development database" %></b></p>
     </div>
     <nav class="admin-nav">
+      <a href="/admin/waitlist">Priority Access</a>
       <a href="/admin/scanner">QR scanner</a>
       <a href="/admin/logout">Logout</a>
     </nav>
