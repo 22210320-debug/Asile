@@ -561,6 +561,36 @@ td {
 .admin-nav a {
   min-height: 42px;
 }
+.admin-page-header .admin-nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(116px, 1fr));
+  width: min(310px, 100%);
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid rgba(215, 164, 91, 0.2);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.24);
+}
+.admin-page-header .admin-nav a {
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #f5e5cc;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+}
+.admin-page-header .admin-nav a:hover,
+.admin-page-header .admin-nav a:focus-visible {
+  background: rgba(198, 165, 107, 0.2);
+  color: #fff8ee;
+}
+.admin-page-header .admin-nav a:last-child {
+  color: #ffc0c0;
+}
 .admin-stats {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -828,6 +858,9 @@ table.admin-card-table tr:hover td {
   }
   .admin-hero .admin-nav {
     margin-top: 16px;
+  }
+  .admin-page-header .admin-nav {
+    width: 100%;
   }
   .admin-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1963,8 +1996,8 @@ table.admin-card-table tr:hover td {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: url('/public/favicon.png') center/min(680px, 88vw) no-repeat;
-  opacity: 0.055;
+  background: url('/public/favicon.png') center/min(760px, 95vw) no-repeat;
+  opacity: 0.11;
 }
 .priority-shell {
   position: relative;
@@ -1988,7 +2021,7 @@ table.admin-card-table tr:hover td {
 .priority-card {
   box-sizing: border-box;
   border: 1px solid rgba(198, 165, 107, 0.72);
-  background: rgba(22, 22, 22, 0.96);
+  background: rgba(22, 22, 22, 0.92);
   padding: 34px;
   box-shadow: 0 20px 56px rgba(0, 0, 0, 0.32);
 }
@@ -2172,7 +2205,22 @@ table.admin-card-table tr:hover td {
   margin-top: 30px;
 }
 .waitlist-admin-wrap {
+  display: grid;
+  gap: 20px;
   padding-bottom: 70px;
+}
+.waitlist-admin-wrap > *,
+.customers-wrap > *,
+.marketing-wrap > * {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.customers-wrap,
+.marketing-wrap {
+  display: grid;
+  gap: 20px;
+  padding-top: 28px;
+  padding-bottom: 60px;
 }
 .waitlist-stats {
   margin: 22px 0;
