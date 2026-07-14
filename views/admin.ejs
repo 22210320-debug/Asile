@@ -5,17 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>Admin</title>
-  <link rel="stylesheet" href="/public/style.css?v=20260714c">
+  <link rel="stylesheet" href="/public/style.css?v=20260714e">
 </head>
 <body>
-<main class="wrap admin-wrap" data-admin-dashboard="true" data-awaiting-payments="<%= stats.awaitingPaymentCount %>">
-  <header class="admin-hero panel">
-    <div>
-      <p class="eyebrow">Admin dashboard</p>
-      <h1><%= EVENT_NAME %></h1>
-      <p class="muted">Database mode: <b><%= usePostgres ? "PostgreSQL production database" : "Local JSON development database" %></b></p>
+<main class="wrap admin-wrap admin-dashboard" data-admin-dashboard="true" data-awaiting-payments="<%= stats.awaitingPaymentCount %>">
+  <header class="admin-hero panel admin-page-header">
+    <div class="admin-title-block">
+      <p class="eyebrow">Asile control</p>
+      <h1>Dashboard</h1>
+      <p class="admin-event-name"><%= EVENT_NAME %></p>
+      <p class="muted admin-environment">Database: <b><%= usePostgres ? "PostgreSQL production database" : "Local JSON development database" %></b></p>
     </div>
-    <nav class="admin-nav">
+    <nav class="admin-nav" aria-label="Admin navigation">
       <a href="/admin/customers">Customers</a>
       <a href="/admin/marketing">Marketing</a>
       <a href="/admin/waitlist">Waitlist</a>
@@ -54,11 +55,8 @@
     <p class="note hidden" id="adminNotice"></p>
   <% } %>
 
-  <section class="panel event-summary">
-    <div>
-      <p class="eyebrow">Event control</p>
-      <h2><%= EVENT_NAME %></h2>
-    </div>
+  <details class="panel event-summary admin-event-details">
+    <summary><span>Event details</span><span class="summary-action">View</span></summary>
     <div class="event-facts">
       <span><b>Date</b><%= EVENT_DATE %></span>
       <span><b>Time</b><%= EVENT_TIME %></span>
@@ -69,63 +67,72 @@
       <span><b>Sponsor</b><%= SPONSOR_NAME %></span>
       <span><b>Included</b><%= PHOTO_BOOTH_PARTNER %></span>
     </div>
+  </details>
+
+  <section class="admin-quick-tools" aria-label="Admin tools">
+    <div class="admin-subsection-title">
+      <p class="eyebrow">Operations</p>
+      <h2>Manual tools</h2>
+      <p class="muted">Use these only for approved guests and invited VIP access.</p>
+    </div>
+    <details class="panel admin-collapse">
+      <summary>
+        <span>Generate manual ticket</span>
+        <span class="summary-action">Open</span>
+      </summary>
+      <form method="post" action="/admin/manual-ticket" class="manual-ticket-form">
+        <div class="name-grid">
+          <label>First name<input name="firstName" required></label>
+          <label>Last name<input name="lastName" required></label>
+        </div>
+        <label>Date of birth<input name="dateOfBirth" class="manual-dob" data-date-format="ddmmyyyy" placeholder="DD/MM/YYYY" inputmode="numeric" maxlength="10" pattern="\d{2}/\d{2}/\d{4}" required><span class="hint">Format: DD/MM/YYYY, example 24/07/2000</span></label>
+        <label>Gender<select name="gender" required><option value="">Select gender</option><option value="Female">Female</option><option value="Male">Male</option></select></label>
+        <label>Email to send ticket<input type="email" name="buyerEmail" placeholder="optional"></label>
+        <button type="submit">Generate new ticket</button>
+      </form>
+      <p class="note">This creates a valid QR ticket without Stripe. Use it only for approved manual tickets.</p>
+    </details>
+
+    <details class="panel admin-collapse">
+      <summary>
+        <span>VIP invite codes</span>
+        <span class="summary-action">Open</span>
+      </summary>
+      <form method="post" action="/admin/vip-codes" class="manual-ticket-form">
+        <label>Invite code<input name="code" required placeholder="VIP-001" autocapitalize="characters"></label>
+        <label>Max tickets<input name="maxTickets" type="number" min="1" max="10" value="1" required></label>
+        <button type="submit">Create VIP code</button>
+      </form>
+      <table class="admin-card-table">
+        <tr><th>Code</th><th>Used</th><th>Status</th><th></th></tr>
+        <% (vipCodes || []).forEach(code => { %>
+          <tr>
+            <td data-label="Code"><%= code.code %></td>
+            <td data-label="Used"><%= code.usedTickets || 0 %> / <%= code.maxTickets || 1 %></td>
+            <td data-label="Status"><span class="status-pill <%= code.active === false ? 'status-cancelled' : 'ticket-status-valid' %>"><%= code.active === false ? 'Disabled' : 'Active' %></span></td>
+            <td data-label="Action" class="row-actions-cell">
+              <% if (code.active === false) { %>
+                <form class="inline" method="post" action="/admin/vip-codes/<%= code.code %>/enable">
+                  <button class="compact-action row-action" type="submit">Enable</button>
+                </form>
+              <% } else { %>
+                <form class="inline" method="post" action="/admin/vip-codes/<%= code.code %>/disable" onsubmit="return confirm('Disable this VIP code?')">
+                  <button class="danger compact-action row-action danger-row-action" type="submit">Disable</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </table>
+      <p class="note">VIP codes work only on <b>/private-reserve-asile-2026</b>. Each code can reserve up to its max tickets and still requires admin approval.</p>
+    </details>
   </section>
 
-  <details class="panel admin-collapse">
-    <summary>
-      <span>Generate new manual ticket</span>
-      <span class="summary-action">Open</span>
-    </summary>
-    <form method="post" action="/admin/manual-ticket" class="manual-ticket-form">
-      <div class="name-grid">
-        <label>First name<input name="firstName" required></label>
-        <label>Last name<input name="lastName" required></label>
-      </div>
-      <label>Date of birth<input name="dateOfBirth" class="manual-dob" data-date-format="ddmmyyyy" placeholder="DD/MM/YYYY" inputmode="numeric" maxlength="10" pattern="\d{2}/\d{2}/\d{4}" required><span class="hint">Format: DD/MM/YYYY, example 24/07/2000</span></label>
-      <label>Gender<select name="gender" required><option value="">Select gender</option><option value="Female">Female</option><option value="Male">Male</option></select></label>
-      <label>Email to send ticket<input type="email" name="buyerEmail" placeholder="optional"></label>
-      <button type="submit">Generate new ticket</button>
-    </form>
-    <p class="note">This creates a new valid QR ticket without Stripe. Use it only for admin-approved manual tickets.</p>
-  </details>
-
-  <details class="panel admin-collapse">
-    <summary>
-      <span>VIP invite codes</span>
-      <span class="summary-action">Open</span>
-    </summary>
-    <form method="post" action="/admin/vip-codes" class="manual-ticket-form">
-      <label>Invite code<input name="code" required placeholder="VIP-001" autocapitalize="characters"></label>
-      <label>Max tickets<input name="maxTickets" type="number" min="1" max="10" value="1" required></label>
-      <button type="submit">Create VIP code</button>
-    </form>
-    <table class="admin-card-table">
-      <tr><th>Code</th><th>Used</th><th>Status</th><th></th></tr>
-      <% (vipCodes || []).forEach(code => { %>
-        <tr>
-          <td data-label="Code"><%= code.code %></td>
-          <td data-label="Used"><%= code.usedTickets || 0 %> / <%= code.maxTickets || 1 %></td>
-          <td data-label="Status"><span class="status-pill <%= code.active === false ? 'status-cancelled' : 'ticket-status-valid' %>"><%= code.active === false ? 'Disabled' : 'Active' %></span></td>
-          <td data-label="Action" class="row-actions-cell">
-            <% if (code.active === false) { %>
-              <form class="inline" method="post" action="/admin/vip-codes/<%= code.code %>/enable">
-                <button class="compact-action row-action" type="submit">Enable</button>
-              </form>
-            <% } else { %>
-              <form class="inline" method="post" action="/admin/vip-codes/<%= code.code %>/disable" onsubmit="return confirm('Disable this VIP code?')">
-                <button class="danger compact-action row-action danger-row-action" type="submit">Disable</button>
-              </form>
-            <% } %>
-          </td>
-        </tr>
-      <% }) %>
-    </table>
-    <p class="note">VIP codes work only on <b>/private-reserve-asile-2026</b>. Each code can reserve up to its max tickets and still requires admin approval.</p>
-  </details>
-
+  <section class="admin-data-section" aria-labelledby="orders-heading">
   <div class="admin-section-header">
     <div class="admin-section-title">
-      <h2>Orders</h2>
+      <p class="eyebrow">Payments</p>
+      <h2 id="orders-heading">Orders</h2>
       <p class="muted">Showing <%= orders.length %> of <%= pagination.orders.total %> order(s)<% if (pagination.searches.orderSearch) { %> matching "<%= pagination.searches.orderSearch %>"<% } %><% if (pagination.searches.orderStatus === 'pending_admin_approval') { %> with status Ready for approval<% } %>. <span id="awaitingPaymentCount"><%= stats.awaitingPaymentCount %></span> order(s) are still waiting for customer payment.</p>
     </div>
   </div>
@@ -195,10 +202,13 @@
       <span></span>
     <% } %>
   </nav>
+  </section>
 
+  <section class="admin-data-section" aria-labelledby="tickets-heading">
   <div class="admin-section-header">
     <div class="admin-section-title">
-      <h2>Tickets</h2>
+      <p class="eyebrow">Entry</p>
+      <h2 id="tickets-heading">Tickets</h2>
       <p class="muted"><%= tickets.length %> of <%= pagination.tickets.total %> ticket(s) shown<% if (pagination.searches.ticketSearch) { %> matching "<%= pagination.searches.ticketSearch %>"<% } %></p>
     </div>
     <form class="admin-search-form compact-search" method="get" action="/admin">
@@ -242,10 +252,13 @@
     <% } %>
   </nav>
   <p class="note"><b>Entry note:</b> Each ticket must match the attendee ID. All guests must be wearing <%= DRESS_CODE %>.</p>
+  </section>
 
+  <section class="admin-data-section" aria-labelledby="scans-heading">
   <div class="admin-section-header">
     <div class="admin-section-title">
-      <h2>Recent scan history</h2>
+      <p class="eyebrow">Door</p>
+      <h2 id="scans-heading">Recent scan history</h2>
       <p class="muted">Showing <%= (scanHistory || []).length %> of <%= pagination.scans.total %> scan(s).</p>
     </div>
   </div>
@@ -273,6 +286,7 @@
       <span></span>
     <% } %>
   </nav>
+  </section>
 </main>
 <script src="/public/form-inputs.js?v=20260714c" defer></script>
 <script src="/public/admin-autorefresh.js"></script>

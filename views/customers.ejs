@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow,noarchive"><title>Customers | Asile Admin</title><link rel="stylesheet" href="/public/style.css?v=20260714c"></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow,noarchive"><title>Customers | Asile Admin</title><link rel="stylesheet" href="/public/style.css?v=20260714e"></head>
 <body><main class="wrap admin-wrap customers-wrap">
   <header class="admin-hero panel"><div><p class="eyebrow">Asile admin</p><h1>Customers</h1><p class="muted">One customer view across ticket buyers and Priority Access.</p></div><nav class="admin-nav"><a href="/admin">Dashboard</a><a href="/admin/marketing">Marketing</a><a href="/admin/waitlist">Waitlist</a><a href="/admin/logout">Logout</a></nav></header>
   <% if (duplicateCount) { %><details class="note"><summary><b><%= duplicateCount %></b> possible duplicate record(s) need review. They were not automatically merged.</summary><% duplicateCandidates.forEach(candidate => { %><p><b><%= candidate.sourceType %></b> <%= candidate.sourceId %>: <%= candidate.reason %></p><% }) %></details><% } %>

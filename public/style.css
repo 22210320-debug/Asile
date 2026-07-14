@@ -507,7 +507,17 @@ td {
 
 /* Admin dashboard and operations. */
 .admin-wrap {
-  max-width: 1280px;
+  max-width: 1360px;
+}
+.admin-dashboard {
+  display: grid;
+  gap: 20px;
+  padding-top: 28px;
+  padding-bottom: 60px;
+}
+.admin-dashboard > * {
+  margin-top: 0;
+  margin-bottom: 0;
 }
 .admin-hero {
   display: flex;
@@ -516,9 +526,19 @@ td {
   gap: 22px;
   margin-top: 0;
 }
+.admin-title-block {
+  min-width: 0;
+  max-width: 680px;
+}
+.admin-event-name {
+  margin: 0 0 12px;
+  color: #fff4e4;
+  font-size: 17px;
+  font-weight: 800;
+}
 .admin-hero h1 {
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(38px, 6vw, 76px);
+  font-size: clamp(38px, 5vw, 64px);
   line-height: 0.9;
   margin: 0 0 12px;
   font-weight: 500;
@@ -527,9 +547,23 @@ td {
 .admin-hero .muted {
   margin-bottom: 0;
 }
+.admin-environment {
+  display: inline-block;
+  padding: 7px 10px;
+  border: 1px solid rgba(215, 164, 91, 0.18);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+}
+.admin-nav {
+  justify-content: flex-end;
+}
+.admin-nav a {
+  min-height: 42px;
+}
 .admin-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px;
   margin: 0 0 24px;
 }
@@ -556,6 +590,9 @@ td {
   line-height: 1;
   color: #fff6e8;
 }
+.metric-card:first-child {
+  border-color: rgba(79, 210, 143, 0.36);
+}
 .alert-card {
   border-color: rgba(255, 107, 107, 0.42);
 }
@@ -564,6 +601,31 @@ td {
   grid-template-columns: minmax(220px, 0.55fr) 1.45fr;
   gap: 20px;
   align-items: start;
+}
+.admin-event-details {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+}
+.admin-event-details summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px;
+  cursor: pointer;
+  color: #fff1dd;
+  font-weight: 900;
+  list-style: none;
+}
+.admin-event-details summary::-webkit-details-marker {
+  display: none;
+}
+.admin-event-details[open] summary {
+  border-bottom: 1px solid rgba(245, 229, 204, 0.14);
+}
+.admin-event-details .event-facts {
+  padding: 18px 22px 22px;
 }
 .event-facts {
   display: grid;
@@ -636,6 +698,31 @@ td {
 .manual-ticket-form,
 .admin-collapse .note {
   margin: 24px 28px;
+}
+.admin-quick-tools {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 24px 0;
+}
+.admin-subsection-title {
+  grid-column: 1/-1;
+  display: grid;
+  gap: 3px;
+  padding: 2px 2px 0;
+}
+.admin-subsection-title h2 {
+  margin: 0;
+  font-size: 30px;
+}
+.admin-subsection-title p {
+  margin: 0;
+}
+.admin-quick-tools .admin-collapse {
+  margin: 0;
+}
+.admin-quick-tools .manual-ticket-form button {
+  width: 100%;
 }
 .admin-section-heading {
   padding-top: 8px;
@@ -714,6 +801,11 @@ table.admin-card-table tr:hover td {
 .search-form button {
   min-height: 48px;
 }
+@media (max-width: 1120px) {
+  .admin-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
 @media (max-width: 900px) {
   .admin-stats,
   .event-facts {
@@ -730,6 +822,10 @@ table.admin-card-table tr:hover td {
   .admin-hero {
     display: block;
   }
+  .admin-dashboard {
+    gap: 14px;
+    padding-top: 16px;
+  }
   .admin-hero .admin-nav {
     margin-top: 16px;
   }
@@ -742,6 +838,17 @@ table.admin-card-table tr:hover td {
   }
   .event-facts {
     grid-template-columns: 1fr;
+  }
+  .admin-quick-tools {
+    grid-template-columns: 1fr;
+  }
+  .admin-data-section {
+    padding: 16px;
+  }
+  .admin-event-details summary,
+  .admin-event-details .event-facts {
+    padding-right: 16px;
+    padding-left: 16px;
   }
   .admin-collapse summary {
     padding: 20px;
@@ -841,6 +948,27 @@ table.admin-card-table tr:hover td {
   max-width: 760px;
   margin: 0;
   color: #ffe8cd;
+}
+.hero-event-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 22px;
+}
+.hero-event-summary span {
+  display: grid;
+  gap: 2px;
+  min-width: 150px;
+  padding: 9px 12px;
+  border-left: 1px solid rgba(215, 164, 91, 0.52);
+  color: #fff0dc;
+  font-size: 14px;
+}
+.hero-event-summary b {
+  color: var(--gold);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 .hero-actions,
 .detail-actions {
@@ -1006,6 +1134,13 @@ table.admin-card-table tr:hover td {
   .hero-copy {
     padding-top: 18px;
   }
+  .hero-event-summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .hero-event-summary span {
+    min-width: 0;
+  }
   .hero-actions .button,
   .detail-actions .button {
     width: 100%;
@@ -1075,6 +1210,16 @@ table.admin-card-table tr:hover td {
   justify-content: space-between;
   gap: 18px;
   margin: 30px 0 12px;
+}
+.admin-data-section {
+  padding: 22px;
+  border: 1px solid rgba(245, 229, 204, 0.12);
+  border-radius: 8px;
+  background: rgba(12, 8, 5, 0.42);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.16);
+}
+.admin-data-section .admin-section-header {
+  margin-top: 0;
 }
 .admin-section-title {
   min-width: min(360px, 100%);
@@ -1808,8 +1953,22 @@ table.admin-card-table tr:hover td {
   background: #080808;
   color: #f5f1e8;
   font-family: Arial, sans-serif;
+  isolation: isolate;
+  position: relative;
+  overflow-x: hidden;
+}
+.priority-body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url('/public/favicon.png') center/min(680px, 88vw) no-repeat;
+  opacity: 0.055;
 }
 .priority-shell {
+  position: relative;
+  z-index: 1;
   width: min(620px, 100%);
   box-sizing: border-box;
   margin: 0 auto;
@@ -1829,7 +1988,7 @@ table.admin-card-table tr:hover td {
 .priority-card {
   box-sizing: border-box;
   border: 1px solid rgba(198, 165, 107, 0.72);
-  background: #161616;
+  background: rgba(22, 22, 22, 0.96);
   padding: 34px;
   box-shadow: 0 20px 56px rgba(0, 0, 0, 0.32);
 }

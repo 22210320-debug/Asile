@@ -20,7 +20,7 @@
   <link rel="icon" type="image/png" sizes="512x512" href="/public/favicon.png?v=20260705a">
   <link rel="apple-touch-icon" sizes="512x512" href="/public/favicon.png?v=20260705a">
   <link rel="preload" href="/public/vineyard-sunset.svg" as="image">
-  <link rel="stylesheet" href="/public/style.css?v=20260714c">
+  <link rel="stylesheet" href="/public/style.css?v=20260714e">
 </head>
 <body>
   <main class="home-hero modern-home">
@@ -34,7 +34,12 @@
     <section class="hero-copy">
       <p class="brand"><%= COMPANY_NAME %></p>
       <h1><%= privateReserve ? 'Private Reserve' : EVENT_NAME %></h1>
-      <p class="subtitle"><%= privateReserve ? `Invite-only access for ${EVENT_NAME}. Complete checkout here, then admin approval confirms the final QR ticket.` : `A private all-white sunset house party in ${EVENT_LOCATION}, built around house music, approved guest-list entry, QR tickets, ${BAR_PARTNER} at the bar, ${SPONSOR_NAME} sponsorship, and one free ${PHOTO_BOOTH_PARTNER} picture for every approved guest.` %></p>
+      <p class="subtitle"><%= privateReserve ? `Invite-only access for ${EVENT_NAME}. Complete checkout here, then admin approval confirms the final QR ticket.` : `An all-white sunset house party in ${EVENT_LOCATION}. House music, approved guest-list entry, named QR tickets, and one free ${PHOTO_BOOTH_PARTNER} picture for every approved guest.` %></p>
+      <div class="hero-event-summary" aria-label="Event summary">
+        <span><b>Date</b><%= EVENT_DATE %></span>
+        <span><b>Time</b><%= EVENT_TIME %></span>
+        <span><b>Location</b><%= EVENT_LOCATION %></span>
+      </div>
       <div class="hero-actions">
         <% if (ticketAvailability && ticketAvailability.soldOut) { %>
           <a class="button sold-out-button" href="#reserve">Sold out</a>
@@ -67,6 +72,7 @@
           <% } else { %>
             <a class="button" href="#reserve">Reserve now</a>
           <% } %>
+          <a class="button secondary" href="/waitlist">Join waitlist</a>
           <a class="button secondary whatsapp-button" href="https://wa.me/<%= WHATSAPP_1 %>" target="_blank" rel="noopener">WhatsApp</a>
         </div>
       </div>
