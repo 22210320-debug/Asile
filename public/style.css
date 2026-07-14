@@ -1996,8 +1996,17 @@ table.admin-card-table tr:hover td {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: url('/public/favicon.png') center/min(760px, 95vw) no-repeat;
-  opacity: 0.11;
+  background: url('/public/vineyard-sunset.svg') center/cover no-repeat;
+  opacity: 0.28;
+}
+.priority-body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: #080808;
+  opacity: 0.52;
 }
 .priority-shell {
   position: relative;
@@ -2011,6 +2020,25 @@ table.admin-card-table tr:hover td {
   display: block;
   width: 92px;
   margin: 0 auto 26px;
+}
+.priority-back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  margin-bottom: 22px;
+  padding: 8px 12px;
+  border: 1px solid rgba(198, 165, 107, 0.7);
+  border-radius: 4px;
+  background: rgba(8, 8, 8, 0.8);
+  color: #f5f1e8;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.priority-back:hover,
+.priority-back:focus-visible {
+  background: #c6a56b;
+  color: #080808;
 }
 .priority-logo {
   display: block;
