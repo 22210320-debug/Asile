@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>Admin</title>
-  <link rel="stylesheet" href="/public/style.css?v=20260714a">
+  <link rel="stylesheet" href="/public/style.css?v=20260714c">
 </head>
 <body>
 <main class="wrap admin-wrap" data-admin-dashboard="true" data-awaiting-payments="<%= stats.awaitingPaymentCount %>">
@@ -16,7 +16,9 @@
       <p class="muted">Database mode: <b><%= usePostgres ? "PostgreSQL production database" : "Local JSON development database" %></b></p>
     </div>
     <nav class="admin-nav">
-      <a href="/admin/waitlist">Priority Access</a>
+      <a href="/admin/customers">Customers</a>
+      <a href="/admin/marketing">Marketing</a>
+      <a href="/admin/waitlist">Waitlist</a>
       <a href="/admin/scanner">QR scanner</a>
       <a href="/admin/logout">Logout</a>
     </nav>
@@ -79,7 +81,7 @@
         <label>First name<input name="firstName" required></label>
         <label>Last name<input name="lastName" required></label>
       </div>
-      <label>Date of birth<input name="dateOfBirth" class="manual-dob" placeholder="DD/MM/YYYY" inputmode="numeric" maxlength="10" pattern="\d{2}/\d{2}/\d{4}" required><span class="hint">Format: DD/MM/YYYY, example 24/07/2000</span></label>
+      <label>Date of birth<input name="dateOfBirth" class="manual-dob" data-date-format="ddmmyyyy" placeholder="DD/MM/YYYY" inputmode="numeric" maxlength="10" pattern="\d{2}/\d{2}/\d{4}" required><span class="hint">Format: DD/MM/YYYY, example 24/07/2000</span></label>
       <label>Gender<select name="gender" required><option value="">Select gender</option><option value="Female">Female</option><option value="Male">Male</option></select></label>
       <label>Email to send ticket<input type="email" name="buyerEmail" placeholder="optional"></label>
       <button type="submit">Generate new ticket</button>
@@ -272,16 +274,7 @@
     <% } %>
   </nav>
 </main>
-<script>
-  function formatDobInput(input){
-    const digits = input.value.replace(/\D/g, '').slice(0, 8);
-    let formatted = digits;
-    if(digits.length > 4) formatted = digits.slice(0,2) + '/' + digits.slice(2,4) + '/' + digits.slice(4);
-    else if(digits.length > 2) formatted = digits.slice(0,2) + '/' + digits.slice(2);
-    input.value = formatted;
-  }
-  document.querySelector('.manual-dob')?.addEventListener('input', event => formatDobInput(event.target));
-</script>
+<script src="/public/form-inputs.js?v=20260714c" defer></script>
 <script src="/public/admin-autorefresh.js"></script>
 </body>
 </html>

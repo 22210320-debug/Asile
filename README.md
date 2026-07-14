@@ -163,3 +163,12 @@ The buyer website and admin scanner are responsive. Camera scanning on phones re
 
 ## Production warning
 The local JSON fallback is only for development. Use PostgreSQL on DigitalOcean for the real event so data is not lost and multiple admins can scan safely.
+
+## Development quality checks
+
+```bash
+npm run build
+npm run format:check
+```
+
+`npm run build` validates the server, database module, browser modules, and all EJS templates. `npm run format` formats the shared CSS and browser modules.

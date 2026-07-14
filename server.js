@@ -1,7 +1,6 @@
 require('dotenv').config();
 const express = require('express');
 const helmet = require('helmet');
-const cookieParser = require('cookie-parser');
 const session = require('express-session');
 const compression = require('compression');
 const bcrypt = require('bcryptjs');
@@ -10,6 +9,7 @@ const QRCode = require('qrcode');
 const nodemailer = require('nodemailer');
 const path = require('path');
 const crypto = require('crypto');
+const { ensureCustomerMarketingSchema, listCustomers, getCustomerProfile, updateCustomerStatus, addCustomerNote, unsubscribeEmail, audit, saveCampaign, listCampaigns, eligibleMarketingCustomers, normalizeEmail, MARKETING_STATUSES, CUSTOMER_STATUSES } = require('./customer-marketing');
 
 const app = express();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY, { timeout: Number(process.env.STRIPE_TIMEOUT_MS || 10000) }) : null;
@@ -22,6 +22,7 @@ const COMPANY_NAME = process.env.COMPANY_NAME || "ASIL'E";
 const EVENT_LOCATION = process.env.EVENT_LOCATION || 'Cremisan';
 const EVENT_DATE = process.env.EVENT_DATE || 'July 24, 2026';
 const EVENT_TIME = process.env.EVENT_TIME || '5:30 PM–11:00 PM';
+const EVENT_START_AT = process.env.EVENT_START_AT || '2026-07-24T17:30:00';
 const EVENT_THEME = process.env.EVENT_THEME || 'House Music & Sunset Party';
 const DRESS_CODE = process.env.DRESS_CODE || 'All White';
 const MIN_AGE = Number(process.env.MIN_AGE || 18);
@@ -42,12 +43,15 @@ const PAYMENT_PROVIDER_LABEL = process.env.PAYMENT_PROVIDER_LABEL || 'Stripe';
 const PHOTO_BOOTH_PARTNER = process.env.PHOTO_BOOTH_PARTNER || 'Picka pic photo booth';
 const VIP_RESERVE_PATH = '/private-reserve-asile-2026';
 const WAITLIST_PATH = '/waitlist';
+const TICKET_MARKETING_CONSENT_WORDING = 'Keep me updated about future Asile events, ticket releases, and exclusive announcements.';
+const PRIORITY_ACCESS_CONSENT_WORDING = 'I agree to receive event updates and Priority Access announcements from Asile Events. I understand that joining the list does not guarantee a ticket or admission.';
 const WAITLIST_RATE_WINDOW_MS = Number(process.env.WAITLIST_RATE_WINDOW_MS || 15 * 60 * 1000);
 const WAITLIST_RATE_LIMIT = Number(process.env.WAITLIST_RATE_LIMIT || 5);
 const ASILE_LOGO_PATH = path.join(__dirname, 'public', 'favicon.png');
 const waitlistAttempts = new Map();
+const sensitiveAttempts = new Map();
 
-const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_TIME, EVENT_THEME, DRESS_CODE, MIN_AGE, CAPACITY, TICKET_PRICE, CURRENCY, MAP_URL, WHATSAPP_1, INSTAGRAM_URL, BAR_PARTNER, SPONSOR_NAME, SPONSOR_LOGO_URL, DJ_NAME, DJ_IMAGE_URL, SITE_IMAGE_URL, PAYMENT_METHODS, PAYMENT_PROVIDER_LABEL, PHOTO_BOOTH_PARTNER };
+const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_TIME, EVENT_START_AT, EVENT_THEME, DRESS_CODE, MIN_AGE, CAPACITY, TICKET_PRICE, CURRENCY, MAP_URL, WHATSAPP_1, INSTAGRAM_URL, BAR_PARTNER, SPONSOR_NAME, SPONSOR_LOGO_URL, DJ_NAME, DJ_IMAGE_URL, SITE_IMAGE_URL, PAYMENT_METHODS, PAYMENT_PROVIDER_LABEL, PHOTO_BOOTH_PARTNER };
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -64,7 +68,6 @@ app.get('/favicon.ico', (req, res) => {
     headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=3600' }
   });
 });
-app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.set('trust proxy', 1);
@@ -270,7 +273,7 @@ function parseDobInput(value) {
   return { birth, display: `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}` };
 }
 function ageOnEvent(birth) {
-  const eventDate = new Date('2026-07-24T17:30:00');
+  const eventDate = new Date(EVENT_START_AT);
   if (!birth || birth > eventDate) return null;
   let age = eventDate.getFullYear() - birth.getFullYear();
   const monthDiff = eventDate.getMonth() - birth.getMonth();
@@ -306,6 +309,46 @@ function waitlistRateAllowed(req) {
   attempts.push(now);
   waitlistAttempts.set(key, attempts);
   return true;
+}
+
+function sensitiveRateAllowed(req, limit = 20, windowMs = 15 * 60 * 1000) {
+  const key = `${req.session?.adminName || 'public'}:${req.ip || req.socket.remoteAddress || 'unknown'}:${req.path}`;
+  const now = Date.now();
+  const attempts = (sensitiveAttempts.get(key) || []).filter(time => now - time < windowMs);
+  if (attempts.length >= limit) return false;
+  attempts.push(now);
+  sensitiveAttempts.set(key, attempts);
+  return true;
+}
+
+function unsubscribeTokenForEmail(email) {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return '';
+  const payload = Buffer.from(JSON.stringify({ email: normalized, exp: Date.now() + 365 * 24 * 60 * 60 * 1000 })).toString('base64url');
+  const secret = process.env.EMAIL_UNSUBSCRIBE_SECRET || process.env.SESSION_SECRET;
+  if (!secret) return '';
+  const signature = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+
+function emailFromUnsubscribeToken(token) {
+  try {
+    const [payload, suppliedSignature] = String(token || '').split('.');
+    const secret = process.env.EMAIL_UNSUBSCRIBE_SECRET || process.env.SESSION_SECRET;
+    if (!payload || !suppliedSignature || !secret) return '';
+    const expectedSignature = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+    const supplied = Buffer.from(suppliedSignature);
+    const expected = Buffer.from(expectedSignature);
+    if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) return '';
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (!data || Date.now() > Number(data.exp)) return '';
+    return normalizeEmail(data.email);
+  } catch { return ''; }
+}
+
+function marketingEmailHtml({ senderName, body, unsubscribeUrl }) {
+  const safeBody = escapeHtml(body).replace(/\n/g, '<br>');
+  return `<div style="margin:0;padding:28px 14px;background:#080808;color:#F5F1E8;font-family:Arial,sans-serif"><div style="max-width:560px;margin:0 auto;border:1px solid #C6A56B;background:#161616;padding:30px 24px"><div style="text-align:center;margin-bottom:24px"><img src="cid:asile-marketing-logo" width="84" height="84" alt="ASIL'E" style="display:inline-block;max-width:84px;height:auto"></div><div style="font-size:16px;line-height:1.65;color:#F5F1E8">${safeBody}</div><p style="margin:28px 0 0;font-size:12px;line-height:1.5;color:#C6A56B">You are receiving this because you opted in to Asile event updates. <a href="${escapeHtml(unsubscribeUrl)}" style="color:#F5F1E8">Unsubscribe</a></p><p style="margin:10px 0 0;color:#C6A56B;font-size:13px">${escapeHtml(senderName)}</p></div></div>`;
 }
 
 function escapeHtml(value) {
@@ -523,6 +566,10 @@ app.post(WAITLIST_PATH, async (req, res) => {
       attendedBefore: values.attendedBefore || null,
       referralSource: values.referralSource || null,
       consent: true,
+      consentAt: new Date().toISOString(),
+      consentSource: 'priority_access',
+      consentWording: PRIORITY_ACCESS_CONSENT_WORDING,
+      consentVersion: 'priority-access-v1',
       status: 'waitlisted'
     });
     if (result.error) return showError('We found conflicting details in an existing entry. Please contact Asile directly so we can help.', 409);
@@ -580,6 +627,7 @@ async function handleReserve(req, res, { bypassCapacity = false } = {}) {
   const legacyNames = asArray(req.body.attendeeName).map(cleanName);
   const attendeeDobs = asArray(req.body.attendeeDob).map(v => String(v || '').trim());
   const attendeeGenders = asArray(req.body.attendeeGender).map(normalizeGender);
+  const marketingConsent = req.body.marketingConsent === 'on';
   const attendeeNames = legacyNames.length ? legacyNames : attendeeFirstNames.map((first, i) => combineName(first, attendeeLastNames[i]));
   const qty = Number(req.body.quantity || attendeeNames.length || 1);
   if (!buyerName || !buyerEmail) return res.status(400).render('message', { title: 'Missing information', message: 'Buyer name and email are required.' });
@@ -594,7 +642,16 @@ async function handleReserve(req, res, { bypassCapacity = false } = {}) {
 
   const attendees = attendeeNames.map((name, i) => ({ firstName: attendeeFirstNames[i] || '', lastName: attendeeLastNames[i] || '', name, dateOfBirth: parseDobInput(attendeeDobs[i]).display, gender: attendeeGenders[i] }));
   const orderId = id(14);
-  const order = { id: orderId, buyerName, buyerEmail, qty, attendees, amount: TICKET_PRICE * qty, paymentMethods: PAYMENT_METHODS, paymentProvider: PAYMENT_PROVIDER_LABEL, status: 'checkout_started', createdAt: new Date().toISOString() };
+  const order = {
+    id: orderId, buyerName, buyerEmail, qty, attendees, amount: TICKET_PRICE * qty,
+    paymentMethods: PAYMENT_METHODS, paymentProvider: PAYMENT_PROVIDER_LABEL,
+    marketingConsent,
+    marketingConsentAt: new Date().toISOString(),
+    marketingConsentSource: 'ticket_checkout',
+    marketingConsentWording: TICKET_MARKETING_CONSENT_WORDING,
+    marketingConsentVersion: 'ticket-checkout-v1',
+    status: 'checkout_started', createdAt: new Date().toISOString()
+  };
   console.log('CHECKOUT START', { orderId, buyerEmail, qty, amount: order.amount });
   // Capacity and cross-order duplicate-name checks run atomically against the
   // latest data so simultaneous buyers cannot oversell or double-book a name.
@@ -750,6 +807,161 @@ function csvCell(value) {
   const safe = /^[=+\-@]/.test(text) ? `'${text}` : text;
   return `"${safe.replace(/"/g, '""')}"`;
 }
+
+function customerQueryUrl(page, query = {}) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries({ ...query, page })) if (value) params.set(key, value);
+  return `/admin/customers?${params.toString()}`;
+}
+
+app.get('/admin/customers', requireAdmin, async (req, res) => {
+  try {
+    const filters = {
+      search: cleanText(req.query.search, 120),
+      event: cleanText(req.query.event, 120),
+      source: cleanText(req.query.source, 30),
+      marketingStatus: cleanText(req.query.marketingStatus, 30),
+      customerStatus: cleanText(req.query.customerStatus, 30),
+      sort: cleanText(req.query.sort, 30),
+      page: pageNumber(req.query.page),
+      limit: 50
+    };
+    const result = await listCustomers(filters);
+    res.render('customers', {
+      customers: result.customers,
+      filters,
+      events: result.allEvents,
+      marketingStatuses: MARKETING_STATUSES,
+      customerStatuses: CUSTOMER_STATUSES,
+      duplicateCount: result.duplicateCount,
+      duplicateCandidates: result.duplicateCandidates,
+      pageInfo: pageMeta(result.page, result.total, result.pageSize),
+      customerQueryUrl,
+      money
+    });
+  } catch (err) {
+    console.error('Customer directory unavailable:', err.message);
+    res.status(503).render('message', { title: 'Customer directory unavailable', message: 'Customer records could not be loaded. Please refresh in a moment.' });
+  }
+});
+
+app.get('/admin/customers/:id', requireAdmin, async (req, res) => {
+  try {
+    const customer = await getCustomerProfile(req.params.id);
+    if (!customer) return res.status(404).render('message', { title: 'Customer not found', message: 'This customer profile does not exist.' });
+    res.render('customer-profile', { customer, customerStatuses: CUSTOMER_STATUSES, money, orderStatusLabel, ...eventInfo });
+  } catch (err) {
+    console.error('Customer profile unavailable:', err.message);
+    res.status(503).render('message', { title: 'Customer profile unavailable', message: 'This customer could not be loaded. Please refresh in a moment.' });
+  }
+});
+
+app.post('/admin/customers/:id/status', requireAdmin, async (req, res) => {
+  if (!sensitiveRateAllowed(req)) return res.status(429).render('message', { title: 'Please slow down', message: 'Try the customer update again in a few minutes.' });
+  const status = cleanText(req.body.customerStatus, 30);
+  if (!CUSTOMER_STATUSES.includes(status)) return res.status(400).render('message', { title: 'Invalid customer status', message: 'Choose a valid customer status.' });
+  const customer = await updateCustomerStatus(req.params.id, status);
+  if (!customer) return res.status(404).render('message', { title: 'Customer not found', message: 'This customer profile does not exist.' });
+  await audit('customer_status_updated', req.session.adminName, { count: 1 });
+  res.redirect(`/admin/customers/${encodeURIComponent(req.params.id)}`);
+});
+
+app.post('/admin/customers/:id/notes', requireAdmin, async (req, res) => {
+  if (!sensitiveRateAllowed(req)) return res.status(429).render('message', { title: 'Please slow down', message: 'Try adding the note again in a few minutes.' });
+  const note = await addCustomerNote(req.params.id, req.body.note, req.session.adminName);
+  if (!note) return res.status(400).render('message', { title: 'Note required', message: 'Enter a note before saving.' });
+  await audit('customer_note_added', req.session.adminName, { count: 1 });
+  res.redirect(`/admin/customers/${encodeURIComponent(req.params.id)}`);
+});
+
+async function exportCustomerCsv(req, res, marketingOnly) {
+  if (!sensitiveRateAllowed(req, 8)) return res.status(429).render('message', { title: 'Please slow down', message: 'Try the export again in a few minutes.' });
+  const result = await listCustomers({ limit: 100000 });
+  const customers = marketingOnly ? result.customers.filter(customer => customer.marketingStatus === 'subscribed' && customer.email) : result.customers;
+  const columns = marketingOnly
+    ? ['Full name', 'Email address', 'Phone number', 'Instagram username', 'Source', 'Events attended', 'Date subscribed']
+    : ['Customer ID', 'Full name', 'Email address', 'Phone number', 'Instagram username', 'Source', 'Events attended', 'Tickets purchased', 'Total amount spent', 'Marketing status', 'Customer status', 'Date first added', 'Most recent activity'];
+  const rows = customers.map(customer => marketingOnly
+    ? [customer.fullName, customer.email, customer.phone, customer.instagramUsername, customer.source, customer.events.join(' | '), customer.marketingHistory.find(item => item.status === 'subscribed')?.occurredAt || '']
+    : [customer.id, customer.fullName, customer.email, customer.phone, customer.instagramUsername, customer.source, customer.events.join(' | '), customer.ticketCount, (customer.totalSpent / 100).toFixed(2), customer.marketingStatus, customer.customerStatus, customer.dateFirstAdded, customer.mostRecentActivity]);
+  await audit(marketingOnly ? 'export_marketing_contacts' : 'export_all_customers', req.session.adminName, { count: customers.length });
+  res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="asile-${marketingOnly ? 'marketing-contacts' : 'customers'}.csv"`, 'Cache-Control': 'no-store' });
+  res.send(`\uFEFF${[columns, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n')}`);
+}
+
+app.get('/admin/customers/export/marketing.csv', requireAdmin, (req, res, next) => exportCustomerCsv(req, res, true).catch(next));
+app.get('/admin/customers/export/all.csv', requireAdmin, (req, res, next) => exportCustomerCsv(req, res, false).catch(next));
+
+app.get('/admin/marketing', requireAdmin, async (req, res) => {
+  try {
+    const audience = cleanText(req.query.audience, 80) || 'all_subscribed';
+    const selectedEvent = cleanText(req.query.selectedEvent, 160);
+    const [recipients, campaigns, customers] = await Promise.all([
+      eligibleMarketingCustomers(audience, selectedEvent),
+      listCampaigns(),
+      listCustomers({ limit: 100000 })
+    ]);
+    res.render('marketing', {
+      campaigns,
+      events: customers.allEvents,
+      audience,
+      selectedEvent,
+      estimatedRecipientCount: recipients.length,
+      bulkProviderReady: false,
+      defaultReplyTo: process.env.MARKETING_REPLY_TO || process.env.SMTP_USER || '',
+      defaultSenderName: process.env.MARKETING_SENDER_NAME || 'Asile Events',
+      previewHtml: req.query.previewBody ? marketingEmailHtml({ senderName: cleanText(req.query.senderName, 100) || 'Asile Events', body: cleanText(req.query.previewBody, 10000), unsubscribeUrl: `${BASE_URL}/email/unsubscribe?token={{secure_token}}` }) : ''
+    });
+  } catch (err) {
+    console.error('Marketing admin unavailable:', err.message);
+    res.status(503).render('message', { title: 'Marketing unavailable', message: 'Marketing data could not be loaded. Please refresh in a moment.' });
+  }
+});
+
+app.post('/admin/marketing/campaigns', requireAdmin, async (req, res) => {
+  if (!sensitiveRateAllowed(req, 12)) return res.status(429).render('message', { title: 'Please slow down', message: 'Try saving the campaign again in a few minutes.' });
+  try {
+    const audience = cleanText(req.body.audience, 80) || 'all_subscribed';
+    const selectedEvent = cleanText(req.body.selectedEvent, 160);
+    const recipients = await eligibleMarketingCustomers(audience, selectedEvent);
+    const campaign = await saveCampaign({
+      name: req.body.name,
+      subject: req.body.subject,
+      body: req.body.body,
+      senderName: req.body.senderName,
+      replyTo: req.body.replyTo,
+      audience,
+      selectedEvent,
+      status: 'draft',
+      createdBy: req.session.adminName,
+      recipientCount: recipients.length
+    });
+    await audit('campaign_saved_draft', req.session.adminName, { count: recipients.length, campaignId: campaign.id, audience });
+    res.redirect(`/admin/marketing?notice=${encodeURIComponent(`Draft ${campaign.name} saved for ${recipients.length} eligible contacts.`)}`);
+  } catch (err) {
+    res.status(400).render('message', { title: 'Campaign could not be saved', message: err.message });
+  }
+});
+
+app.post('/admin/marketing/campaigns/:id/test', requireAdmin, async (req, res) => {
+  // The configured SMTP/Nodemailer transport is transactional. It has no
+  // approved bulk provider, queue, delivery webhooks, or suppression list.
+  res.status(409).render('message', { title: 'Bulk email provider required', message: 'Campaign test and send are intentionally disabled. Configure an approved bulk provider with a queue, suppression handling, and delivery webhooks before sending marketing email.' });
+});
+
+app.get('/email/unsubscribe', (req, res) => {
+  const email = emailFromUnsubscribeToken(req.query.token);
+  res.render('unsubscribe', { valid: Boolean(email), token: cleanText(req.query.token, 2000) });
+});
+
+app.post('/email/unsubscribe', async (req, res) => {
+  if (!sensitiveRateAllowed(req, 6, 60 * 60 * 1000)) return res.status(429).render('message', { title: 'Please slow down', message: 'Try again in a little while.' });
+  const email = emailFromUnsubscribeToken(req.body.token);
+  if (!email) return res.status(400).render('unsubscribe', { valid: false, token: '' });
+  await unsubscribeEmail(email, 'unsubscribe_link');
+  await audit('marketing_unsubscribe', null, { count: 1 });
+  res.render('unsubscribe', { valid: 'complete', token: '' });
+});
 
 app.get('/admin/waitlist', requireAdmin, async (req, res) => {
   try {
@@ -1135,7 +1347,7 @@ app.use((err, req, res, next) => {
 process.on('unhandledRejection', reason => console.error('UNHANDLED REJECTION:', reason && reason.stack ? reason.stack : reason));
 process.on('uncaughtException', err => console.error('UNCAUGHT EXCEPTION:', err && err.stack ? err.stack : err));
 
-initDb().then(() => app.listen(PORT, () => console.log(`Running on ${BASE_URL}`))).catch(err => {
+Promise.all([initDb(), ensureCustomerMarketingSchema()]).then(() => app.listen(PORT, () => console.log(`Running on ${BASE_URL}`))).catch(err => {
   console.error('Database startup failed:', err);
   process.exit(1);
 });

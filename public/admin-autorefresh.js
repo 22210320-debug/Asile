@@ -14,7 +14,7 @@
     lastInteraction = Date.now();
   }
 
-  ['keydown', 'input', 'change', 'pointerdown', 'touchstart'].forEach(eventName => {
+  ['keydown', 'input', 'change', 'pointerdown', 'touchstart'].forEach((eventName) => {
     document.addEventListener(eventName, markInteraction, { passive: true });
   });
 
@@ -25,7 +25,7 @@
     window.location.reload();
   }, intervalMs);
 
-  document.addEventListener('submit', event => {
+  document.addEventListener('submit', (event) => {
     const form = event.target;
     if (!(form instanceof HTMLFormElement)) return;
     const button = form.querySelector('button[type="submit"], button:not([type])');

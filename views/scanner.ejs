@@ -1,1 +1,26 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>QR Scanner</title><link rel="stylesheet" href="/public/style.css?v=20260708c"><script src="https://unpkg.com/html5-qrcode"></script></head><body><main class="wrap"><h1>Camera QR Scanner</h1><p><a href="/admin">← Dashboard</a></p><div class="panel"><p>Allow camera access, then scan each guest's QR ticket. On phones, the published website must use HTTPS for the camera to open. Multiple admins can scan from separate logged-in devices.</p><div id="reader" style="max-width:460px"></div></div><script>function onScanSuccess(decodedText){ window.location.href = decodedText; } new Html5QrcodeScanner('reader',{fps:10,qrbox:250}).render(onScanSuccess);</script></main></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>QR Scanner | Asile</title>
+  <link rel="stylesheet" href="/public/style.css?v=20260714c">
+  <script src="https://unpkg.com/html5-qrcode"></script>
+</head>
+<body>
+  <main class="wrap">
+    <h1>Camera QR Scanner</h1>
+    <p><a href="/admin">Back to dashboard</a></p>
+    <section class="panel">
+      <p>Allow camera access, then scan each guest's QR ticket. On phones, the published website must use HTTPS for the camera to open. Multiple admins can scan from separate logged-in devices.</p>
+      <div id="reader" class="scanner-reader"></div>
+    </section>
+  </main>
+  <script>
+    new Html5QrcodeScanner('reader', { fps: 10, qrbox: 250 }).render(decodedText => {
+      window.location.href = decodedText;
+    });
+  </script>
+</body>
+</html>

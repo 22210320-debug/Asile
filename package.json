@@ -7,7 +7,12 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "check": "node --check server.js",
+    "check": "node --check server.js && node --check db.js && node --check customer-marketing.js && for file in public/*.js scripts/*.js; do node --check \"$file\"; done && node scripts/validate-templates.js",
+    "build": "npm run check",
+    "lint": "npm run check",
+    "typecheck": "npm run check",
+    "format": "prettier --write public/*.js public/style.css scripts/*.js",
+    "format:check": "prettier --check public/*.js public/style.css scripts/*.js",
     "do-start": "node server.js"
   },
   "keywords": [
@@ -22,7 +27,6 @@
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.1",
     "connect-pg-simple": "^10.0.0",
-    "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "ejs": "^6.0.1",
     "express": "^5.2.1",
@@ -35,5 +39,8 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.5"
   }
 }
