@@ -20,11 +20,12 @@
   <link rel="icon" type="image/png" sizes="512x512" href="/public/favicon.png?v=20260705a">
   <link rel="apple-touch-icon" sizes="512x512" href="/public/favicon.png?v=20260705a">
   <link rel="preload" href="/public/vineyard-sunset.svg" as="image">
-  <link rel="stylesheet" href="/public/style.css?v=20260714f">
+  <link rel="stylesheet" href="/public/style.css?v=20260715b">
 </head>
 <body>
   <main class="home-hero modern-home">
     <nav class="home-nav" aria-label="Event links">
+      <% if (!privateReserve) { %><a href="/events">Events</a><% } %>
       <% if (!privateReserve) { %><a href="#details">Details</a><% } %>
       <a href="#reserve">Reserve</a>
       <% if (!privateReserve) { %><a href="/waitlist">Priority List</a><% } %>

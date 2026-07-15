@@ -11,6 +11,7 @@
     "build": "npm run check",
     "lint": "npm run check",
     "typecheck": "npm run check",
+    "test": "node scripts/smoke-test.js",
     "format": "prettier --write public/*.js public/style.css scripts/*.js",
     "format:check": "prettier --check public/*.js public/style.css scripts/*.js",
     "do-start": "node server.js"

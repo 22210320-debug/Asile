@@ -617,6 +617,22 @@ async function renderHomePage(req, res, { privateReserve = false } = {}) {
 
 app.get('/', (req, res) => renderHomePage(req, res));
 app.get(VIP_RESERVE_PATH, (req, res) => renderHomePage(req, res, { privateReserve: true }));
+app.get('/events', async (req, res) => {
+  let ticketAvailability = { soldOrPending: 0, remaining: CAPACITY, soldOut: false };
+
+  try {
+    const soldOrPending = await getSoldOrPendingCount();
+    ticketAvailability = {
+      soldOrPending,
+      remaining: Math.max(0, CAPACITY - soldOrPending),
+      soldOut: soldOrPending >= CAPACITY
+    };
+  } catch (err) {
+    console.error('Events availability unavailable:', err.message);
+  }
+
+  res.render('events', { ...eventInfo, money, ticketAvailability, WAITLIST_PATH });
+});
 
 async function handleReserve(req, res, { bypassCapacity = false } = {}) {
   const buyerName = cleanName(req.body.buyerName);
