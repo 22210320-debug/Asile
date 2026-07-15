@@ -3,19 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Join the Asile Priority List for future ticket releases, exclusive announcements, and invitations.">
+  <meta name="description" content="Get first access to future Asile event releases, private invitations, and sold-out availability updates.">
   <meta property="og:title" content="Asile Priority List">
-  <meta property="og:description" content="Future ticket releases, exclusive announcements, and invitations from Asile Events.">
+  <meta property="og:description" content="First access to future Asile event releases, private invitations, and sold-out availability updates.">
   <meta property="og:image" content="<%= SITE_IMAGE_URL %>">
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Asile Priority List">
-  <meta name="twitter:description" content="Future ticket releases, exclusive announcements, and invitations from Asile Events.">
+  <meta name="twitter:description" content="First access to future Asile event releases, private invitations, and sold-out availability updates.">
   <meta name="twitter:image" content="<%= SITE_IMAGE_URL %>">
   <title>Asile Priority List</title>
   <link rel="icon" type="image/png" sizes="512x512" href="/public/favicon.png?v=20260705a">
   <link rel="apple-touch-icon" sizes="512x512" href="/public/favicon.png?v=20260705a">
-  <link rel="stylesheet" href="/public/style.css?v=20260714g">
+  <link rel="stylesheet" href="/public/style.css?v=20260715a">
 </head>
 <body class="priority-body">
   <main class="priority-shell">
@@ -37,9 +37,14 @@
     <% } else { %>
       <section class="priority-card">
         <p class="priority-kicker">PRIVATE ACCESS</p>
-        <h1>JOIN ASILE PRIORITY LIST</h1>
-        <p class="priority-intro">Be the first to receive future ticket releases, exclusive announcements, and invitations to upcoming Asile experiences.</p>
-        <p class="priority-soldout">Our latest event is officially sold out. Join the Priority List to hear first if spaces become available or when our next experience is announced.</p>
+        <h1>FIRST ACCESS TO FUTURE ASILE EVENTS</h1>
+        <p class="priority-intro">Join the Asile Priority List for early access to future event releases, private invitations, and exclusive announcements.</p>
+        <p class="priority-soldout">The current event is sold out. Join the Priority List to hear first if places reopen and to receive early access to upcoming Asile experiences.</p>
+        <div class="priority-benefits" aria-label="Priority List benefits">
+          <span>Early ticket releases</span>
+          <span>Private event invitations</span>
+          <span>Sold-out availability updates</span>
+        </div>
 
         <% if (error) { %><p class="priority-error" role="alert"><%= error %></p><% } %>
         <form method="post" action="/waitlist" class="priority-form" id="priorityForm" novalidate>
@@ -67,6 +72,7 @@
           <label class="priority-consent" for="consent"><input id="consent" name="consent" type="checkbox" required> <span>I agree to receive event updates and Priority List announcements from Asile Events. I understand that joining the list does not guarantee a ticket or admission.</span></label>
           <p class="priority-privacy">Your information will only be used for Asile event communication and guest management. We will not sell your information.</p>
           <button class="priority-button priority-submit" type="submit">JOIN PRIORITY LIST</button>
+          <p class="priority-submit-note">Joining does not guarantee a ticket or admission.</p>
           <p id="priorityLoading" class="priority-loading" aria-live="polite"></p>
         </form>
       </section>

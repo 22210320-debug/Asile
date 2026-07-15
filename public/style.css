@@ -2083,6 +2083,20 @@ table.admin-card-table tr:hover td {
   color: #f5f1e8;
   line-height: 1.55;
 }
+.priority-benefits {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 28px;
+}
+.priority-benefits span {
+  padding: 10px 8px;
+  border-top: 1px solid rgba(198, 165, 107, 0.7);
+  color: #f5f1e8;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
 .priority-form {
   display: grid;
   gap: 18px;
@@ -2181,6 +2195,13 @@ table.admin-card-table tr:hover td {
 .priority-submit {
   width: 100%;
   margin: 4px 0 0;
+}
+.priority-submit-note {
+  margin: -6px 0 0;
+  color: #c6a56b;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
 }
 .priority-button-secondary {
   background: transparent;
@@ -2376,6 +2397,10 @@ table.admin-card-table tr:hover td {
   }
   .priority-card h1 {
     font-size: 37px;
+  }
+  .priority-benefits {
+    grid-template-columns: 1fr;
+    gap: 0;
   }
   .waitlist-search {
     grid-template-columns: 1fr;
