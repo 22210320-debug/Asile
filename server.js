@@ -38,7 +38,7 @@ const SPONSOR_NAME = process.env.SPONSOR_NAME || 'Carlsberg';
 const SPONSOR_LOGO_URL = process.env.SPONSOR_LOGO_URL || '/public/carlsberg-logo.jpeg';
 const DJ_NAME = process.env.DJ_NAME || 'DJ Loco';
 const DJ_IMAGE_URL = process.env.DJ_IMAGE_URL || '/public/dj-loco.jpeg';
-const SITE_IMAGE_URL = process.env.SITE_IMAGE_URL || `${BASE_URL}/public/favicon.png?v=20260705a`;
+const SITE_IMAGE_URL = process.env.SITE_IMAGE_URL || `${BASE_URL}/public/favicon.png?v=20260715b`;
 const PAYMENT_METHODS = ['Apple Pay', 'Google Pay', 'Visa', 'Mastercard'];
 const PAYMENT_PROVIDER_LABEL = process.env.PAYMENT_PROVIDER_LABEL || 'Stripe';
 const PHOTO_BOOTH_PARTNER = process.env.PHOTO_BOOTH_PARTNER || 'Picka pic photo booth';
@@ -115,8 +115,7 @@ app.use('/public', express.static(path.join(__dirname, 'public'), {
 }));
 app.get('/favicon.ico', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'favicon.png'), {
-    maxAge: '1h',
-    headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=3600' }
+    headers: { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' }
   });
 });
 app.use(express.urlencoded({ extended: true }));
