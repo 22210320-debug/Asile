@@ -896,17 +896,26 @@ app.get('/admin/marketing', requireAdmin, async (req, res) => {
   try {
     const audience = cleanText(req.query.audience, 80) || 'all_subscribed';
     const selectedEvent = cleanText(req.query.selectedEvent, 160);
-    const [recipients, campaigns, customers] = await Promise.all([
-      eligibleMarketingCustomers(audience, selectedEvent),
+    const [campaigns, customers] = await Promise.all([
       listCampaigns(),
       listCustomers({ limit: 100000 })
     ]);
+    const eligibleCustomers = customers.customers.filter(customer => {
+      if (customer.marketingStatus !== 'subscribed' || !customer.email) return false;
+      if (audience === 'ticket_buyers') return customer.sourceTypes.has('ticket_order');
+      if (audience === 'priority_access') return customer.sourceTypes.has('waitlist_entry');
+      if (audience === 'event') return customer.events.includes(selectedEvent);
+      return true;
+    });
+    const estimatedRecipientCount = eligibleCustomers.filter((customer, index, list) => (
+      list.findIndex(item => item.email === customer.email) === index
+    )).length;
     res.render('marketing', {
       campaigns,
       events: customers.allEvents,
       audience,
       selectedEvent,
-      estimatedRecipientCount: recipients.length,
+      estimatedRecipientCount,
       bulkProviderReady: false,
       defaultReplyTo: process.env.MARKETING_REPLY_TO || process.env.SMTP_USER || '',
       defaultSenderName: process.env.MARKETING_SENDER_NAME || 'Asile Events',

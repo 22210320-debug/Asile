@@ -5,6 +5,7 @@ const MARKETING_STATUSES = ['subscribed', 'not_subscribed', 'unsubscribed', 'unk
 const CUSTOMER_STATUSES = ['active', 'vip', 'inactive', 'review'];
 const CAMPAIGN_STATUSES = ['draft', 'scheduled', 'sending', 'sent', 'failed', 'cancelled'];
 let schemaPromise = null;
+let customerSyncPromise = null;
 
 function uid(prefix) { return `${prefix}-${crypto.randomBytes(10).toString('hex').toUpperCase()}`; }
 function clean(value, max = 5000) { return String(value || '').replace(/[\u0000-\u001F\u007F]/g, '').trim().replace(/\s+/g, ' ').slice(0, max); }
@@ -230,7 +231,7 @@ async function recordConsent(context, profile, consent) {
   }
 }
 
-async function syncCustomerDirectory() {
+async function syncCustomerDirectoryNow() {
   const context = await loadState();
   const orders = context.local ? context.db.orders || [] : context.state.orders || [];
   const waitlistEntries = context.local ? context.db.waitlistEntries || [] : context.state.waitlistEntries || [];
@@ -256,6 +257,17 @@ async function syncCustomerDirectory() {
     });
   }
   return loadState();
+}
+
+// Admin pages can request customer data at the same time. Keep the import from
+// ticket and waitlist records single-filed so two requests never create the
+// same profile concurrently and trip the unique email/phone constraints.
+function syncCustomerDirectory() {
+  if (customerSyncPromise) return customerSyncPromise;
+  customerSyncPromise = syncCustomerDirectoryNow().finally(() => {
+    customerSyncPromise = null;
+  });
+  return customerSyncPromise;
 }
 
 function buildCustomerRecords(state) {
