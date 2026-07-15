@@ -33,6 +33,6 @@
     }
     button.disabled = true;
     button.textContent = 'JOINING...';
-    loading.textContent = 'Saving your Priority Access request...';
+    loading.textContent = 'Saving your Priority List request...';
   });
 })();

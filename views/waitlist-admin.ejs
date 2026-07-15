@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
-  <title>Priority Access | Asile Admin</title>
+  <title>Priority List | Asile Admin</title>
   <link rel="stylesheet" href="/public/style.css?v=20260714f">
 </head>
 <body>
@@ -12,8 +12,8 @@
     <header class="admin-hero panel admin-page-header">
       <div class="admin-title-block">
         <p class="eyebrow">Asile control</p>
-        <h1>Waitlist</h1>
-        <p class="muted">Priority Access requests and guest follow-up.</p>
+        <h1>Priority List</h1>
+        <p class="muted">Priority List requests and guest follow-up.</p>
       </div>
       <nav class="admin-nav" aria-label="Admin navigation">
         <a href="/admin">Dashboard</a>
@@ -23,7 +23,7 @@
         <a href="/admin/logout">Logout</a>
       </nav>
     </header>
-    <section class="stat-grid waitlist-stats" aria-label="Priority Access stats">
+    <section class="stat-grid waitlist-stats" aria-label="Priority List stats">
       <article class="stat"><span>Total people</span><b><%= totalAll %></b></article>
       <article class="stat"><span>New today</span><b><%= newToday %></b></article>
     </section>
@@ -36,9 +36,9 @@
       </form>
       <a class="button compact command-tool" href="/admin/waitlist/export.csv">Export CSV</a>
     </section>
-    <p class="muted">Showing <%= entries.length %> of <%= pageInfo.total %> matching Priority Access record(s), newest first.</p>
+    <p class="muted">Showing <%= entries.length %> of <%= pageInfo.total %> matching Priority List record(s), newest first.</p>
     <div class="waitlist-records">
-      <% if (!entries.length) { %><p class="note">No Priority Access records match this search.</p><% } %>
+      <% if (!entries.length) { %><p class="note">No Priority List records match this search.</p><% } %>
       <% entries.forEach(entry => { %>
         <article class="waitlist-record">
           <div class="waitlist-record-main">
@@ -58,7 +58,7 @@
         </article>
       <% }) %>
     </div>
-    <nav class="pager" aria-label="Priority Access pages">
+    <nav class="pager" aria-label="Priority List pages">
       <% if (pageInfo.hasOlder) { %><a class="button compact" href="<%= waitlistPageUrl(pageInfo.page + 1) %>">Older 50</a><% } else { %><span></span><% } %>
       <span>Page <%= pageInfo.page %> of <%= pageInfo.pageCount %></span>
       <% if (pageInfo.hasNewer) { %><a class="button compact" href="<%= waitlistPageUrl(pageInfo.page - 1) %>">Newer 50</a><% } else { %><span></span><% } %>

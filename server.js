@@ -44,7 +44,7 @@ const PHOTO_BOOTH_PARTNER = process.env.PHOTO_BOOTH_PARTNER || 'Picka pic photo 
 const VIP_RESERVE_PATH = '/private-reserve-asile-2026';
 const WAITLIST_PATH = '/waitlist';
 const TICKET_MARKETING_CONSENT_WORDING = 'Keep me updated about future Asile events, ticket releases, and exclusive announcements.';
-const PRIORITY_ACCESS_CONSENT_WORDING = 'I agree to receive event updates and Priority Access announcements from Asile Events. I understand that joining the list does not guarantee a ticket or admission.';
+const PRIORITY_ACCESS_CONSENT_WORDING = 'I agree to receive event updates and Priority List announcements from Asile Events. I understand that joining the list does not guarantee a ticket or admission.';
 const WAITLIST_RATE_WINDOW_MS = Number(process.env.WAITLIST_RATE_WINDOW_MS || 15 * 60 * 1000);
 const WAITLIST_RATE_LIMIT = Number(process.env.WAITLIST_RATE_LIMIT || 5);
 const ASILE_LOGO_PATH = path.join(__dirname, 'public', 'favicon.png');
@@ -363,7 +363,7 @@ function priorityAccessEmail(entry) {
       <p style="margin:0 0 12px;color:#C6A56B;font-size:12px;font-weight:bold;letter-spacing:2px">PRIVATE ACCESS</p>
       <h1 style="margin:0 0 22px;color:#F5F1E8;font-size:28px;font-weight:normal">Welcome to Asile, ${safeName}.</h1>
       <p style="line-height:1.65">Welcome to the Asile community.</p>
-      <p style="line-height:1.65">You have been added to Asile Priority Access.</p>
+      <p style="line-height:1.65">You have been added to the Asile Priority List.</p>
       <p style="line-height:1.65">We’ll contact you if availability opens or when access to our next experience becomes available.</p>
       <p style="line-height:1.65">Please remember that registration does not guarantee admission or a ticket.</p>
       <p style="line-height:1.65">This is just the beginning.</p>
@@ -554,7 +554,7 @@ app.post(WAITLIST_PATH, async (req, res) => {
   if (values.attendedBefore && !['Yes', 'No'].includes(values.attendedBefore)) return showError('Choose Yes or No for previous attendance.');
   const referralOptions = ['Instagram', 'Friend', 'Previous Asile event', 'TikTok', 'Other'];
   if (values.referralSource && !referralOptions.includes(values.referralSource)) return showError('Choose how you heard about Asile from the list.');
-  if (req.body.consent !== 'on') return showError('You need to agree before joining Priority Access.');
+  if (req.body.consent !== 'on') return showError('You need to agree before joining the Priority List.');
 
   try {
     const result = await upsertWaitlistEntry({
@@ -576,9 +576,9 @@ app.post(WAITLIST_PATH, async (req, res) => {
     if (result.created) {
       sendMailInBackground({
         to: result.entry.email,
-        subject: 'You’re on the Asile Priority Access List',
+        subject: 'You’re on the Asile Priority List',
         html: priorityAccessEmail(result.entry),
-        text: `Welcome to the Asile community.\n\nYou have been added to Asile Priority Access.\n\nWe’ll contact you if availability opens or when access to our next experience becomes available.\n\nPlease remember that registration does not guarantee admission or a ticket.\n\nThis is just the beginning.\n\nAsile Events`,
+        text: `Welcome to the Asile community.\n\nYou have been added to the Asile Priority List.\n\nWe’ll contact you if availability opens or when access to our next experience becomes available.\n\nPlease remember that registration does not guarantee admission or a ticket.\n\nThis is just the beginning.\n\nAsile Events`,
         attachments: [{ filename: 'asile-logo.png', path: ASILE_LOGO_PATH, cid: 'asile-priority-logo', contentType: 'image/png' }]
       });
     }
@@ -1004,16 +1004,16 @@ app.get('/admin/waitlist', requireAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error('Waitlist admin database unavailable:', err.message);
-    res.status(503).render('message', { title: 'Database temporarily unavailable', message: 'Priority Access records could not be loaded. Please refresh in a moment.' });
+    res.status(503).render('message', { title: 'Database temporarily unavailable', message: 'Priority List records could not be loaded. Please refresh in a moment.' });
   }
 });
 
 app.post('/admin/waitlist/:id/status', requireAdmin, async (req, res) => {
   try {
     const status = String(req.body.status || '').trim().toLowerCase();
-    if (!WAITLIST_STATUSES.includes(status)) return res.status(400).render('message', { title: 'Invalid status', message: 'Choose a valid Priority Access status.' });
+    if (!WAITLIST_STATUSES.includes(status)) return res.status(400).render('message', { title: 'Invalid status', message: 'Choose a valid Priority List status.' });
     const entry = await updateWaitlistStatus(req.params.id, status);
-    if (!entry) return res.status(404).render('message', { title: 'Entry not found', message: 'This Priority Access entry no longer exists.' });
+    if (!entry) return res.status(404).render('message', { title: 'Entry not found', message: 'This Priority List entry no longer exists.' });
     res.redirect('/admin/waitlist?notice=Status%20updated');
   } catch (err) {
     console.error('Waitlist status update failed:', err.message);
@@ -1034,7 +1034,7 @@ app.get('/admin/waitlist/export.csv', requireAdmin, async (req, res) => {
     res.send(`\uFEFF${[columns, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n')}`);
   } catch (err) {
     console.error('Waitlist CSV export failed:', err.message);
-    res.status(503).render('message', { title: 'Export failed', message: 'The Priority Access CSV could not be created. Please try again.' });
+    res.status(503).render('message', { title: 'Export failed', message: 'The Priority List CSV could not be created. Please try again.' });
   }
 });
 

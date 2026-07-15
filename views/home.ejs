@@ -27,7 +27,7 @@
     <nav class="home-nav" aria-label="Event links">
       <% if (!privateReserve) { %><a href="#details">Details</a><% } %>
       <a href="#reserve">Reserve</a>
-      <% if (!privateReserve) { %><a href="/waitlist">Join waitlist</a><% } %>
+      <% if (!privateReserve) { %><a href="/waitlist">Priority List</a><% } %>
       <a href="<%= INSTAGRAM_URL %>" target="_blank" rel="noopener">Instagram</a>
     </nav>
 
@@ -46,7 +46,7 @@
         <% } else { %>
           <a class="button" href="#reserve">Reserve now</a>
         <% } %>
-        <% if (!privateReserve) { %><a class="button secondary" href="/waitlist">Join waitlist</a><% } %>
+        <% if (!privateReserve) { %><a class="button secondary" href="/waitlist">Join Priority List</a><% } %>
         <% if (!privateReserve) { %><a class="button secondary" href="<%= MAP_URL %>" target="_blank" rel="noopener">Pinned location</a><% } %>
       </div>
     </section>
@@ -72,7 +72,7 @@
           <% } else { %>
             <a class="button" href="#reserve">Reserve now</a>
           <% } %>
-          <a class="button secondary" href="/waitlist">Join waitlist</a>
+          <a class="button secondary" href="/waitlist">Join Priority List</a>
           <a class="button secondary whatsapp-button" href="https://wa.me/<%= WHATSAPP_1 %>" target="_blank" rel="noopener">WhatsApp</a>
         </div>
       </div>

@@ -14,7 +14,7 @@ function normalizePhone(value) { return clean(value, 32).replace(/[\s().-]/g, ''
 function iso(value) { const date = new Date(value || 0); return Number.isNaN(date.getTime()) ? null : date.toISOString(); }
 function minDate(...values) { return values.filter(Boolean).sort()[0] || new Date().toISOString(); }
 function maxDate(...values) { return values.filter(Boolean).sort().at(-1) || new Date().toISOString(); }
-function sourceLabel(types) { return types.has('ticket_order') && types.has('waitlist_entry') ? 'Both' : (types.has('ticket_order') ? 'Ticket buyer' : 'Priority Access'); }
+function sourceLabel(types) { return types.has('ticket_order') && types.has('waitlist_entry') ? 'Both' : (types.has('ticket_order') ? 'Ticket buyer' : 'Priority List'); }
 function safeMarketingStatus(value) { return MARKETING_STATUSES.includes(value) ? value : 'unknown'; }
 function safeCustomerStatus(value) { return CUSTOMER_STATUSES.includes(value) ? value : 'active'; }
 
