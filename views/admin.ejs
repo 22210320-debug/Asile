@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="/public/style.css?v=20260714f">
 </head>
 <body>
-<main class="wrap admin-wrap admin-dashboard" data-admin-dashboard="true" data-awaiting-payments="<%= stats.awaitingPaymentCount %>">
+<main class="wrap admin-wrap admin-dashboard" data-admin-dashboard="true" data-awaiting-payments="<%= stats.awaitingPaymentCount %>" data-event-id="<%= selectedEvent.id %>">
   <header class="admin-hero panel admin-page-header">
     <div class="admin-title-block">
       <p class="eyebrow">Asile control</p>
@@ -25,6 +25,12 @@
       <a href="/admin/logout">Logout</a>
     </nav>
   </header>
+
+  <form class="admin-event-switcher" method="get" action="/admin" aria-label="Select event dashboard">
+    <label for="adminEvent">Viewing event<select id="adminEvent" name="event" onchange="this.form.submit()"><% eventOptions.forEach(event => { %><option value="<%= event.id %>" <%= selectedEvent.id === event.id ? 'selected' : '' %>><%= event.EVENT_NAME %><%= event.kind === 'current' ? ' (current)' : '' %></option><% }) %></select></label>
+    <noscript><button class="button compact command-primary" type="submit">View event</button></noscript>
+    <a href="/admin/events" class="button compact command-tool">Manage events</a>
+  </form>
 
   <section class="admin-stats" aria-label="Dashboard stats">
     <div class="metric-card">
@@ -82,6 +88,7 @@
         <span class="summary-action">Open</span>
       </summary>
       <form method="post" action="/admin/manual-ticket" class="manual-ticket-form">
+        <input type="hidden" name="eventId" value="<%= selectedEvent.id %>">
         <div class="name-grid">
           <label>First name<input name="firstName" required></label>
           <label>Last name<input name="lastName" required></label>
@@ -100,6 +107,7 @@
         <span class="summary-action">Open</span>
       </summary>
       <form method="post" action="/admin/vip-codes" class="manual-ticket-form">
+        <input type="hidden" name="eventId" value="<%= selectedEvent.id %>">
         <label>Invite code<input name="code" required placeholder="VIP-001" autocapitalize="characters"></label>
         <label>Max tickets<input name="maxTickets" type="number" min="1" max="10" value="1" required></label>
         <button type="submit">Create VIP code</button>
@@ -114,10 +122,12 @@
             <td data-label="Action" class="row-actions-cell">
               <% if (code.active === false) { %>
                 <form class="inline" method="post" action="/admin/vip-codes/<%= code.code %>/enable">
+                  <input type="hidden" name="eventId" value="<%= selectedEvent.id %>">
                   <button class="compact-action row-action" type="submit">Enable</button>
                 </form>
               <% } else { %>
                 <form class="inline" method="post" action="/admin/vip-codes/<%= code.code %>/disable" onsubmit="return confirm('Disable this VIP code?')">
+                  <input type="hidden" name="eventId" value="<%= selectedEvent.id %>">
                   <button class="danger compact-action row-action danger-row-action" type="submit">Disable</button>
                 </form>
               <% } %>
@@ -140,6 +150,7 @@
 
   <div class="admin-toolbar">
     <form class="admin-search-form" method="get" action="/admin">
+      <input type="hidden" name="event" value="<%= selectedEvent.id %>">
       <% if (pagination.searches.ticketSearch) { %><input type="hidden" name="ticketSearch" value="<%= pagination.searches.ticketSearch %>"><% } %>
       <label>Search orders<input name="orderSearch" type="search" value="<%= pagination.searches.orderSearch %>" placeholder="Buyer, email, ticket name, order ID"></label>
       <label>Status
@@ -160,12 +171,15 @@
     </form>
     <div class="admin-actions-group" aria-label="Order tools">
       <form method="post" action="/admin/orders/sync-payments">
+        <input type="hidden" name="eventId" value="<%= selectedEvent.id %>">
         <button class="compact-action command-tool" type="submit">Sync payments</button>
       </form>
       <form method="post" action="/admin/orders/repair-issued-statuses" onsubmit="return confirm('Mark pending orders as approved only when tickets already exist for them? This will not charge Stripe or create new tickets.')">
+        <input type="hidden" name="eventId" value="<%= selectedEvent.id %>">
         <button class="compact-action command-tool" type="submit">Fix statuses</button>
       </form>
       <form method="post" action="/admin/orders/delete-stuck" onsubmit="return confirm('Delete stuck unpaid orders? Approved orders and tickets will not be deleted.')">
+        <input type="hidden" name="eventId" value="<%= selectedEvent.id %>">
         <button class="danger compact-action command-danger" type="submit">Delete stuck (<%= stats.stuckOrderCount %>)</button>
       </form>
     </div>

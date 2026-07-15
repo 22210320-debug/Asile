@@ -42,14 +42,15 @@
     if (!awaitingCount) return;
     syncingPayments = true;
     try {
-      const response = await fetch('/admin/orders/sync-payments.json', {
+      const eventId = dashboard.dataset.eventId || '';
+      const response = await fetch(`/admin/orders/sync-payments.json?event=${encodeURIComponent(eventId)}`, {
         method: 'POST',
         headers: { Accept: 'application/json' }
       });
       if (!response.ok) return;
       const result = await response.json();
       if (result.synced > 0) {
-        window.location.href = `/admin?notice=${encodeURIComponent(`Auto-synced ${result.synced} payment(s).`)}`;
+        window.location.href = `/admin?event=${encodeURIComponent(eventId)}&notice=${encodeURIComponent(`Auto-synced ${result.synced} payment(s).`)}`;
         return;
       }
       const notice = document.getElementById('adminNotice');

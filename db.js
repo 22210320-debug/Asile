@@ -72,6 +72,7 @@ async function initDb() {
   initPromise = pgQuery(`
     CREATE TABLE IF NOT EXISTS orders (
       id TEXT PRIMARY KEY,
+      event_id TEXT,
       data JSONB NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -79,6 +80,7 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS tickets (
       id TEXT PRIMARY KEY,
       order_id TEXT,
+      event_id TEXT,
       status TEXT NOT NULL DEFAULT 'valid',
       attendee_name TEXT,
       attendee_first_name TEXT,
@@ -126,7 +128,35 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_waitlist_email ON waitlist_entries (email);
     CREATE INDEX IF NOT EXISTS idx_waitlist_phone ON waitlist_entries (phone);
     CREATE INDEX IF NOT EXISTS idx_managed_events_status_date ON managed_events (status, event_date ASC);
-  `).catch(err => {
+  `).then(async () => {
+    await pgQuery('ALTER TABLE orders ADD COLUMN IF NOT EXISTS event_id TEXT');
+    await pgQuery('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS event_id TEXT');
+    await pgQuery('CREATE INDEX IF NOT EXISTS idx_orders_event_id ON orders (event_id, created_at DESC)');
+    await pgQuery('CREATE INDEX IF NOT EXISTS idx_tickets_event_id ON tickets (event_id, created_at DESC)');
+    const defaultEventId = process.env.EVENT_ID || 'sunset-house-party-2026';
+    await pgQuery(
+      `UPDATE orders
+       SET event_id=$1,
+           data=CASE WHEN COALESCE(data->>'eventId', '') = '' THEN data || jsonb_build_object('eventId', $1) ELSE data END
+       WHERE event_id IS NULL`,
+      [defaultEventId]
+    );
+    await pgQuery(
+      `UPDATE tickets t
+       SET event_id=COALESCE(o.event_id, $1),
+           data=CASE WHEN COALESCE(t.data->>'eventId', '') = '' THEN t.data || jsonb_build_object('eventId', COALESCE(o.event_id, $1)) ELSE t.data END
+       FROM orders o
+       WHERE t.order_id=o.id AND t.event_id IS NULL`,
+      [defaultEventId]
+    );
+    await pgQuery(
+      `UPDATE tickets
+       SET event_id=$1,
+           data=CASE WHEN COALESCE(data->>'eventId', '') = '' THEN data || jsonb_build_object('eventId', $1) ELSE data END
+       WHERE event_id IS NULL`,
+      [defaultEventId]
+    );
+  }).catch(err => {
     initPromise = null;
     throw err;
   });
@@ -454,8 +484,9 @@ function ticketMatchesSearch(ticket, query) {
     .some(value => String(value).toLowerCase().includes(query));
 }
 
-function orderFilterWhere(searchIndex, statusIndex) {
+function orderFilterWhere(searchIndex, statusIndex, eventIndex = 0) {
   const clauses = [];
+  if (eventIndex) clauses.push(`event_id = $${eventIndex}`);
   if (searchIndex) {
     clauses.push(`(
       id ILIKE $${searchIndex}
@@ -488,16 +519,20 @@ function ticketSearchWhere(index, prefix = 'WHERE') {
   `;
 }
 
-async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearch = '', orderStatus = '', ticketLimit = 10, ticketOffset = 0, ticketSearch = '', scanLimit = 10, scanOffset = 0 } = {}) {
+async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearch = '', orderStatus = '', ticketLimit = 10, ticketOffset = 0, ticketSearch = '', scanLimit = 10, scanOffset = 0, eventId = '', legacyEventName = '' } = {}) {
   const cleanOrderSearch = normalizeSearch(orderSearch);
   const selectedOrderStatus = cleanOrderStatus(orderStatus);
   const cleanTicketSearch = normalizeSearch(ticketSearch);
   if (!usePostgres()) {
     const db = await readDb();
-    const issuedTickets = (db.tickets || []).filter(ticket => ['valid', 'used'].includes(ticket.status));
-    const searchedOrders = (db.orders || []).filter(order => orderMatchesSearch(order, cleanOrderSearch) && orderMatchesStatus(order, selectedOrderStatus));
+    const defaultEventId = process.env.EVENT_ID || 'sunset-house-party-2026';
+    const matchesEvent = item => !eventId || item.eventId === eventId || (!item.eventId && item.eventName === legacyEventName) || (!item.eventId && !item.eventName && eventId === defaultEventId);
+    const eventOrders = (db.orders || []).filter(matchesEvent);
+    const eventTickets = (db.tickets || []).filter(matchesEvent);
+    const issuedTickets = eventTickets.filter(ticket => ['valid', 'used'].includes(ticket.status));
+    const searchedOrders = eventOrders.filter(order => orderMatchesSearch(order, cleanOrderSearch) && orderMatchesStatus(order, selectedOrderStatus));
     const searchedTickets = issuedTickets.filter(ticket => ticketMatchesSearch(ticket, cleanTicketSearch));
-    const activeOrders = (db.orders || []).filter(order => {
+    const activeOrders = eventOrders.filter(order => {
       const inactive = ['denied_released', 'cancelled', 'rejected_refunded', 'payment_error', 'authorization_expired'];
       if (inactive.includes(order.status)) return false;
       if (['checkout_started', 'awaiting_payment_authorization'].includes(order.status)) {
@@ -506,26 +541,26 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearc
       }
       return true;
     });
-    const vipCodes = (db.vipCodes || []).map(code => ({
+    const vipCodes = (db.vipCodes || []).filter(matchesEvent).map(code => ({
       ...code,
-      usedTickets: vipCodeUsageFromOrders(db.orders || [], code.code),
-      remainingTickets: Math.max(0, Number(code.maxTickets || 0) - vipCodeUsageFromOrders(db.orders || [], code.code))
+      usedTickets: vipCodeUsageFromOrders(eventOrders, code.code),
+      remainingTickets: Math.max(0, Number(code.maxTickets || 0) - vipCodeUsageFromOrders(eventOrders, code.code))
     }));
     return {
       orders: searchedOrders.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(orderOffset, orderOffset + orderLimit),
       tickets: searchedTickets.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(ticketOffset, ticketOffset + ticketLimit).map(ticket => ({ ...ticket, qrDataUrl: undefined })),
-      scanHistory: (db.scanHistory || []).slice().sort((a, b) => new Date(b.scannedAt || 0) - new Date(a.scannedAt || 0)).slice(scanOffset, scanOffset + scanLimit),
-      allOrders: db.orders || [],
-      allTickets: db.tickets || [],
+      scanHistory: (db.scanHistory || []).filter(scan => eventTickets.some(ticket => ticket.id === scan.ticketId)).slice().sort((a, b) => new Date(b.scannedAt || 0) - new Date(a.scannedAt || 0)).slice(scanOffset, scanOffset + scanLimit),
+      allOrders: eventOrders,
+      allTickets: eventTickets,
       vipCodes,
       approvedCount: issuedTickets.length,
       orderCount: searchedOrders.length,
       ticketCount: searchedTickets.length,
-      scanCount: (db.scanHistory || []).length,
+      scanCount: (db.scanHistory || []).filter(scan => eventTickets.some(ticket => ticket.id === scan.ticketId)).length,
       stats: {
         approvedCount: issuedTickets.length,
-        awaitingPaymentCount: (db.orders || []).filter(order => order.status === 'awaiting_payment_authorization').length,
-        stuckOrderCount: (db.orders || []).filter(order => {
+        awaitingPaymentCount: eventOrders.filter(order => order.status === 'awaiting_payment_authorization').length,
+        stuckOrderCount: eventOrders.filter(order => {
           if (['payment_error', 'cancelled'].includes(order.status)) return true;
           if (['checkout_started', 'awaiting_payment_authorization'].includes(order.status)) {
             const created = new Date(order.createdAt || 0).getTime();
@@ -534,16 +569,16 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearc
           return false;
         }).length,
         remainingSoldOrPending: activeOrders.reduce((sum, order) => sum + Number(order.qty || 0), 0),
-        pendingCount: (db.orders || [])
+        pendingCount: eventOrders
           .filter(order => order.status === 'pending_admin_approval')
           .reduce((sum, order) => sum + (order.attendees || []).length, 0)
       }
     };
   }
   await initDb();
-  const ticketSearchSql = cleanTicketSearch ? ticketSearchWhere(3, 'AND') : '';
-  const ticketCountSearchSql = cleanTicketSearch ? ticketSearchWhere(1, 'AND') : '';
-  const orderSearchParams = [orderLimit, orderOffset];
+  const ticketSearchSql = cleanTicketSearch ? ticketSearchWhere(4, 'AND') : '';
+  const ticketCountSearchSql = cleanTicketSearch ? ticketSearchWhere(2, 'AND') : '';
+  const orderSearchParams = [eventId, orderLimit, orderOffset];
   let orderSearchIndex = 0;
   let orderStatusIndex = 0;
   if (cleanOrderSearch) {
@@ -554,8 +589,8 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearc
     orderSearchParams.push(selectedOrderStatus);
     orderStatusIndex = orderSearchParams.length;
   }
-  const orderSearchSql = orderFilterWhere(orderSearchIndex, orderStatusIndex);
-  const orderCountParams = [];
+  const orderSearchSql = orderFilterWhere(orderSearchIndex, orderStatusIndex, 1);
+  const orderCountParams = [eventId];
   let orderCountSearchIndex = 0;
   let orderCountStatusIndex = 0;
   if (cleanOrderSearch) {
@@ -566,16 +601,16 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearc
     orderCountParams.push(selectedOrderStatus);
     orderCountStatusIndex = orderCountParams.length;
   }
-  const orderCountSearchSql = orderFilterWhere(orderCountSearchIndex, orderCountStatusIndex);
-  const ticketSearchParams = cleanTicketSearch ? [ticketLimit, ticketOffset, `%${cleanTicketSearch}%`] : [ticketLimit, ticketOffset];
-  const ticketCountParams = cleanTicketSearch ? [`%${cleanTicketSearch}%`] : [];
+  const orderCountSearchSql = orderFilterWhere(orderCountSearchIndex, orderCountStatusIndex, 1);
+  const ticketSearchParams = cleanTicketSearch ? [eventId, ticketLimit, ticketOffset, `%${cleanTicketSearch}%`] : [eventId, ticketLimit, ticketOffset];
+  const ticketCountParams = cleanTicketSearch ? [eventId, `%${cleanTicketSearch}%`] : [eventId];
   const [orders, tickets, scanHistory, orderCount, ticketCount, scanCount, orderStats, vipCodes] = await Promise.all([
-    pgQuery(`SELECT data FROM orders ${orderSearchSql} ORDER BY created_at DESC LIMIT $1 OFFSET $2`, orderSearchParams),
-    pgQuery(`SELECT data - 'qrDataUrl' AS data FROM tickets WHERE status IN ('valid', 'used') ${ticketSearchSql} ORDER BY created_at DESC LIMIT $1 OFFSET $2`, ticketSearchParams),
-    pgQuery('SELECT ticket_id, scanned_by, result, scanned_at FROM scan_history ORDER BY scanned_at DESC LIMIT $1 OFFSET $2', [scanLimit, scanOffset]),
+    pgQuery(`SELECT data FROM orders ${orderSearchSql} ORDER BY created_at DESC LIMIT $2 OFFSET $3`, orderSearchParams),
+    pgQuery(`SELECT data - 'qrDataUrl' AS data FROM tickets WHERE event_id=$1 AND status IN ('valid', 'used') ${ticketSearchSql} ORDER BY created_at DESC LIMIT $2 OFFSET $3`, ticketSearchParams),
+    pgQuery('SELECT sh.ticket_id, sh.scanned_by, sh.result, sh.scanned_at FROM scan_history sh JOIN tickets t ON t.id=sh.ticket_id WHERE t.event_id=$1 ORDER BY sh.scanned_at DESC LIMIT $2 OFFSET $3', [eventId, scanLimit, scanOffset]),
     pgQuery(`SELECT COUNT(*)::int AS count FROM orders ${orderCountSearchSql}`, orderCountParams),
-    pgQuery(`SELECT COUNT(*)::int AS count FROM tickets WHERE status IN ('valid', 'used') ${ticketCountSearchSql}`, ticketCountParams),
-    pgQuery('SELECT COUNT(*)::int AS count FROM scan_history'),
+    pgQuery(`SELECT COUNT(*)::int AS count FROM tickets WHERE event_id=$1 AND status IN ('valid', 'used') ${ticketCountSearchSql}`, ticketCountParams),
+    pgQuery('SELECT COUNT(*)::int AS count FROM scan_history sh JOIN tickets t ON t.id=sh.ticket_id WHERE t.event_id=$1', [eventId]),
     pgQuery(`
       SELECT
         COUNT(*) FILTER (WHERE data->>'status' = 'awaiting_payment_authorization')::int AS awaiting_payment_count,
@@ -603,29 +638,30 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearc
         (
           SELECT COUNT(*)::int
           FROM tickets
-          WHERE status IN ('valid', 'used')
+          WHERE event_id=$2 AND status IN ('valid', 'used')
             AND LOWER(COALESCE(data->>'gender', gender, '')) = 'female'
         ) + (
           SELECT COUNT(*)::int
           FROM orders o
           CROSS JOIN LATERAL jsonb_array_elements(COALESCE(o.data->'attendees', '[]'::jsonb)) attendee
-          WHERE o.data->>'status' = 'pending_admin_approval'
+          WHERE o.event_id=$2 AND o.data->>'status' = 'pending_admin_approval'
             AND LOWER(COALESCE(attendee->>'gender', '')) = 'female'
         ) AS female_count,
         (
           SELECT COUNT(*)::int
           FROM tickets
-          WHERE status IN ('valid', 'used')
+          WHERE event_id=$2 AND status IN ('valid', 'used')
             AND LOWER(COALESCE(data->>'gender', gender, '')) = 'male'
         ) + (
           SELECT COUNT(*)::int
           FROM orders o
           CROSS JOIN LATERAL jsonb_array_elements(COALESCE(o.data->'attendees', '[]'::jsonb)) attendee
-          WHERE o.data->>'status' = 'pending_admin_approval'
+          WHERE o.event_id=$2 AND o.data->>'status' = 'pending_admin_approval'
             AND LOWER(COALESCE(attendee->>'gender', '')) = 'male'
         ) AS male_count
       FROM orders
-    `, [['denied_released', 'cancelled', 'rejected_refunded', 'payment_error', 'authorization_expired']]),
+      WHERE event_id=$2
+    `, [['denied_released', 'cancelled', 'rejected_refunded', 'payment_error', 'authorization_expired'], eventId]),
     pgQuery(`
       SELECT
         vc.data ||
@@ -652,11 +688,12 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearc
           ), 0)::int)
         ) AS data
       FROM vip_codes vc
-      LEFT JOIN orders o ON UPPER(o.data->>'vipCode') = vc.code
+      LEFT JOIN orders o ON UPPER(o.data->>'vipCode') = vc.code AND o.event_id=$2
+      WHERE COALESCE(vc.data->>'eventId', $3) = $2
       GROUP BY vc.code, vc.data, vc.created_at
       ORDER BY vc.created_at DESC
       LIMIT 50
-    `, [['denied_released', 'cancelled', 'rejected_refunded', 'payment_error', 'authorization_expired']])
+    `, [['denied_released', 'cancelled', 'rejected_refunded', 'payment_error', 'authorization_expired'], eventId, process.env.EVENT_ID || 'sunset-house-party-2026'])
   ]);
   const statsRow = orderStats.rows[0] || {};
   return {
@@ -694,17 +731,17 @@ async function writeDb(data) {
     await client.query('BEGIN');
     for (const order of data.orders || []) {
       await client.query(
-        `INSERT INTO orders (id, data, updated_at) VALUES ($1, $2::jsonb, NOW())
-         ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
-        [order.id, JSON.stringify(order)]
+        `INSERT INTO orders (id, event_id, data, updated_at) VALUES ($1, $2, $3::jsonb, NOW())
+         ON CONFLICT (id) DO UPDATE SET event_id=EXCLUDED.event_id, data = EXCLUDED.data, updated_at = NOW()`,
+        [order.id, order.eventId || process.env.EVENT_ID || 'sunset-house-party-2026', JSON.stringify(order)]
       );
     }
     for (const ticket of data.tickets || []) {
       await client.query(
-        `INSERT INTO tickets (id, order_id, status, attendee_name, attendee_first_name, attendee_last_name, gender, data, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, NOW())
-         ON CONFLICT (id) DO UPDATE SET order_id = EXCLUDED.order_id, status = EXCLUDED.status, attendee_name = EXCLUDED.attendee_name, attendee_first_name = EXCLUDED.attendee_first_name, attendee_last_name = EXCLUDED.attendee_last_name, gender = EXCLUDED.gender, data = EXCLUDED.data, updated_at = NOW()`,
-        [ticket.id, ticket.orderId || null, ticket.status || 'valid', ticket.attendeeName || null, ticket.attendeeFirstName || null, ticket.attendeeLastName || null, ticket.gender || null, JSON.stringify(ticket)]
+        `INSERT INTO tickets (id, order_id, event_id, status, attendee_name, attendee_first_name, attendee_last_name, gender, data, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, NOW())
+         ON CONFLICT (id) DO UPDATE SET order_id = EXCLUDED.order_id, event_id=EXCLUDED.event_id, status = EXCLUDED.status, attendee_name = EXCLUDED.attendee_name, attendee_first_name = EXCLUDED.attendee_first_name, attendee_last_name = EXCLUDED.attendee_last_name, gender = EXCLUDED.gender, data = EXCLUDED.data, updated_at = NOW()`,
+        [ticket.id, ticket.orderId || null, ticket.eventId || process.env.EVENT_ID || 'sunset-house-party-2026', ticket.status || 'valid', ticket.attendeeName || null, ticket.attendeeFirstName || null, ticket.attendeeLastName || null, ticket.gender || null, JSON.stringify(ticket)]
       );
     }
     for (const vipCode of data.vipCodes || []) {
@@ -735,9 +772,9 @@ async function upsertOrder(order) {
   await initDb();
   const p = getPool();
   await p.query(
-    `INSERT INTO orders (id, data, updated_at) VALUES ($1, $2::jsonb, NOW())
-     ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
-    [order.id, JSON.stringify(order)]
+    `INSERT INTO orders (id, event_id, data, updated_at) VALUES ($1, $2, $3::jsonb, NOW())
+     ON CONFLICT (id) DO UPDATE SET event_id=EXCLUDED.event_id, data = EXCLUDED.data, updated_at = NOW()`,
+    [order.id, order.eventId || process.env.EVENT_ID || 'sunset-house-party-2026', JSON.stringify(order)]
   );
 }
 
@@ -753,10 +790,10 @@ async function upsertTicket(ticket) {
   await initDb();
   const p = getPool();
   await p.query(
-    `INSERT INTO tickets (id, order_id, status, attendee_name, attendee_first_name, attendee_last_name, gender, data, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, NOW())
-     ON CONFLICT (id) DO UPDATE SET order_id = EXCLUDED.order_id, status = EXCLUDED.status, attendee_name = EXCLUDED.attendee_name, attendee_first_name = EXCLUDED.attendee_first_name, attendee_last_name = EXCLUDED.attendee_last_name, gender = EXCLUDED.gender, data = EXCLUDED.data, updated_at = NOW()`,
-    [ticket.id, ticket.orderId || null, ticket.status || 'valid', ticket.attendeeName || null, ticket.attendeeFirstName || null, ticket.attendeeLastName || null, ticket.gender || null, JSON.stringify(ticket)]
+    `INSERT INTO tickets (id, order_id, event_id, status, attendee_name, attendee_first_name, attendee_last_name, gender, data, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, NOW())
+     ON CONFLICT (id) DO UPDATE SET order_id = EXCLUDED.order_id, event_id=EXCLUDED.event_id, status = EXCLUDED.status, attendee_name = EXCLUDED.attendee_name, attendee_first_name = EXCLUDED.attendee_first_name, attendee_last_name = EXCLUDED.attendee_last_name, gender = EXCLUDED.gender, data = EXCLUDED.data, updated_at = NOW()`,
+    [ticket.id, ticket.orderId || null, ticket.eventId || process.env.EVENT_ID || 'sunset-house-party-2026', ticket.status || 'valid', ticket.attendeeName || null, ticket.attendeeFirstName || null, ticket.attendeeLastName || null, ticket.gender || null, JSON.stringify(ticket)]
   );
 }
 
@@ -988,17 +1025,17 @@ async function reserveAtomic(validateAndBuild) {
     if (outcome.error) { await client.query('ROLLBACK'); return outcome; }
     if (outcome.order) {
       await client.query(
-        `INSERT INTO orders (id, data, updated_at) VALUES ($1, $2::jsonb, NOW())
-         ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
-        [outcome.order.id, JSON.stringify(outcome.order)]
+        `INSERT INTO orders (id, event_id, data, updated_at) VALUES ($1, $2, $3::jsonb, NOW())
+         ON CONFLICT (id) DO UPDATE SET event_id=EXCLUDED.event_id, data = EXCLUDED.data, updated_at = NOW()`,
+        [outcome.order.id, outcome.order.eventId || process.env.EVENT_ID || 'sunset-house-party-2026', JSON.stringify(outcome.order)]
       );
     }
     for (const t of outcome.tickets || []) {
       await client.query(
-        `INSERT INTO tickets (id, order_id, status, attendee_name, attendee_first_name, attendee_last_name, gender, data, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, NOW())
-         ON CONFLICT (id) DO UPDATE SET order_id = EXCLUDED.order_id, status = EXCLUDED.status, attendee_name = EXCLUDED.attendee_name, attendee_first_name = EXCLUDED.attendee_first_name, attendee_last_name = EXCLUDED.attendee_last_name, gender = EXCLUDED.gender, data = EXCLUDED.data, updated_at = NOW()`,
-        [t.id, t.orderId || null, t.status || 'valid', t.attendeeName || null, t.attendeeFirstName || null, t.attendeeLastName || null, t.gender || null, JSON.stringify(t)]
+        `INSERT INTO tickets (id, order_id, event_id, status, attendee_name, attendee_first_name, attendee_last_name, gender, data, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, NOW())
+         ON CONFLICT (id) DO UPDATE SET order_id = EXCLUDED.order_id, event_id=EXCLUDED.event_id, status = EXCLUDED.status, attendee_name = EXCLUDED.attendee_name, attendee_first_name = EXCLUDED.attendee_first_name, attendee_last_name = EXCLUDED.attendee_last_name, gender = EXCLUDED.gender, data = EXCLUDED.data, updated_at = NOW()`,
+        [t.id, t.orderId || null, t.eventId || outcome.order?.eventId || process.env.EVENT_ID || 'sunset-house-party-2026', t.status || 'valid', t.attendeeName || null, t.attendeeFirstName || null, t.attendeeLastName || null, t.gender || null, JSON.stringify(t)]
       );
     }
     await client.query('COMMIT');
@@ -1106,11 +1143,12 @@ async function ticketIdExists(ticketId) {
   return r.rowCount > 0;
 }
 
-async function getSoldOrPendingCount() {
+async function getSoldOrPendingCount(eventId = '', legacyEventName = '') {
   const inactive = ['denied_released', 'cancelled', 'rejected_refunded', 'payment_error', 'authorization_expired'];
   if (!usePostgres()) {
     const db = await readJsonFile();
     return (db.orders || []).reduce((sum, order) => {
+      if (eventId && order.eventId !== eventId && (order.eventId || order.eventName !== legacyEventName)) return sum;
       if (inactive.includes(order.status)) return sum;
       if (['checkout_started', 'awaiting_payment_authorization'].includes(order.status)) {
         const created = new Date(order.createdAt || 0).getTime();
@@ -1132,7 +1170,8 @@ async function getSoldOrPendingCount() {
       END
     ), 0)::int AS count
     FROM orders
-  `, [inactive]);
+    WHERE ($2 = '' OR data->>'eventId' = $2 OR (COALESCE(data->>'eventId', '') = '' AND data->>'eventName' = $3))
+  `, [inactive, eventId, legacyEventName]);
   return result.rows[0]?.count || 0;
 }
 

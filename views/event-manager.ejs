@@ -38,6 +38,10 @@
           </div>
           <label>Location<input name="location" maxlength="120" required value="<%= editEvent?.location || '' %>"></label>
           <div class="event-manager-date-grid">
+            <label>Capacity<input name="capacity" type="number" min="1" max="100000" required value="<%= editEvent?.capacity || '' %>"></label>
+            <label>Ticket price (NIS)<input name="ticketPriceNis" type="number" min="0.01" max="100000" step="0.01" required value="<%= typeof editEvent?.ticketPrice === 'number' ? (editEvent.ticketPrice / 100).toFixed(2) : '' %>"></label>
+          </div>
+          <div class="event-manager-date-grid">
             <label>Theme<input name="theme" maxlength="120" value="<%= editEvent?.theme || '' %>"></label>
             <label>Dress code<input name="dressCode" maxlength="80" value="<%= editEvent?.dressCode || '' %>"></label>
           </div>

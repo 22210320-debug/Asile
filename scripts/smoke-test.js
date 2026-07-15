@@ -163,6 +163,8 @@ async function run() {
         eventDate: '2026-08-15',
         eventTime: '9:00 PM',
         location: 'Bethlehem',
+        capacity: '250',
+        ticketPriceNis: '120',
         theme: 'House music',
         dressCode: 'Black',
         description: 'A future Asile experience.',
@@ -174,7 +176,41 @@ async function run() {
 
     response = await request('/events');
     assert.equal(response.status, 200);
-    assert.match(await response.text(), /Asile After Dark/);
+    const eventsHtml = await response.text();
+    assert.match(eventsHtml, /Asile After Dark/);
+    const eventMatch = eventsHtml.match(/href="\/events\/(EVENT-[A-F0-9]+)"/);
+    assert.ok(eventMatch, 'Published future event did not receive a public event page.');
+    const futureEventId = eventMatch[1];
+
+    response = await request(`/events/${futureEventId}`);
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /250 tickets left/);
+
+    response = await request(`/events/${futureEventId}/reserve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: form({
+        buyerName: 'Future Buyer',
+        buyerEmail: 'future.buyer@example.com',
+        quantity: '1',
+        attendeeFirstName: 'Future',
+        attendeeLastName: 'Buyer',
+        attendeeDob: '24/07/2000',
+        attendeeGender: 'Female'
+      })
+    });
+    assert.equal(response.status, 503);
+    assert.match(await response.text(), /Stripe setup needed/);
+
+    response = await request(`/admin?event=${encodeURIComponent(futureEventId)}`);
+    assert.equal(response.status, 200);
+    const futureDashboardHtml = await response.text();
+    assert.match(futureDashboardHtml, /Asile After Dark/);
+    assert.match(futureDashboardHtml, /Future Buyer/);
+
+    response = await request('/admin?event=sunset-house-party-2026');
+    assert.equal(response.status, 200);
+    assert.doesNotMatch(await response.text(), /Future Buyer/);
 
     response = await request('/admin/events');
     assert.equal(response.status, 200);

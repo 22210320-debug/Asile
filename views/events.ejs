@@ -97,8 +97,9 @@
               <p><%= event.eventDate %><% if (event.eventTime) { %> · <%= event.eventTime %><% } %></p>
               <h3><%= event.name %></h3>
               <span><%= event.location %></span>
+              <span><%= money(event.ticketPrice) %> · <%= event.capacity %> guests</span>
               <% if (event.description) { %><div><%= event.description %></div><% } %>
-              <a class="text-link" href="<%= WAITLIST_PATH %>">Join Priority List</a>
+              <a class="text-link" href="/events/<%= encodeURIComponent(event.id) %>">View event</a>
             </article>
           <% }) %>
         </div>

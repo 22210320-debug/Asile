@@ -18,6 +18,7 @@ const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, upsertVip
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 const EVENT_NAME = process.env.EVENT_NAME || 'Sunset House Party';
+const CURRENT_EVENT_ID = process.env.EVENT_ID || 'sunset-house-party-2026';
 const COMPANY_NAME = process.env.COMPANY_NAME || "ASIL'E";
 const EVENT_LOCATION = process.env.EVENT_LOCATION || 'Cremisan';
 const EVENT_DATE = process.env.EVENT_DATE || 'July 24, 2026';
@@ -52,6 +53,56 @@ const waitlistAttempts = new Map();
 const sensitiveAttempts = new Map();
 
 const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_TIME, EVENT_START_AT, EVENT_THEME, DRESS_CODE, MIN_AGE, CAPACITY, TICKET_PRICE, CURRENCY, MAP_URL, WHATSAPP_1, INSTAGRAM_URL, BAR_PARTNER, SPONSOR_NAME, SPONSOR_LOGO_URL, DJ_NAME, DJ_IMAGE_URL, SITE_IMAGE_URL, PAYMENT_METHODS, PAYMENT_PROVIDER_LABEL, PHOTO_BOOTH_PARTNER };
+
+function currentEventContext() {
+  return { id: CURRENT_EVENT_ID, kind: 'current', ...eventInfo, eventPath: '/', reservePath: '/reserve', privateReservePath: VIP_RESERVE_PATH };
+}
+
+function managedEventContext(event) {
+  return {
+    id: event.id,
+    kind: 'managed',
+    EVENT_NAME: event.name,
+    COMPANY_NAME,
+    EVENT_LOCATION: event.location,
+    EVENT_DATE: event.eventDate,
+    EVENT_TIME: event.eventTime || 'Time to be announced',
+    EVENT_START_AT: `${event.eventDate}T12:00:00`,
+    EVENT_THEME: event.theme || 'Asile experience',
+    DRESS_CODE: event.dressCode || 'To be announced',
+    MIN_AGE: Number(event.minimumAge || MIN_AGE),
+    CAPACITY: Number(event.capacity || 0),
+    TICKET_PRICE: Number(event.ticketPrice || 0),
+    CURRENCY,
+    MAP_URL: event.mapUrl || MAP_URL,
+    WHATSAPP_1,
+    INSTAGRAM_URL,
+    BAR_PARTNER: event.barPartner || BAR_PARTNER,
+    SPONSOR_NAME: event.sponsorName || SPONSOR_NAME,
+    SPONSOR_LOGO_URL,
+    DJ_NAME: event.djName || DJ_NAME,
+    DJ_IMAGE_URL: event.imageUrl || DJ_IMAGE_URL,
+    SITE_IMAGE_URL,
+    PAYMENT_METHODS,
+    PAYMENT_PROVIDER_LABEL,
+    PHOTO_BOOTH_PARTNER,
+    eventPath: `/events/${encodeURIComponent(event.id)}`,
+    reservePath: `/events/${encodeURIComponent(event.id)}/reserve`,
+    privateReservePath: `/events/${encodeURIComponent(event.id)}/private-reserve`
+  };
+}
+
+async function getEventContext(eventId) {
+  if (!eventId || eventId === CURRENT_EVENT_ID) return currentEventContext();
+  const event = await getManagedEvent(eventId);
+  return event && event.status === 'published' ? managedEventContext(event) : null;
+}
+
+async function getAdminEventContext(eventId) {
+  if (!eventId || eventId === CURRENT_EVENT_ID) return currentEventContext();
+  const event = await getManagedEvent(eventId);
+  return event ? managedEventContext(event) : null;
+}
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -135,12 +186,17 @@ function isIssuedTicket(ticket) {
 function isNameBlockingOrder(order) {
   return ['pending_admin_approval', 'approved_captured'].includes(order.status);
 }
-function soldOrPendingCount(db) {
-  return db.orders.filter(isActiveOrder).reduce((sum, o) => sum + Number(o.qty || 0), 0);
+function belongsToEvent(item, event) {
+  return item?.eventId === event.id
+    || (!item?.eventId && item?.eventName === event.EVENT_NAME)
+    || (!item?.eventId && !item?.eventName && event.id === CURRENT_EVENT_ID);
 }
-function usedNameKeys(db) {
-  const fromTickets = db.tickets.filter(isIssuedTicket).map(t => nameKey(t.attendeeName || t.buyerName));
-  const fromOrders = db.orders.filter(isNameBlockingOrder).flatMap(o => (o.attendees || []).map(a => nameKey(a.name || combineName(a.firstName, a.lastName))));
+function soldOrPendingCount(db, event) {
+  return db.orders.filter(order => belongsToEvent(order, event) && isActiveOrder(order)).reduce((sum, o) => sum + Number(o.qty || 0), 0);
+}
+function usedNameKeys(db, event) {
+  const fromTickets = db.tickets.filter(ticket => belongsToEvent(ticket, event) && isIssuedTicket(ticket)).map(t => nameKey(t.attendeeName || t.buyerName));
+  const fromOrders = db.orders.filter(order => belongsToEvent(order, event) && isNameBlockingOrder(order)).flatMap(o => (o.attendees || []).map(a => nameKey(a.name || combineName(a.firstName, a.lastName))));
   return new Set([...fromTickets, ...fromOrders].filter(Boolean));
 }
 function normalizeGender(value) {
@@ -152,13 +208,13 @@ function normalizeGender(value) {
 function normalizeVipCode(value) {
   return String(value || '').trim().toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9_-]/g, '');
 }
-function vipCodeUsage(db, code) {
+function vipCodeUsage(db, code, event) {
   const key = normalizeVipCode(code);
   return (db.orders || [])
-    .filter(order => isActiveOrder(order) && normalizeVipCode(order.vipCode) === key)
+    .filter(order => belongsToEvent(order, event) && isActiveOrder(order) && normalizeVipCode(order.vipCode) === key)
     .reduce((sum, order) => sum + Number(order.qty || 0), 0);
 }
-function adminStats(db, approvedCountOverride) {
+function adminStats(db, approvedCountOverride, event = currentEventContext()) {
   const activeTickets = db.tickets.filter(isIssuedTicket);
   const pendingAttendees = db.orders
     .filter(o => o.status === 'pending_admin_approval')
@@ -173,13 +229,13 @@ function adminStats(db, approvedCountOverride) {
     approvedCount: typeof approvedCountOverride === 'number' ? approvedCountOverride : activeTickets.length,
     awaitingPaymentCount: db.orders.filter(o => o.status === 'awaiting_payment_authorization').length,
     stuckOrderCount: db.orders.filter(isStuckOrder).length,
-    remaining: Math.max(0, CAPACITY - soldOrPendingCount(db)),
+    remaining: Math.max(0, event.CAPACITY - soldOrPendingCount(db, event)),
     pendingCount: pendingAttendees.length,
     femaleCount,
     maleCount
   };
 }
-function dashboardStats(stats) {
+function dashboardStats(stats, event = currentEventContext()) {
   if (!stats) return null;
   const femaleCount = stats.femaleCount || 0;
   const maleCount = stats.maleCount || 0;
@@ -188,7 +244,7 @@ function dashboardStats(stats) {
     approvedCount: stats.approvedCount || 0,
     awaitingPaymentCount: stats.awaitingPaymentCount || 0,
     stuckOrderCount: stats.stuckOrderCount || 0,
-    remaining: Math.max(0, CAPACITY - Number(stats.remainingSoldOrPending || 0)),
+    remaining: Math.max(0, event.CAPACITY - Number(stats.remainingSoldOrPending || 0)),
     pendingCount: stats.pendingCount || 0,
     femaleCount,
     maleCount,
@@ -229,13 +285,15 @@ function adminPageUrl(currentPages, key, page, searches = {}) {
   if (searches.orderSearch) params.set('orderSearch', searches.orderSearch);
   if (searches.orderStatus) params.set('orderStatus', searches.orderStatus);
   if (searches.ticketSearch) params.set('ticketSearch', searches.ticketSearch);
+  if (searches.eventId) params.set('event', searches.eventId);
   const query = params.toString();
   return query ? `/admin?${query}` : '/admin';
 }
-async function syncWaitingOrdersFromStripe() {
+async function syncWaitingOrdersFromStripe(event = null) {
   let synced = 0;
   let failed = 0;
-  const waitingOrders = await getAwaitingPaymentOrders(Number(process.env.PAYMENT_SYNC_LIMIT || 50));
+  const allWaitingOrders = await getAwaitingPaymentOrders(Number(process.env.PAYMENT_SYNC_LIMIT || 50));
+  const waitingOrders = event ? allWaitingOrders.filter(order => belongsToEvent(order, event)) : allWaitingOrders;
   for (const order of waitingOrders) {
     try {
       if (await syncOrderFromStripe(order)) {
@@ -248,6 +306,11 @@ async function syncWaitingOrdersFromStripe() {
     }
   }
   return { checked: waitingOrders.length, synced, failed };
+}
+function adminEventRedirect(event, notice = '') {
+  const params = new URLSearchParams({ event: event.id });
+  if (notice) params.set('notice', notice);
+  return `/admin?${params.toString()}`;
 }
 function adminPasswordAllowed(password) {
   const raw = String(password || '');
@@ -272,18 +335,18 @@ function parseDobInput(value) {
   if (birth.getFullYear() !== year || birth.getMonth() !== month - 1 || birth.getDate() !== day) return null;
   return { birth, display: `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}` };
 }
-function ageOnEvent(birth) {
-  const eventDate = new Date(EVENT_START_AT);
+function ageOnEvent(birth, event = currentEventContext()) {
+  const eventDate = new Date(event.EVENT_START_AT);
   if (!birth || birth > eventDate) return null;
   let age = eventDate.getFullYear() - birth.getFullYear();
   const monthDiff = eventDate.getMonth() - birth.getMonth();
   if (monthDiff < 0 || (monthDiff === 0 && eventDate.getDate() < birth.getDate())) age--;
   return age;
 }
-function isOldEnough(dob) {
+function isOldEnough(dob, event = currentEventContext()) {
   const parsed = parseDobInput(dob);
-  const age = parsed ? ageOnEvent(parsed.birth) : null;
-  return age !== null && age >= MIN_AGE;
+  const age = parsed ? ageOnEvent(parsed.birth, event) : null;
+  return age !== null && age >= event.MIN_AGE;
 }
 function requireAdmin(req, res, next) { if (req.session.admin) return next(); res.redirect('/admin/login'); }
 
@@ -421,7 +484,7 @@ async function markOrderPendingApproval(order, paymentIntentId) {
   order.status = 'pending_admin_approval';
   order.paymentIntentId = paymentIntentId || order.paymentIntentId;
   const names = (order.attendees || []).map(a => `<li>${a.name} — DOB: ${a.dateOfBirth} — Gender: ${a.gender || 'Not specified'} — Must match ID, dress code ${DRESS_CODE}</li>`).join('');
-  await sendMail({ to: process.env.ADMIN_EMAIL, subject: `Approve tickets: ${order.buyerName}`, html: `<p>${order.buyerName} requested ${order.qty} ticket(s) for ${EVENT_NAME}.</p><ul>${names}</ul><p><b>Event:</b> ${EVENT_DATE}, ${EVENT_TIME}, ${EVENT_LOCATION}</p><p><b>Price:</b> ${money(TICKET_PRICE)} per ticket. <b>Dress code:</b> ${DRESS_CODE}. <b>Age:</b> ${MIN_AGE}+. <b>Bar:</b> ${BAR_PARTNER}. <b>Sponsor:</b> ${SPONSOR_NAME}. <b>Included:</b> free ${PHOTO_BOOTH_PARTNER} picture.</p><p><a href="${BASE_URL}/admin/orders/${order.id}">Approve or deny this order</a></p>` });
+  await sendMail({ to: process.env.ADMIN_EMAIL, subject: `Approve tickets: ${order.buyerName}`, html: `<p>${order.buyerName} requested ${order.qty} ticket(s) for ${escapeHtml(order.eventName || EVENT_NAME)}.</p><ul>${names}</ul><p><b>Event:</b> ${escapeHtml(order.eventDate || EVENT_DATE)}, ${escapeHtml(order.eventTime || EVENT_TIME)}, ${escapeHtml(order.eventLocation || EVENT_LOCATION)}</p><p><b>Price:</b> ${money(order.ticketPrice || TICKET_PRICE)} per ticket. <b>Dress code:</b> ${escapeHtml(order.dressCode || DRESS_CODE)}. <b>Age:</b> ${order.minimumAge || MIN_AGE}+. <b>Bar:</b> ${escapeHtml(order.barPartner || BAR_PARTNER)}. <b>Sponsor:</b> ${escapeHtml(order.sponsorName || SPONSOR_NAME)}. <b>Included:</b> free ${escapeHtml(order.photoBoothPartner || PHOTO_BOOTH_PARTNER)} picture.</p><p><a href="${BASE_URL}/admin/orders/${order.id}">Approve or deny this order</a></p>` });
   return true;
 }
 async function syncOrderFromStripe(order) {
@@ -479,12 +542,12 @@ function ticketEmailBackground(content) {
 }
 function ticketEmailText(ticket) {
   return [
-    `${EVENT_NAME} ticket`,
+    `${ticket.eventName || EVENT_NAME} ticket`,
     `Name: ${ticket.attendeeName}`,
     `Ticket ID: ${ticket.id}`,
-    `Time: ${EVENT_TIME}`,
-    `Location: ${EVENT_LOCATION}`,
-    `Dress code: ${DRESS_CODE}`,
+    `Time: ${ticket.eventTime || EVENT_TIME}`,
+    `Location: ${ticket.location || EVENT_LOCATION}`,
+    `Dress code: ${ticket.dressCode || DRESS_CODE}`,
     `QR ticket: ${ticketPublicUrl(ticket)}`,
     'Bring this QR and matching ID.'
   ].join('\n');
@@ -497,6 +560,7 @@ async function createTicketForAttendee(order, attendee, overrides = {}) {
   return {
     id: ticketId,
     orderId: order.id,
+    eventId: order.eventId || CURRENT_EVENT_ID,
     attendeeFirstName: attendee.firstName || '',
     attendeeLastName: attendee.lastName || '',
     attendeeName: attendee.name,
@@ -504,16 +568,16 @@ async function createTicketForAttendee(order, attendee, overrides = {}) {
     gender: attendee.gender,
     buyerName: order.buyerName,
     buyerEmail: order.buyerEmail,
-    eventName: EVENT_NAME,
-    eventDate: EVENT_DATE,
-    eventTime: EVENT_TIME,
-    location: EVENT_LOCATION,
-    dressCode: DRESS_CODE,
-    age: `${MIN_AGE}+`,
-    price: money(TICKET_PRICE),
-    barPartner: BAR_PARTNER,
-    photoBoothPartner: PHOTO_BOOTH_PARTNER,
-    sponsorName: SPONSOR_NAME,
+    eventName: order.eventName || EVENT_NAME,
+    eventDate: order.eventDate || EVENT_DATE,
+    eventTime: order.eventTime || EVENT_TIME,
+    location: order.eventLocation || EVENT_LOCATION,
+    dressCode: order.dressCode || DRESS_CODE,
+    age: `${order.minimumAge || MIN_AGE}+`,
+    price: money(order.ticketPrice || TICKET_PRICE),
+    barPartner: order.barPartner || BAR_PARTNER,
+    photoBoothPartner: order.photoBoothPartner || PHOTO_BOOTH_PARTNER,
+    sponsorName: order.sponsorName || SPONSOR_NAME,
     sponsorLogoUrl: SPONSOR_LOGO_URL,
     status: 'valid',
     verifyUrl,
@@ -589,40 +653,50 @@ app.post(WAITLIST_PATH, async (req, res) => {
   }
 });
 
-async function renderHomePage(req, res, { privateReserve = false } = {}) {
+async function renderHomePage(req, res, { privateReserve = false, event = currentEventContext() } = {}) {
   try {
-    const soldOrPending = await getSoldOrPendingCount();
+    const soldOrPending = await getSoldOrPendingCount(event.id, event.EVENT_NAME);
     res.render('home', {
-      ...eventInfo,
+      ...event,
       money,
       privateReserve,
-      formAction: privateReserve ? VIP_RESERVE_PATH : '/reserve',
+      formAction: privateReserve ? event.privateReservePath : event.reservePath,
       ticketAvailability: {
         soldOrPending,
-        remaining: Math.max(0, CAPACITY - soldOrPending),
-        soldOut: !privateReserve && soldOrPending >= CAPACITY
+        remaining: Math.max(0, event.CAPACITY - soldOrPending),
+        soldOut: !privateReserve && soldOrPending >= event.CAPACITY
       }
     });
   } catch (err) {
     console.error('Home availability unavailable:', err.message);
     res.render('home', {
-      ...eventInfo,
+      ...event,
       money,
       privateReserve,
-      formAction: privateReserve ? VIP_RESERVE_PATH : '/reserve',
-      ticketAvailability: { soldOrPending: 0, remaining: CAPACITY, soldOut: false }
+      formAction: privateReserve ? event.privateReservePath : event.reservePath,
+      ticketAvailability: { soldOrPending: 0, remaining: event.CAPACITY, soldOut: false }
     });
   }
 }
 
 app.get('/', (req, res) => renderHomePage(req, res));
 app.get(VIP_RESERVE_PATH, (req, res) => renderHomePage(req, res, { privateReserve: true }));
+app.get('/events/:eventId', async (req, res) => {
+  const event = await getEventContext(req.params.eventId);
+  if (!event || event.kind !== 'managed') return res.status(404).render('message', { title: 'Event not found', message: 'This event is not available.' });
+  return renderHomePage(req, res, { event });
+});
+app.get('/events/:eventId/private-reserve', async (req, res) => {
+  const event = await getEventContext(req.params.eventId);
+  if (!event || event.kind !== 'managed') return res.status(404).render('message', { title: 'Event not found', message: 'This event is not available.' });
+  return renderHomePage(req, res, { event, privateReserve: true });
+});
 app.get('/events', async (req, res) => {
   let ticketAvailability = { soldOrPending: 0, remaining: CAPACITY, soldOut: false };
   let futureEvents = [];
 
   try {
-    const [soldOrPending, publishedEvents] = await Promise.all([getSoldOrPendingCount(), listManagedEvents({ publicOnly: true })]);
+    const [soldOrPending, publishedEvents] = await Promise.all([getSoldOrPendingCount(CURRENT_EVENT_ID, EVENT_NAME), listManagedEvents({ publicOnly: true })]);
     ticketAvailability = {
       soldOrPending,
       remaining: Math.max(0, CAPACITY - soldOrPending),
@@ -636,7 +710,7 @@ app.get('/events', async (req, res) => {
   res.render('events', { ...eventInfo, money, ticketAvailability, futureEvents, WAITLIST_PATH });
 });
 
-async function handleReserve(req, res, { bypassCapacity = false } = {}) {
+async function handleReserve(req, res, { bypassCapacity = false, event = currentEventContext() } = {}) {
   const buyerName = cleanName(req.body.buyerName);
   const buyerEmail = String(req.body.buyerEmail || '').trim();
   const vipCodeInput = normalizeVipCode(req.body.vipCode);
@@ -654,15 +728,19 @@ async function handleReserve(req, res, { bypassCapacity = false } = {}) {
   if (!Number.isInteger(qty)) return res.status(400).render('message', { title: 'Invalid quantity', message: 'Please enter a whole number of tickets.' });
   if (qty > 10) return res.status(400).render('message', { title: 'Invalid quantity', message: 'Cannot order more than 10 tickets at once.' });
   if (attendeeNames.length !== qty || attendeeDobs.length !== qty || attendeeGenders.length !== qty || attendeeNames.some(n => !n) || (!legacyNames.length && (attendeeFirstNames.length !== qty || attendeeLastNames.length !== qty || attendeeFirstNames.some(n => !n) || attendeeLastNames.some(n => !n))) || attendeeDobs.some(d => !d) || attendeeGenders.some(g => !g)) return res.status(400).render('message', { title: 'Missing ticket forms', message: 'Each ticket needs a separate first name, last name, date of birth, and gender.' });
-  if (attendeeDobs.some(d => !isOldEnough(d))) return res.status(400).render('message', { title: 'Age requirement', message: `Every attendee must enter a valid date of birth as DD/MM/YYYY and be ${MIN_AGE}+ by ${EVENT_DATE}.` });
+  if (attendeeDobs.some(d => !isOldEnough(d, event))) return res.status(400).render('message', { title: 'Age requirement', message: `Every attendee must enter a valid date of birth as DD/MM/YYYY and be ${event.MIN_AGE}+ by ${event.EVENT_DATE}.` });
   const keys = attendeeNames.map(nameKey);
   if (new Set(keys).size !== keys.length) return res.status(400).render('message', { title: 'Duplicate name', message: 'The same attendee name cannot be used twice in one order.' });
 
   const attendees = attendeeNames.map((name, i) => ({ firstName: attendeeFirstNames[i] || '', lastName: attendeeLastNames[i] || '', name, dateOfBirth: parseDobInput(attendeeDobs[i]).display, gender: attendeeGenders[i] }));
   const orderId = id(14);
   const order = {
-    id: orderId, buyerName, buyerEmail, qty, attendees, amount: TICKET_PRICE * qty,
-    paymentMethods: PAYMENT_METHODS, paymentProvider: PAYMENT_PROVIDER_LABEL,
+    id: orderId, eventId: event.id, eventName: event.EVENT_NAME, eventDate: event.EVENT_DATE, eventTime: event.EVENT_TIME,
+    eventLocation: event.EVENT_LOCATION, eventCapacity: event.CAPACITY, ticketPrice: event.TICKET_PRICE,
+    dressCode: event.DRESS_CODE, minimumAge: event.MIN_AGE, barPartner: event.BAR_PARTNER,
+    sponsorName: event.SPONSOR_NAME, photoBoothPartner: event.PHOTO_BOOTH_PARTNER,
+    buyerName, buyerEmail, qty, attendees, amount: event.TICKET_PRICE * qty,
+    paymentMethods: event.PAYMENT_METHODS, paymentProvider: event.PAYMENT_PROVIDER_LABEL,
     marketingConsent,
     marketingConsentAt: new Date().toISOString(),
     marketingConsentSource: 'ticket_checkout',
@@ -676,12 +754,12 @@ async function handleReserve(req, res, { bypassCapacity = false } = {}) {
   let reservation;
   try {
     reservation = await reserveAtomic(freshDb => {
-      if (keys.some(k => usedNameKeys(freshDb).has(k))) return { error: 'duplicate' };
-      if (!bypassCapacity && soldOrPendingCount(freshDb) + qty > CAPACITY) return { error: 'soldout' };
+      if (keys.some(k => usedNameKeys(freshDb, event).has(k))) return { error: 'duplicate' };
+      if (!bypassCapacity && soldOrPendingCount(freshDb, event) + qty > event.CAPACITY) return { error: 'soldout' };
       if (bypassCapacity) {
-        const vipCode = (freshDb.vipCodes || []).find(item => normalizeVipCode(item.code) === vipCodeInput);
+        const vipCode = (freshDb.vipCodes || []).find(item => normalizeVipCode(item.code) === vipCodeInput && belongsToEvent(item, event));
         if (!vipCode || vipCode.active === false) return { error: 'invalid_vip_code' };
-        const usedTickets = vipCodeUsage(freshDb, vipCodeInput);
+        const usedTickets = vipCodeUsage(freshDb, vipCodeInput, event);
         const maxTickets = Math.max(1, Number(vipCode.maxTickets || 1));
         if (usedTickets + qty > maxTickets) return { error: 'vip_limit', vipCode, usedTickets, maxTickets };
         order.vipCode = vipCode.code;
@@ -713,8 +791,8 @@ async function handleReserve(req, res, { bypassCapacity = false } = {}) {
       payment_method_types: ['card'],
       customer_email: buyerEmail,
       client_reference_id: orderId,
-      line_items: [{ price_data: { currency: CURRENCY, product_data: { name: `${EVENT_NAME} ticket`, description: `${DRESS_CODE} dress code · ${MIN_AGE}+ · Free ${PHOTO_BOOTH_PARTNER} photo · Sponsor: ${SPONSOR_NAME}` }, unit_amount: TICKET_PRICE }, quantity: qty }],
-      payment_intent_data: { capture_method: 'manual', metadata: { orderId, eventName: EVENT_NAME, companyName: COMPANY_NAME } },
+      line_items: [{ price_data: { currency: event.CURRENCY, product_data: { name: `${event.EVENT_NAME} ticket`, description: `${event.DRESS_CODE} dress code · ${event.MIN_AGE}+ · Free ${event.PHOTO_BOOTH_PARTNER} photo · Sponsor: ${event.SPONSOR_NAME}` }, unit_amount: event.TICKET_PRICE }, quantity: qty }],
+      payment_intent_data: { capture_method: 'manual', metadata: { orderId, eventId: event.id, eventName: event.EVENT_NAME, companyName: event.COMPANY_NAME } },
       success_url: `${BASE_URL}/success?order=${orderId}`,
       cancel_url: `${BASE_URL}/cancel?order=${orderId}`
     });
@@ -730,8 +808,22 @@ async function handleReserve(req, res, { bypassCapacity = false } = {}) {
 
 app.post('/reserve', (req, res) => handleReserve(req, res));
 app.post(VIP_RESERVE_PATH, (req, res) => handleReserve(req, res, { bypassCapacity: true }));
+app.post('/events/:eventId/reserve', async (req, res) => {
+  const event = await getEventContext(req.params.eventId);
+  if (!event || event.kind !== 'managed') return res.status(404).render('message', { title: 'Event not found', message: 'This event is not available.' });
+  return handleReserve(req, res, { event });
+});
+app.post('/events/:eventId/private-reserve', async (req, res) => {
+  const event = await getEventContext(req.params.eventId);
+  if (!event || event.kind !== 'managed') return res.status(404).render('message', { title: 'Event not found', message: 'This event is not available.' });
+  return handleReserve(req, res, { event, bypassCapacity: true });
+});
 
-app.get('/success', (req, res) => res.render('message', { title: 'Reservation received', message: `Your payment is authorized. Your ${EVENT_NAME} ticket will be sent only after admin approval. Please check your inbox and spam/junk folder for the ticket email.` }));
+app.get('/success', async (req, res) => {
+  const order = await getOrderById(req.query.order);
+  const name = order?.eventName || EVENT_NAME;
+  res.render('message', { title: 'Reservation received', message: `Your payment is authorized. Your ${name} ticket will be sent only after admin approval. Please check your inbox and spam/junk folder for the ticket email.` });
+});
 app.get('/cancel', async (req, res) => { const order = await getOrderById(req.query.order); if (order) { order.status = 'cancelled'; await upsertOrder(order); } res.render('message', { title: 'Checkout cancelled', message: 'No ticket was reserved.' }); });
 app.get('/ticket/:id', async (req, res) => {
   const ticket = await getTicketById(req.params.id);
@@ -786,13 +878,19 @@ function managedEventValues(body, existing = {}) {
   const dateValid = /^\d{4}-\d{2}-\d{2}$/.test(eventDate)
     && !Number.isNaN(parsedDate.getTime())
     && parsedDate.toISOString().slice(0, 10) === eventDate;
-  if (!cleanText(body.name, 120) || !dateValid || !cleanText(body.location, 120)) return null;
+  const capacity = Number(body.capacity);
+  const ticketPriceNis = Number(body.ticketPriceNis);
+  if (!cleanText(body.name, 120) || !dateValid || !cleanText(body.location, 120)
+    || !Number.isInteger(capacity) || capacity < 1 || capacity > 100000
+    || !Number.isFinite(ticketPriceNis) || ticketPriceNis < 0.01 || ticketPriceNis > 100000) return null;
   return {
     ...existing,
     name: cleanText(body.name, 120),
     eventDate,
     eventTime: cleanText(body.eventTime, 80),
     location: cleanText(body.location, 120),
+    capacity,
+    ticketPrice: Math.round(ticketPriceNis * 100),
     theme: cleanText(body.theme, 120),
     dressCode: cleanText(body.dressCode, 80),
     description: cleanText(body.description, 500),
@@ -815,7 +913,7 @@ app.get('/admin/events', requireAdmin, async (req, res) => {
 app.post('/admin/events', requireAdmin, async (req, res) => {
   if (!sensitiveRateAllowed(req, 12)) return res.status(429).render('message', { title: 'Please slow down', message: 'Try saving the event again in a few minutes.' });
   const values = managedEventValues(req.body);
-  if (!values) return res.status(400).render('message', { title: 'Event could not be saved', message: 'Name, date, and location are required. Use a valid date.' });
+  if (!values) return res.status(400).render('message', { title: 'Event could not be saved', message: 'Name, date, location, capacity, and ticket price are required. Use valid values.' });
   await upsertManagedEvent({ ...values, id: `EVENT-${id(14)}`, createdBy: req.session.adminName });
   res.redirect('/admin/events?notice=Event%20created');
 });
@@ -825,18 +923,22 @@ app.post('/admin/events/:id', requireAdmin, async (req, res) => {
   const existing = await getManagedEvent(req.params.id);
   if (!existing) return res.status(404).render('message', { title: 'Event not found', message: 'This event listing no longer exists.' });
   const values = managedEventValues(req.body, existing);
-  if (!values) return res.status(400).render('message', { title: 'Event could not be saved', message: 'Name, date, and location are required. Use a valid date.' });
+  if (!values) return res.status(400).render('message', { title: 'Event could not be saved', message: 'Name, date, location, capacity, and ticket price are required. Use valid values.' });
   await upsertManagedEvent(values);
   res.redirect('/admin/events?notice=Event%20updated');
 });
 
 app.get('/admin', requireAdmin, async (req, res) => {
   try {
+    const managedEvents = await listManagedEvents();
+    const eventOptions = [currentEventContext(), ...managedEvents.map(managedEventContext)];
+    const selectedEvent = eventOptions.find(event => event.id === cleanText(req.query.event, 80)) || currentEventContext();
     const pageSize = 10;
     const searches = {
       orderSearch: String(req.query.orderSearch || '').trim(),
       orderStatus: String(req.query.orderStatus || '').trim(),
-      ticketSearch: String(req.query.ticketSearch || '').trim()
+      ticketSearch: String(req.query.ticketSearch || '').trim(),
+      eventId: selectedEvent.id
     };
     const pages = {
       ordersPage: pageNumber(req.query.ordersPage),
@@ -852,7 +954,9 @@ app.get('/admin', requireAdmin, async (req, res) => {
       ticketOffset: (pages.ticketsPage - 1) * pageSize,
       ticketSearch: searches.ticketSearch,
       scanLimit: pageSize,
-      scanOffset: (pages.scansPage - 1) * pageSize
+      scanOffset: (pages.scansPage - 1) * pageSize,
+      eventId: selectedEvent.id,
+      legacyEventName: selectedEvent.EVENT_NAME
     });
     res.render('admin', {
       orders: dashboard.orders,
@@ -867,8 +971,10 @@ app.get('/admin', requireAdmin, async (req, res) => {
         scans: pageMeta(pages.scansPage, dashboard.scanCount, pageSize)
       },
       adminPageUrl,
-      stats: dashboardStats(dashboard.stats) || adminStats({ orders: dashboard.allOrders, tickets: dashboard.allTickets }, dashboard.approvedCount),
-      ...eventInfo,
+      stats: dashboardStats(dashboard.stats, selectedEvent) || adminStats({ orders: dashboard.allOrders, tickets: dashboard.allTickets }, dashboard.approvedCount, selectedEvent),
+      ...selectedEvent,
+      eventOptions,
+      selectedEvent,
       money,
       orderStatusLabel,
       statusClass,
@@ -1126,7 +1232,20 @@ app.get('/admin/orders/:id', requireAdmin, async (req, res) => {
       console.error('Stripe order sync failed:', err.message);
     }
     const tickets = order ? await getTicketsByOrderId(order.id) : [];
-    res.render('order', { order, tickets, ...eventInfo, money });
+    const orderEvent = order ? {
+      ...eventInfo,
+      EVENT_NAME: order.eventName || EVENT_NAME,
+      EVENT_DATE: order.eventDate || EVENT_DATE,
+      EVENT_TIME: order.eventTime || EVENT_TIME,
+      EVENT_LOCATION: order.eventLocation || EVENT_LOCATION,
+      DRESS_CODE: order.dressCode || DRESS_CODE,
+      MIN_AGE: order.minimumAge || MIN_AGE,
+      TICKET_PRICE: order.ticketPrice || TICKET_PRICE,
+      BAR_PARTNER: order.barPartner || BAR_PARTNER,
+      SPONSOR_NAME: order.sponsorName || SPONSOR_NAME,
+      PHOTO_BOOTH_PARTNER: order.photoBoothPartner || PHOTO_BOOTH_PARTNER
+    } : eventInfo;
+    res.render('order', { order, tickets, ...orderEvent, money });
   } catch (err) {
     console.error('Admin order database unavailable:', req.params.id, err.message);
     res.status(503).render('message', { title: 'Database temporarily unavailable', message: 'This order could not be loaded right now. Please refresh in a moment.' });
@@ -1134,22 +1253,26 @@ app.get('/admin/orders/:id', requireAdmin, async (req, res) => {
 });
 
 app.post('/admin/orders/delete-stuck', requireAdmin, async (req, res) => {
+  const event = await getAdminEventContext(cleanText(req.body.eventId, 80));
+  if (!event) return res.status(404).render('message', { title: 'Event not found', message: 'Choose an existing event first.' });
   const db = await readDb();
   const ticketOrderIds = new Set((db.tickets || []).map(ticket => ticket.orderId).filter(Boolean));
   const stuckOrderIds = db.orders
-    .filter(order => isStuckOrder(order) && !ticketOrderIds.has(order.id))
+    .filter(order => belongsToEvent(order, event) && isStuckOrder(order) && !ticketOrderIds.has(order.id))
     .map(order => order.id);
   await deleteOrders(stuckOrderIds);
-  res.redirect('/admin');
+  res.redirect(adminEventRedirect(event, `${stuckOrderIds.length} stuck order(s) deleted.`));
 });
 
 app.post('/admin/orders/sync-payments', requireAdmin, async (req, res) => {
   try {
-    const result = await syncWaitingOrdersFromStripe();
+    const event = await getAdminEventContext(cleanText(req.body.eventId, 80));
+    if (!event) return res.status(404).render('message', { title: 'Event not found', message: 'Choose an existing event first.' });
+    const result = await syncWaitingOrdersFromStripe(event);
     const message = result.failed
       ? `Synced ${result.synced} payment(s). ${result.failed} could not be checked.`
       : `Synced ${result.synced} payment(s).`;
-    res.redirect(`/admin?notice=${encodeURIComponent(message)}`);
+    res.redirect(adminEventRedirect(event, message));
   } catch (err) {
     console.error('Payment sync failed:', err.message);
     res.redirect(`/admin?notice=${encodeURIComponent('Payment sync is temporarily unavailable. Please try again in a minute.')}`);
@@ -1158,7 +1281,9 @@ app.post('/admin/orders/sync-payments', requireAdmin, async (req, res) => {
 
 app.post('/admin/orders/sync-payments.json', requireAdmin, async (req, res) => {
   try {
-    const result = await syncWaitingOrdersFromStripe();
+    const event = await getAdminEventContext(cleanText(req.query.event, 80));
+    if (!event) return res.status(404).json({ ok: false, checked: 0, synced: 0, failed: 1, error: 'Event not found.' });
+    const result = await syncWaitingOrdersFromStripe(event);
     res.json({ ok: true, ...result });
   } catch (err) {
     console.error('Payment sync JSON failed:', err.message);
@@ -1167,7 +1292,9 @@ app.post('/admin/orders/sync-payments.json', requireAdmin, async (req, res) => {
 });
 
 app.post('/admin/orders/repair-issued-statuses', requireAdmin, async (req, res) => {
-  const pendingOrders = await getPendingOrdersWithIssuedTickets(300);
+  const event = await getAdminEventContext(cleanText(req.body.eventId, 80));
+  if (!event) return res.status(404).render('message', { title: 'Event not found', message: 'Choose an existing event first.' });
+  const pendingOrders = (await getPendingOrdersWithIssuedTickets(300)).filter(order => belongsToEvent(order, event));
   let repaired = 0;
   for (const order of pendingOrders) {
     order.status = 'approved_captured';
@@ -1180,7 +1307,7 @@ app.post('/admin/orders/repair-issued-statuses', requireAdmin, async (req, res) 
   const message = repaired
     ? `Marked ${repaired} issued ticket order(s) as approved. Use Review > Resend ticket email if a buyer did not receive the email.`
     : 'No pending orders with issued tickets were found.';
-  res.redirect(`/admin?notice=${encodeURIComponent(message)}`);
+  res.redirect(adminEventRedirect(event, message));
 });
 
 app.post('/admin/vip-codes', requireAdmin, async (req, res) => {
@@ -1189,18 +1316,24 @@ app.post('/admin/vip-codes', requireAdmin, async (req, res) => {
   if (!rawCode || !Number.isInteger(maxTickets) || maxTickets < 1 || maxTickets > 10) {
     return res.status(400).render('message', { title: 'Invalid VIP code', message: 'Enter a code and a max ticket number from 1 to 10.' });
   }
-  await upsertVipCode({ code: rawCode, maxTickets, active: true });
-  res.redirect(`/admin?notice=${encodeURIComponent(`VIP code ${rawCode} is ready.`)}`);
+  const event = await getAdminEventContext(cleanText(req.body.eventId, 80));
+  if (!event) return res.status(404).render('message', { title: 'Event not found', message: 'Choose an existing event before creating a VIP code.' });
+  await upsertVipCode({ code: rawCode, eventId: event.id, eventName: event.EVENT_NAME, maxTickets, active: true });
+  res.redirect(`/admin?event=${encodeURIComponent(event.id)}&notice=${encodeURIComponent(`VIP code ${rawCode} is ready.`)}`);
 });
 
 app.post('/admin/vip-codes/:code/disable', requireAdmin, async (req, res) => {
+  const event = await getAdminEventContext(cleanText(req.body.eventId, 80));
+  if (!event) return res.status(404).render('message', { title: 'Event not found', message: 'Choose an existing event first.' });
   await setVipCodeActive(req.params.code, false);
-  res.redirect(`/admin?notice=${encodeURIComponent(`VIP code ${normalizeVipCode(req.params.code)} was disabled.`)}`);
+  res.redirect(adminEventRedirect(event, `VIP code ${normalizeVipCode(req.params.code)} was disabled.`));
 });
 
 app.post('/admin/vip-codes/:code/enable', requireAdmin, async (req, res) => {
+  const event = await getAdminEventContext(cleanText(req.body.eventId, 80));
+  if (!event) return res.status(404).render('message', { title: 'Event not found', message: 'Choose an existing event first.' });
   await setVipCodeActive(req.params.code, true);
-  res.redirect(`/admin?notice=${encodeURIComponent(`VIP code ${normalizeVipCode(req.params.code)} was enabled.`)}`);
+  res.redirect(adminEventRedirect(event, `VIP code ${normalizeVipCode(req.params.code)} was enabled.`));
 });
 
 app.post('/admin/orders/:id/delete', requireAdmin, async (req, res) => {
@@ -1219,6 +1352,8 @@ app.post('/admin/tickets/:id/delete', requireAdmin, async (req, res) => {
 });
 
 app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
+  const event = await getAdminEventContext(cleanText(req.body.eventId, 80));
+  if (!event) return res.status(404).render('message', { title: 'Event not found', message: 'Choose an existing event before creating a ticket.' });
   const firstName = cleanName(req.body.firstName);
   const lastName = cleanName(req.body.lastName);
   const attendeeName = combineName(firstName, lastName);
@@ -1230,13 +1365,25 @@ app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
   if (!firstName || !lastName || !parsedDob || !gender) {
     return res.status(400).render('message', { title: 'Missing manual ticket info', message: 'Enter first name, last name, date of birth as DD/MM/YYYY, and gender.' });
   }
-  if (!isOldEnough(dob)) {
-    return res.status(400).render('message', { title: 'Age requirement', message: `The attendee must be ${MIN_AGE}+ by ${EVENT_DATE}.` });
+  if (!isOldEnough(dob, event)) {
+    return res.status(400).render('message', { title: 'Age requirement', message: `The attendee must be ${event.MIN_AGE}+ by ${event.EVENT_DATE}.` });
   }
 
   const createdAt = new Date().toISOString();
   const order = {
     id: `MANUAL-${id(10)}`,
+    eventId: event.id,
+    eventName: event.EVENT_NAME,
+    eventDate: event.EVENT_DATE,
+    eventTime: event.EVENT_TIME,
+    eventLocation: event.EVENT_LOCATION,
+    eventCapacity: event.CAPACITY,
+    ticketPrice: event.TICKET_PRICE,
+    dressCode: event.DRESS_CODE,
+    minimumAge: event.MIN_AGE,
+    barPartner: event.BAR_PARTNER,
+    sponsorName: event.SPONSOR_NAME,
+    photoBoothPartner: event.PHOTO_BOOTH_PARTNER,
     buyerName: attendeeName,
     buyerEmail,
     qty: 1,
@@ -1251,7 +1398,7 @@ app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
   // Validate duplicate name + capacity and persist the order and its ticket in
   // one atomic step, consistent with the buyer reservation flow.
   const reservation = await reserveAtomic(async freshDb => {
-    if (usedNameKeys(freshDb).has(nameKey(attendeeName))) return { error: 'duplicate' };
+    if (usedNameKeys(freshDb, event).has(nameKey(attendeeName))) return { error: 'duplicate' };
     const ticket = await createTicketForAttendee(order, order.attendees[0], {
       manual: true,
       price: 'Manual ticket',
@@ -1271,7 +1418,7 @@ app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
     const attachments = [qrAttachmentForTicket(ticket)].filter(Boolean);
     sendMailInBackground({
       to: buyerEmail,
-      subject: `Your ${EVENT_NAME} ticket credentials`,
+      subject: `Your ${event.EVENT_NAME} ticket credentials`,
       html: ticketEmailBackground(`<p style="margin:0 0 12px;color:#fff4df">Your ticket is ready.</p>${ticketEmailHtml(ticket)}`),
       text: `Your ticket is ready.\n\n${ticketEmailText(ticket)}`,
       attachments

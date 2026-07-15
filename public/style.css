@@ -577,6 +577,38 @@ td {
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.24);
 }
+.admin-event-switcher {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 18px 0 24px;
+  padding: 16px 18px;
+  border: 1px solid rgba(198, 165, 107, 0.3);
+  border-radius: 8px;
+  background: rgba(22, 22, 22, 0.82);
+}
+.admin-event-switcher label {
+  display: grid;
+  gap: 6px;
+  min-width: min(100%, 380px);
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.admin-event-switcher select {
+  min-height: 44px;
+  padding: 9px 11px;
+  border: 1px solid rgba(245, 241, 232, 0.22);
+  border-radius: 6px;
+  background: #080808;
+  color: #f5f1e8;
+  font: inherit;
+  letter-spacing: 0;
+  text-transform: none;
+}
 .admin-page-header .admin-nav a {
   justify-content: center;
   min-height: 40px;
@@ -1169,6 +1201,14 @@ table.admin-card-table tr:hover td {
   }
 }
 @media (max-width: 760px) {
+  .admin-event-switcher {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .admin-event-switcher label,
+  .admin-event-switcher .button {
+    width: 100%;
+  }
   .modern-home {
     min-height: 88svh;
     padding: 86px 16px 7vh;
