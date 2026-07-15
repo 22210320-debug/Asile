@@ -1005,24 +1005,13 @@ table.admin-card-table tr:hover td {
   padding: 92px 0 0;
 }
 .home-brand-lockup {
-  display: inline-flex;
-  align-items: center;
-  gap: 13px;
   margin-bottom: 22px;
 }
 .home-brand-logo {
   display: block;
-  box-sizing: border-box;
-  width: 68px;
-  height: 68px;
-  padding: 4px;
-  border: 1px solid rgba(245, 241, 232, 0.42);
-  border-radius: 8px;
-  background: rgba(245, 241, 232, 0.12);
-  object-fit: cover;
-}
-.home-brand-lockup .brand {
-  margin: 0;
+  width: min(286px, 78vw);
+  height: auto;
+  object-fit: contain;
 }
 .hero-copy h1 {
   font-family: Georgia, 'Times New Roman', serif;
@@ -1229,8 +1218,7 @@ table.admin-card-table tr:hover td {
     white-space: nowrap;
   }
   .home-brand-logo {
-    width: 58px;
-    height: 58px;
+    width: min(240px, 78vw);
   }
   .hero-copy {
     padding-top: 18px;
@@ -2087,7 +2075,7 @@ table.admin-card-table tr:hover td {
 }
 .priority-logo-link {
   display: block;
-  width: 108px;
+  width: min(286px, 78vw);
   margin: 0 auto 26px;
 }
 .priority-back {
@@ -2111,14 +2099,9 @@ table.admin-card-table tr:hover td {
 }
 .priority-logo {
   display: block;
-  box-sizing: border-box;
-  width: 108px;
-  height: 108px;
-  padding: 5px;
-  border: 1px solid rgba(245, 241, 232, 0.42);
-  border-radius: 8px;
-  background: rgba(245, 241, 232, 0.12);
-  object-fit: cover;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
 }
 .priority-card {
   box-sizing: border-box;
@@ -2491,23 +2474,9 @@ table.admin-card-table tr:hover td {
 }
 .events-brand img {
   display: block;
-  box-sizing: border-box;
-  width: 58px;
-  height: 58px;
-  padding: 4px;
-  border: 1px solid rgba(245, 241, 232, 0.42);
-  border-radius: 8px;
-  background: rgba(245, 241, 232, 0.12);
-  object-fit: cover;
-}
-.events-brand span {
-  display: grid;
-  gap: 1px;
-}
-.events-brand small {
-  color: var(--gold);
-  font-size: 9px;
-  letter-spacing: 0.16em;
+  width: 190px;
+  height: auto;
+  object-fit: contain;
 }
 .events-nav nav {
   display: flex;
@@ -2853,8 +2822,7 @@ table.admin-card-table tr:hover td {
     padding: 18px 0;
   }
   .events-brand img {
-    width: 48px;
-    height: 48px;
+    width: 158px;
   }
   .events-nav nav {
     gap: 10px 14px;
@@ -2898,11 +2866,7 @@ table.admin-card-table tr:hover td {
     padding: 28px 16px 40px;
   }
   .priority-logo-link {
-    width: 90px;
-  }
-  .priority-logo {
-    width: 90px;
-    height: 90px;
+    width: min(242px, 76vw);
   }
   .priority-card {
     padding: 26px 20px;
