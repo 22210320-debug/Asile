@@ -10,6 +10,9 @@
   --line: rgba(245, 229, 204, 0.2);
   --shadow: 0 32px 90px rgba(0, 0, 0, 0.42);
   --hero-photo: url('/public/vineyard-sunset.svg');
+  --asile-site-background:
+    linear-gradient(100deg, rgba(7, 5, 4, 0.92), rgba(32, 18, 11, 0.62) 52%, rgba(156, 75, 32, 0.18)),
+    var(--hero-photo) center/cover no-repeat;
 }
 * {
   box-sizing: border-box;
@@ -23,6 +26,10 @@ body {
   background: radial-gradient(circle at top, #2c190f 0, #120c08 42%, #080604 100%);
   color: var(--cream);
   line-height: 1.55;
+}
+body.asile-public-page {
+  background: var(--asile-site-background);
+  background-attachment: fixed;
 }
 a {
   color: var(--gold);
@@ -45,9 +52,8 @@ body:before {
   display: grid;
   place-items: center;
   padding: 28px;
-  background:
-    linear-gradient(115deg, rgba(7, 5, 4, 0.88), rgba(35, 18, 8, 0.62) 48%, rgba(120, 64, 22, 0.24)),
-    var(--hero-photo) center/cover fixed;
+  background: var(--asile-site-background);
+  background-attachment: fixed;
   position: relative;
   overflow: hidden;
 }
@@ -928,9 +934,7 @@ table.admin-card-table tr:hover td {
   align-items: end;
   place-items: end stretch;
   padding: 22px 28px 8vh;
-  background:
-    linear-gradient(100deg, rgba(7, 5, 4, 0.92), rgba(32, 18, 11, 0.62) 52%, rgba(156, 75, 32, 0.18)),
-    var(--hero-photo) center/cover no-repeat;
+  background: var(--asile-site-background);
 }
 .modern-home:after {
   height: 18%;
@@ -967,6 +971,22 @@ table.admin-card-table tr:hover td {
   z-index: 1;
   width: min(880px, 100%);
   padding: 92px 0 0;
+}
+.home-brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.home-brand-logo {
+  width: 58px;
+  height: 58px;
+  border: 1px solid rgba(245, 241, 232, 0.34);
+  border-radius: 8px;
+  object-fit: cover;
+}
+.home-brand-lockup .brand {
+  margin: 0;
 }
 .hero-copy h1 {
   font-family: Georgia, 'Times New Roman', serif;
@@ -1163,6 +1183,10 @@ table.admin-card-table tr:hover td {
   }
   .home-nav a {
     white-space: nowrap;
+  }
+  .home-brand-logo {
+    width: 48px;
+    height: 48px;
   }
   .hero-copy {
     padding-top: 18px;
@@ -1983,7 +2007,8 @@ table.admin-card-table tr:hover td {
 /* Priority Access and email preference pages intentionally use the compact Asile palette. */
 .priority-body {
   min-height: 100vh;
-  background: #080808;
+  background: var(--asile-site-background);
+  background-attachment: fixed;
   color: #f5f1e8;
   font-family: Arial, sans-serif;
   isolation: isolate;
@@ -1996,8 +2021,8 @@ table.admin-card-table tr:hover td {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: url('/public/vineyard-sunset.svg') center/cover no-repeat;
-  opacity: 0.28;
+  background: #080808;
+  opacity: 0.48;
 }
 .priority-body::after {
   content: '';
@@ -2387,7 +2412,8 @@ table.admin-card-table tr:hover td {
 /* Public Asile Events directory. The live checkout remains on the event page. */
 .events-body {
   min-height: 100vh;
-  background: #080808;
+  background: var(--asile-site-background);
+  background-attachment: fixed;
 }
 .events-nav,
 .events-hub {
@@ -2414,8 +2440,8 @@ table.admin-card-table tr:hover td {
   text-transform: uppercase;
 }
 .events-brand img {
-  width: 40px;
-  height: 40px;
+  width: 52px;
+  height: 52px;
   border-radius: 8px;
   object-fit: cover;
 }
@@ -2619,6 +2645,148 @@ table.admin-card-table tr:hover td {
   flex: 0 0 auto;
   margin-top: 0;
 }
+.future-events {
+  margin-top: 58px;
+}
+.future-events-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.future-event-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 270px;
+  padding: 22px;
+  border: 1px solid rgba(245, 241, 232, 0.14);
+  border-radius: 8px;
+  background: #161616;
+}
+.future-event-card img {
+  width: 100%;
+  height: 130px;
+  margin: -6px 0 18px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+.future-event-card p {
+  margin: 0;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.future-event-card h3 {
+  margin: 10px 0 0;
+  color: #f5f1e8;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 29px;
+  font-weight: 500;
+  line-height: 1.05;
+}
+.future-event-card > span,
+.future-event-card > div {
+  margin-top: 9px;
+  color: #cbc4b8;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.future-event-card .text-link {
+  margin-top: auto;
+  padding-top: 24px;
+}
+
+/* Admin event manager. It controls future public listings, never live checkout. */
+.event-manager-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.92fr) minmax(320px, 1.08fr);
+  gap: 22px;
+  align-items: start;
+  margin-top: 24px;
+}
+.event-editor,
+.event-list-panel {
+  padding: 26px;
+}
+.event-editor h2,
+.event-list-panel h2 {
+  margin-top: 6px;
+}
+.event-manager-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+}
+.event-manager-form label {
+  display: grid;
+  gap: 7px;
+  color: #f5f1e8;
+  font-size: 13px;
+  font-weight: 800;
+}
+.event-manager-form input,
+.event-manager-form textarea,
+.event-manager-form select {
+  width: 100%;
+  min-height: 46px;
+  padding: 11px 12px;
+  border: 1px solid rgba(245, 241, 232, 0.22);
+  border-radius: 6px;
+  background: #080808;
+  color: #f5f1e8;
+  font: inherit;
+}
+.event-manager-form textarea {
+  min-height: 104px;
+  resize: vertical;
+}
+.event-manager-form input:focus,
+.event-manager-form textarea:focus,
+.event-manager-form select:focus {
+  border-color: var(--gold);
+  outline: 2px solid rgba(198, 165, 107, 0.3);
+  outline-offset: 2px;
+}
+.event-manager-date-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.event-manager-form > .button {
+  justify-self: start;
+}
+.event-list-panel {
+  border: 1px solid rgba(245, 241, 232, 0.14);
+  border-radius: 8px;
+  background: rgba(22, 22, 22, 0.86);
+}
+.managed-event-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+}
+.managed-event-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 17px;
+  border: 1px solid rgba(245, 241, 232, 0.12);
+  border-radius: 7px;
+  background: #080808;
+}
+.managed-event-item h3 {
+  margin: 9px 0 0;
+  color: #f5f1e8;
+  font-size: 20px;
+}
+.managed-event-item p {
+  margin: 6px 0 0;
+  color: #cbc4b8;
+  font-size: 14px;
+}
 @media (max-width: 700px) {
   .events-nav,
   .events-hub {
@@ -2628,6 +2796,10 @@ table.admin-card-table tr:hover td {
     align-items: flex-start;
     min-height: 0;
     padding: 18px 0;
+  }
+  .events-brand img {
+    width: 42px;
+    height: 42px;
   }
   .events-nav nav {
     gap: 10px 14px;
@@ -2660,6 +2832,12 @@ table.admin-card-table tr:hover td {
   .events-priority-actions {
     width: 100%;
     margin-top: 0;
+  }
+  .future-events-grid {
+    grid-template-columns: 1fr;
+  }
+  .event-manager-layout {
+    grid-template-columns: 1fr;
   }
   .priority-shell {
     padding: 28px 16px 40px;
@@ -2700,6 +2878,21 @@ table.admin-card-table tr:hover td {
   }
   .waitlist-status-form button {
     width: auto;
+  }
+  .event-manager-date-grid {
+    grid-template-columns: 1fr;
+  }
+  .event-editor,
+  .event-list-panel {
+    padding: 20px;
+  }
+  .managed-event-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .managed-event-item .button {
+    width: 100%;
+    text-align: center;
   }
   .priority-button {
     width: 100%;

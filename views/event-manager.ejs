@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>Event Manager | Asile Admin</title>
+  <link rel="stylesheet" href="/public/style.css?v=20260715c">
+</head>
+<body>
+  <main class="wrap admin-wrap event-manager-wrap">
+    <header class="admin-hero panel admin-page-header">
+      <div class="admin-title-block">
+        <p class="eyebrow">Asile control</p>
+        <h1>Event manager</h1>
+        <p class="muted">Create future event listings and control what appears on the public Events page.</p>
+      </div>
+      <nav class="admin-nav" aria-label="Admin navigation">
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/customers">Customers</a>
+        <a href="/admin/marketing">Marketing</a>
+        <a href="/admin/waitlist">Priority List</a>
+        <a href="/admin/logout">Logout</a>
+      </nav>
+    </header>
+
+    <% if (notice) { %><p class="note"><%= notice %></p><% } %>
+
+    <section class="event-manager-layout">
+      <section class="panel event-editor" aria-labelledby="event-editor-heading">
+        <p class="eyebrow"><%= editEvent ? 'Edit listing' : 'New listing' %></p>
+        <h2 id="event-editor-heading"><%= editEvent ? editEvent.name : 'Create future event' %></h2>
+        <form method="post" action="<%= editEvent ? `/admin/events/${encodeURIComponent(editEvent.id)}` : '/admin/events' %>" class="event-manager-form">
+          <label>Event name<input name="name" maxlength="120" required value="<%= editEvent?.name || '' %>"></label>
+          <div class="event-manager-date-grid">
+            <label>Date<input name="eventDate" type="date" required value="<%= editEvent?.eventDate || '' %>"></label>
+            <label>Time<input name="eventTime" maxlength="80" placeholder="Example: 6:00 PM" value="<%= editEvent?.eventTime || '' %>"></label>
+          </div>
+          <label>Location<input name="location" maxlength="120" required value="<%= editEvent?.location || '' %>"></label>
+          <div class="event-manager-date-grid">
+            <label>Theme<input name="theme" maxlength="120" value="<%= editEvent?.theme || '' %>"></label>
+            <label>Dress code<input name="dressCode" maxlength="80" value="<%= editEvent?.dressCode || '' %>"></label>
+          </div>
+          <label>Short description<textarea name="description" maxlength="500" rows="4" placeholder="What guests should know about this experience."><%= editEvent?.description || '' %></textarea></label>
+          <label>Image URL <span class="hint">optional</span><input name="imageUrl" type="url" maxlength="500" placeholder="https://..." value="<%= editEvent?.imageUrl || '' %>"></label>
+          <label>Visibility<select name="status"><% statuses.forEach(status => { %><option value="<%= status %>" <%= (editEvent?.status || 'draft') === status ? 'selected' : '' %>><%= status === 'published' ? 'Published on /events' : status.charAt(0).toUpperCase() + status.slice(1) %></option><% }) %></select></label>
+          <button class="button command-primary" type="submit"><%= editEvent ? 'Save event' : 'Create event' %></button>
+          <% if (editEvent) { %><a class="button secondary" href="/admin/events">Cancel edit</a><% } %>
+        </form>
+        <p class="note">Published listings appear on <a href="/events" target="_blank" rel="noopener">/events</a>. This manager does not create checkout, Stripe products, or QR tickets.</p>
+      </section>
+
+      <section class="event-list-panel" aria-labelledby="event-list-heading">
+        <div class="admin-section-title">
+          <p class="eyebrow">Your listings</p>
+          <h2 id="event-list-heading">Future events</h2>
+        </div>
+        <% if (!events.length) { %>
+          <p class="note">No future event listings yet. Create one here, save it as Draft, and publish when you are ready.</p>
+        <% } %>
+        <div class="managed-event-list">
+          <% events.forEach(event => { %>
+            <article class="managed-event-item">
+              <div>
+                <span class="status-pill <%= event.status === 'published' ? 'ticket-status-valid' : 'status-cancelled' %>"><%= event.status %></span>
+                <h3><%= event.name %></h3>
+                <p><%= event.eventDate %><% if (event.eventTime) { %> · <%= event.eventTime %><% } %> · <%= event.location %></p>
+              </div>
+              <a class="button compact command-tool" href="/admin/events?edit=<%= encodeURIComponent(event.id) %>">Edit</a>
+            </article>
+          <% }) %>
+        </div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>

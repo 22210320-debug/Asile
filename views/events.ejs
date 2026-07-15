@@ -16,9 +16,9 @@
   <link rel="icon" type="image/png" sizes="512x512" href="/public/favicon.png?v=20260705a">
   <link rel="apple-touch-icon" sizes="512x512" href="/public/favicon.png?v=20260705a">
   <link rel="preload" href="/public/vineyard-sunset.svg" as="image">
-  <link rel="stylesheet" href="/public/style.css?v=20260715b">
+  <link rel="stylesheet" href="/public/style.css?v=20260715d">
 </head>
-<body class="events-body">
+<body class="events-body asile-public-page">
   <header class="events-nav">
     <a class="events-brand" href="/" aria-label="Return to <%= COMPANY_NAME %>">
       <img src="/public/favicon.png?v=20260705a" alt="<%= COMPANY_NAME %>">
@@ -81,6 +81,29 @@
         <a class="text-link" href="<%= INSTAGRAM_URL %>" target="_blank" rel="noopener">Follow Asile on Instagram</a>
       </div>
     </section>
+
+    <% if (futureEvents.length) { %>
+      <section class="future-events" aria-labelledby="future-events-list-heading">
+        <div class="events-section-heading">
+          <div>
+            <p class="eyebrow">Coming up</p>
+            <h2 id="future-events-list-heading">Future experiences</h2>
+          </div>
+        </div>
+        <div class="future-events-grid">
+          <% futureEvents.forEach(event => { %>
+            <article class="future-event-card">
+              <% if (event.imageUrl) { %><img src="<%= event.imageUrl %>" alt="<%= event.name %>" loading="lazy" decoding="async"><% } %>
+              <p><%= event.eventDate %><% if (event.eventTime) { %> · <%= event.eventTime %><% } %></p>
+              <h3><%= event.name %></h3>
+              <span><%= event.location %></span>
+              <% if (event.description) { %><div><%= event.description %></div><% } %>
+              <a class="text-link" href="<%= WAITLIST_PATH %>">Join Priority List</a>
+            </article>
+          <% }) %>
+        </div>
+      </section>
+    <% } %>
   </main>
 </body>
 </html>

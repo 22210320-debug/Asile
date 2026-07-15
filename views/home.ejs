@@ -20,9 +20,9 @@
   <link rel="icon" type="image/png" sizes="512x512" href="/public/favicon.png?v=20260705a">
   <link rel="apple-touch-icon" sizes="512x512" href="/public/favicon.png?v=20260705a">
   <link rel="preload" href="/public/vineyard-sunset.svg" as="image">
-  <link rel="stylesheet" href="/public/style.css?v=20260715b">
+  <link rel="stylesheet" href="/public/style.css?v=20260715d">
 </head>
-<body>
+<body class="asile-public-page">
   <main class="home-hero modern-home">
     <nav class="home-nav" aria-label="Event links">
       <% if (!privateReserve) { %><a href="/events">Events</a><% } %>
@@ -33,7 +33,10 @@
     </nav>
 
     <section class="hero-copy">
-      <p class="brand"><%= COMPANY_NAME %></p>
+      <div class="home-brand-lockup">
+        <img class="home-brand-logo" src="/public/favicon.png?v=20260705a" alt="<%= COMPANY_NAME %>">
+        <p class="brand"><%= COMPANY_NAME %></p>
+      </div>
       <h1><%= privateReserve ? 'Private Reserve' : EVENT_NAME %></h1>
       <p class="subtitle"><%= privateReserve ? `Invite-only access for ${EVENT_NAME}. Complete checkout here, then admin approval confirms the final QR ticket.` : `An all-white sunset house party in ${EVENT_LOCATION}. House music, approved guest-list entry, named QR tickets, and one free ${PHOTO_BOOTH_PARTNER} picture for every approved guest.` %></p>
       <div class="hero-event-summary" aria-label="Event summary">

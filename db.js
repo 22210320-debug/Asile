@@ -12,7 +12,7 @@ const RESERVE_LOCK_KEY = 728492;
 
 async function readJsonFile() {
   try { return JSON.parse(await fs.readFile(dbFile, 'utf8')); }
-  catch { return { orders: [], tickets: [], scanHistory: [], vipCodes: [], waitlistEntries: [] }; }
+  catch { return { orders: [], tickets: [], scanHistory: [], vipCodes: [], waitlistEntries: [], managedEvents: [] }; }
 }
 
 function usePostgres() { return Boolean(process.env.DATABASE_URL); }
@@ -110,6 +110,14 @@ async function initDb() {
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS managed_events (
+      id TEXT PRIMARY KEY,
+      status TEXT NOT NULL DEFAULT 'draft',
+      event_date DATE,
+      data JSONB NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
     CREATE INDEX IF NOT EXISTS idx_orders_status ON orders ((data->>'status'));
     CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
     CREATE INDEX IF NOT EXISTS idx_tickets_attendee_name ON tickets(attendee_name);
@@ -117,6 +125,7 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_waitlist_status_created_at ON waitlist_entries (status, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_waitlist_email ON waitlist_entries (email);
     CREATE INDEX IF NOT EXISTS idx_waitlist_phone ON waitlist_entries (phone);
+    CREATE INDEX IF NOT EXISTS idx_managed_events_status_date ON managed_events (status, event_date ASC);
   `).catch(err => {
     initPromise = null;
     throw err;
@@ -127,7 +136,7 @@ async function initDb() {
 async function readDb() {
   if (!usePostgres()) {
     try { return JSON.parse(await fs.readFile(dbFile, 'utf8')); }
-    catch { const fresh = { orders: [], tickets: [], scanHistory: [], vipCodes: [], waitlistEntries: [] }; await writeDb(fresh); return fresh; }
+    catch { const fresh = { orders: [], tickets: [], scanHistory: [], vipCodes: [], waitlistEntries: [], managedEvents: [] }; await writeDb(fresh); return fresh; }
   }
   await initDb();
   const [orders, tickets, scanHistory, vipCodes] = await Promise.all([
@@ -145,6 +154,85 @@ async function readDb() {
 }
 
 const WAITLIST_STATUSES = ['waitlisted', 'contacted', 'invited', 'confirmed', 'removed'];
+const MANAGED_EVENT_STATUSES = ['draft', 'published', 'archived'];
+
+function cleanManagedEventStatus(value) {
+  const status = String(value || '').trim().toLowerCase();
+  return MANAGED_EVENT_STATUSES.includes(status) ? status : 'draft';
+}
+
+function sortManagedEvents(events = []) {
+  return events.slice().sort((a, b) => {
+    const dateA = String(a.eventDate || '9999-12-31');
+    const dateB = String(b.eventDate || '9999-12-31');
+    if (dateA !== dateB) return dateA.localeCompare(dateB);
+    return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+  });
+}
+
+async function listManagedEvents({ publicOnly = false } = {}) {
+  if (!usePostgres()) {
+    const db = await readJsonFile();
+    const events = Array.isArray(db.managedEvents) ? db.managedEvents : [];
+    return sortManagedEvents(publicOnly ? events.filter(event => event.status === 'published') : events);
+  }
+  await initDb();
+  const result = publicOnly
+    ? await pgQuery("SELECT data FROM managed_events WHERE status='published' ORDER BY event_date ASC NULLS LAST, created_at DESC")
+    : await pgQuery('SELECT data FROM managed_events ORDER BY event_date ASC NULLS LAST, created_at DESC');
+  return result.rows.map(row => row.data);
+}
+
+async function getManagedEvent(eventId) {
+  if (!eventId) return null;
+  if (!usePostgres()) {
+    const db = await readJsonFile();
+    return (db.managedEvents || []).find(event => event.id === eventId) || null;
+  }
+  await initDb();
+  const result = await pgQuery('SELECT data FROM managed_events WHERE id=$1', [eventId]);
+  return result.rows[0]?.data || null;
+}
+
+async function upsertManagedEvent(event) {
+  const now = new Date().toISOString();
+  const incoming = {
+    ...event,
+    status: cleanManagedEventStatus(event.status),
+    createdAt: event.createdAt || now,
+    updatedAt: now
+  };
+
+  if (!usePostgres()) {
+    let saved;
+    dbWriteQueue = dbWriteQueue.then(async () => {
+      const db = await readJsonFile();
+      db.managedEvents = db.managedEvents || [];
+      const index = db.managedEvents.findIndex(item => item.id === incoming.id);
+      if (index >= 0) {
+        saved = { ...db.managedEvents[index], ...incoming, createdAt: db.managedEvents[index].createdAt || now };
+        db.managedEvents[index] = saved;
+      } else {
+        saved = incoming;
+        db.managedEvents.unshift(saved);
+      }
+      await fs.writeFile(dbFile, JSON.stringify(db, null, 2));
+    });
+    await dbWriteQueue;
+    return saved;
+  }
+
+  await initDb();
+  const existing = await getManagedEvent(incoming.id);
+  const saved = { ...incoming, createdAt: existing?.createdAt || incoming.createdAt || now };
+  await pgQuery(
+    `INSERT INTO managed_events (id, status, event_date, data)
+     VALUES ($1, $2, $3::date, $4::jsonb)
+     ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status, event_date=EXCLUDED.event_date, data=EXCLUDED.data, updated_at=NOW()`,
+    [saved.id, saved.status, saved.eventDate || null, JSON.stringify(saved)]
+  );
+  return saved;
+}
 
 function cleanWaitlistStatus(value) {
   const status = String(value || '').trim().toLowerCase();
@@ -1048,4 +1136,4 @@ async function getSoldOrPendingCount() {
   return result.rows[0]?.count || 0;
 }
 
-module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount, upsertWaitlistEntry, readWaitlistDashboard, updateWaitlistStatus, exportWaitlistEntries, WAITLIST_STATUSES };
+module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount, upsertWaitlistEntry, readWaitlistDashboard, updateWaitlistStatus, exportWaitlistEntries, WAITLIST_STATUSES, MANAGED_EVENT_STATUSES, listManagedEvents, getManagedEvent, upsertManagedEvent };

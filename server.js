@@ -13,7 +13,7 @@ const { ensureCustomerMarketingSchema, listCustomers, getCustomerProfile, update
 
 const app = express();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY, { timeout: Number(process.env.STRIPE_TIMEOUT_MS || 10000) }) : null;
-const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount, upsertWaitlistEntry, readWaitlistDashboard, updateWaitlistStatus, exportWaitlistEntries, WAITLIST_STATUSES } = require('./db');
+const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount, upsertWaitlistEntry, readWaitlistDashboard, updateWaitlistStatus, exportWaitlistEntries, WAITLIST_STATUSES, MANAGED_EVENT_STATUSES, listManagedEvents, getManagedEvent, upsertManagedEvent } = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
@@ -619,19 +619,21 @@ app.get('/', (req, res) => renderHomePage(req, res));
 app.get(VIP_RESERVE_PATH, (req, res) => renderHomePage(req, res, { privateReserve: true }));
 app.get('/events', async (req, res) => {
   let ticketAvailability = { soldOrPending: 0, remaining: CAPACITY, soldOut: false };
+  let futureEvents = [];
 
   try {
-    const soldOrPending = await getSoldOrPendingCount();
+    const [soldOrPending, publishedEvents] = await Promise.all([getSoldOrPendingCount(), listManagedEvents({ publicOnly: true })]);
     ticketAvailability = {
       soldOrPending,
       remaining: Math.max(0, CAPACITY - soldOrPending),
       soldOut: soldOrPending >= CAPACITY
     };
+    futureEvents = publishedEvents;
   } catch (err) {
     console.error('Events availability unavailable:', err.message);
   }
 
-  res.render('events', { ...eventInfo, money, ticketAvailability, WAITLIST_PATH });
+  res.render('events', { ...eventInfo, money, ticketAvailability, futureEvents, WAITLIST_PATH });
 });
 
 async function handleReserve(req, res, { bypassCapacity = false } = {}) {
@@ -767,6 +769,67 @@ app.post('/admin/login', async (req, res) => {
   req.session.admin = true; req.session.adminName = adminName; res.redirect('/admin');
 });
 app.get('/admin/logout', (req, res) => { req.session.destroy(() => res.redirect('/')); });
+function cleanManagedEventImageUrl(value) {
+  const imageUrl = cleanText(value, 500);
+  if (!imageUrl) return '';
+  if (imageUrl.startsWith('/public/')) return imageUrl;
+  try {
+    const parsed = new URL(imageUrl);
+    return ['https:', 'http:'].includes(parsed.protocol) ? parsed.toString() : '';
+  } catch {
+    return '';
+  }
+}
+function managedEventValues(body, existing = {}) {
+  const eventDate = String(body.eventDate || '').trim();
+  const parsedDate = new Date(`${eventDate}T12:00:00`);
+  const dateValid = /^\d{4}-\d{2}-\d{2}$/.test(eventDate)
+    && !Number.isNaN(parsedDate.getTime())
+    && parsedDate.toISOString().slice(0, 10) === eventDate;
+  if (!cleanText(body.name, 120) || !dateValid || !cleanText(body.location, 120)) return null;
+  return {
+    ...existing,
+    name: cleanText(body.name, 120),
+    eventDate,
+    eventTime: cleanText(body.eventTime, 80),
+    location: cleanText(body.location, 120),
+    theme: cleanText(body.theme, 120),
+    dressCode: cleanText(body.dressCode, 80),
+    description: cleanText(body.description, 500),
+    imageUrl: cleanManagedEventImageUrl(body.imageUrl),
+    status: MANAGED_EVENT_STATUSES.includes(String(body.status || '').trim().toLowerCase()) ? String(body.status).trim().toLowerCase() : 'draft'
+  };
+}
+
+app.get('/admin/events', requireAdmin, async (req, res) => {
+  try {
+    const events = await listManagedEvents();
+    const editEvent = req.query.edit ? await getManagedEvent(cleanText(req.query.edit, 80)) : null;
+    res.render('event-manager', { events, editEvent, statuses: MANAGED_EVENT_STATUSES, notice: cleanText(req.query.notice, 180) });
+  } catch (err) {
+    console.error('Event manager unavailable:', err.message);
+    res.status(503).render('message', { title: 'Event manager unavailable', message: 'Event listings could not be loaded. Please refresh in a moment.' });
+  }
+});
+
+app.post('/admin/events', requireAdmin, async (req, res) => {
+  if (!sensitiveRateAllowed(req, 12)) return res.status(429).render('message', { title: 'Please slow down', message: 'Try saving the event again in a few minutes.' });
+  const values = managedEventValues(req.body);
+  if (!values) return res.status(400).render('message', { title: 'Event could not be saved', message: 'Name, date, and location are required. Use a valid date.' });
+  await upsertManagedEvent({ ...values, id: `EVENT-${id(14)}`, createdBy: req.session.adminName });
+  res.redirect('/admin/events?notice=Event%20created');
+});
+
+app.post('/admin/events/:id', requireAdmin, async (req, res) => {
+  if (!sensitiveRateAllowed(req, 12)) return res.status(429).render('message', { title: 'Please slow down', message: 'Try saving the event again in a few minutes.' });
+  const existing = await getManagedEvent(req.params.id);
+  if (!existing) return res.status(404).render('message', { title: 'Event not found', message: 'This event listing no longer exists.' });
+  const values = managedEventValues(req.body, existing);
+  if (!values) return res.status(400).render('message', { title: 'Event could not be saved', message: 'Name, date, and location are required. Use a valid date.' });
+  await upsertManagedEvent(values);
+  res.redirect('/admin/events?notice=Event%20updated');
+});
+
 app.get('/admin', requireAdmin, async (req, res) => {
   try {
     const pageSize = 10;

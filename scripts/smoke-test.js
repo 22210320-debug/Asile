@@ -131,6 +131,10 @@ async function run() {
     assert.equal(response.status, 302);
     assert.equal(response.headers.get('location'), '/admin/login');
 
+    response = await request('/admin/events');
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get('location'), '/admin/login');
+
     response = await request('/admin/login', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -142,6 +146,7 @@ async function run() {
 
     for (const page of [
       '/admin',
+      '/admin/events',
       '/admin/waitlist',
       '/admin/customers',
       '/admin/marketing?audience=priority_access'
@@ -149,6 +154,31 @@ async function run() {
       response = await request(page);
       assert.equal(response.status, 200, `${page} should load for an authenticated admin.`);
     }
+
+    response = await request('/admin/events', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: form({
+        name: 'Asile After Dark',
+        eventDate: '2026-08-15',
+        eventTime: '9:00 PM',
+        location: 'Bethlehem',
+        theme: 'House music',
+        dressCode: 'Black',
+        description: 'A future Asile experience.',
+        imageUrl: '',
+        status: 'published'
+      })
+    });
+    assert.equal(response.status, 302);
+
+    response = await request('/events');
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /Asile After Dark/);
+
+    response = await request('/admin/events');
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /Asile After Dark/);
 
     response = await request('/admin/customers/export/marketing.csv');
     assert.equal(response.status, 200);
@@ -178,7 +208,7 @@ async function run() {
     assert.match(await response.text(), /LINK NOT AVAILABLE/);
 
     console.log(
-      'Smoke test passed: public pages, Priority List, admin auth, customers, marketing, exports, and drafts.'
+      'Smoke test passed: public pages, Priority List, admin auth, event manager, customers, marketing, exports, and drafts.'
     );
   } finally {
     child.kill('SIGTERM');
