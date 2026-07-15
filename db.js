@@ -136,23 +136,23 @@ async function initDb() {
     const defaultEventId = process.env.EVENT_ID || 'sunset-house-party-2026';
     await pgQuery(
       `UPDATE orders
-       SET event_id=$1,
-           data=CASE WHEN COALESCE(data->>'eventId', '') = '' THEN data || jsonb_build_object('eventId', $1) ELSE data END
+       SET event_id=$1::text,
+           data=CASE WHEN COALESCE(data->>'eventId', '') = '' THEN data || jsonb_build_object('eventId', $1::text) ELSE data END
        WHERE event_id IS NULL`,
       [defaultEventId]
     );
     await pgQuery(
       `UPDATE tickets t
-       SET event_id=COALESCE(o.event_id, $1),
-           data=CASE WHEN COALESCE(t.data->>'eventId', '') = '' THEN t.data || jsonb_build_object('eventId', COALESCE(o.event_id, $1)) ELSE t.data END
+       SET event_id=COALESCE(o.event_id, $1::text),
+           data=CASE WHEN COALESCE(t.data->>'eventId', '') = '' THEN t.data || jsonb_build_object('eventId', COALESCE(o.event_id, $1::text)) ELSE t.data END
        FROM orders o
        WHERE t.order_id=o.id AND t.event_id IS NULL`,
       [defaultEventId]
     );
     await pgQuery(
       `UPDATE tickets
-       SET event_id=$1,
-           data=CASE WHEN COALESCE(data->>'eventId', '') = '' THEN data || jsonb_build_object('eventId', $1) ELSE data END
+       SET event_id=$1::text,
+           data=CASE WHEN COALESCE(data->>'eventId', '') = '' THEN data || jsonb_build_object('eventId', $1::text) ELSE data END
        WHERE event_id IS NULL`,
       [defaultEventId]
     );
