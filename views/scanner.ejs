@@ -5,21 +5,87 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>QR Scanner | Asile</title>
-  <link rel="stylesheet" href="/public/style.css?v=20260714f">
-  <script src="https://unpkg.com/html5-qrcode"></script>
+  <link rel="stylesheet" href="/public/style.css?v=20260721b">
+  <script src="https://unpkg.com/html5-qrcode" defer></script>
 </head>
 <body>
   <main class="wrap">
     <h1>Camera QR Scanner</h1>
-    <p><a href="/admin">Back to dashboard</a></p>
+    <p><a href="<%= backUrl %>"><%= backLabel %></a></p>
     <section class="panel">
-      <p>Allow camera access, then scan each guest's QR ticket. On phones, the published website must use HTTPS for the camera to open. Multiple admins can scan from separate logged-in devices.</p>
+      <p>Allow camera access, then scan each guest's QR ticket. The scanner works on phones when the published site uses HTTPS.</p>
+      <div class="scanner-controls">
+        <button id="flip-camera" type="button" hidden>Flip camera</button>
+        <span id="scanner-status" aria-live="polite">Starting camera...</span>
+      </div>
       <div id="reader" class="scanner-reader"></div>
     </section>
   </main>
   <script>
-    new Html5QrcodeScanner('reader', { fps: 10, qrbox: 250 }).render(decodedText => {
-      window.location.href = decodedText;
+    window.addEventListener('DOMContentLoaded', async () => {
+      const scanResultPath = '<%= scanResultPath %>';
+      const flipButton = document.getElementById('flip-camera');
+      const status = document.getElementById('scanner-status');
+      const reader = new Html5Qrcode('reader');
+      let cameras = [];
+      let activeCameraIndex = 0;
+      let scanning = false;
+      let handlingResult = false;
+
+      function onScanSuccess(decodedText) {
+        if (handlingResult) return;
+        const scannedUrl = new URL(decodedText, window.location.origin);
+        const ticketId = scannedUrl.searchParams.get('ticket') || (decodedText.startsWith('ASILE-') ? decodedText : '');
+        if (!ticketId) {
+          status.textContent = 'This is not an Asile ticket.';
+          return;
+        }
+        handlingResult = true;
+        status.textContent = 'Ticket found. Opening check-in...';
+        window.location.assign(`${scanResultPath}?ticket=${encodeURIComponent(ticketId)}`);
+      }
+
+      async function startCamera(index) {
+        if (scanning) {
+          await reader.stop();
+          scanning = false;
+        }
+        activeCameraIndex = index;
+        status.textContent = 'Starting camera...';
+        await reader.start(
+          cameras[activeCameraIndex].id,
+          { fps: 18, qrbox: { width: 280, height: 280 }, aspectRatio: 1.333, disableFlip: false },
+          onScanSuccess
+        );
+        scanning = true;
+        status.textContent = 'Camera ready. Scan a ticket.';
+      }
+
+      try {
+        cameras = await Html5Qrcode.getCameras();
+        if (!cameras.length) throw new Error('No camera was found.');
+        const rearCamera = cameras.findIndex(camera => /back|rear|environment/i.test(camera.label));
+        await startCamera(rearCamera >= 0 ? rearCamera : 0);
+        if (cameras.length > 1) flipButton.hidden = false;
+      } catch (error) {
+        status.textContent = 'Camera could not start. Allow camera access and refresh this page.';
+      }
+
+      flipButton.addEventListener('click', async () => {
+        if (cameras.length < 2 || handlingResult) return;
+        flipButton.disabled = true;
+        try {
+          await startCamera((activeCameraIndex + 1) % cameras.length);
+        } catch (error) {
+          status.textContent = 'Could not switch cameras. Try again.';
+        } finally {
+          flipButton.disabled = false;
+        }
+      });
+
+      window.addEventListener('pagehide', () => {
+        if (scanning) reader.stop().catch(() => {});
+      });
     });
   </script>
 </body>

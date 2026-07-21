@@ -332,6 +332,21 @@ td {
 .scanner-reader {
   max-width: 460px;
 }
+.scanner-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0;
+}
+.scanner-controls button {
+  min-height: 44px;
+}
+.scanner-controls span {
+  color: #f5f1e8;
+  font-size: 14px;
+  font-weight: 700;
+}
 .note {
   background: rgba(255, 248, 238, 0.88);
   border: 1px solid rgba(215, 164, 91, 0.26);

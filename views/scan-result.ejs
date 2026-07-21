@@ -34,9 +34,9 @@
         <p><b>Bar:</b> <%= ticket.barPartner || BAR_PARTNER %></p>
         <p><b>Included:</b> <%= ticket.photoBoothPartner || PHOTO_BOOTH_PARTNER %></p>
         <p><b>Sponsor:</b> <%= SPONSOR_NAME %></p>
-        <form method="post" action="/admin/tickets/<%= ticket.id %>/check-in"><button type="submit">Check in now</button></form>
+        <form method="post" action="<%= checkInPath %>"><button type="submit">Check in now</button></form>
       <% } %>
-      <p><a href="/admin/scanner">Scan another</a></p>
+      <p><a href="<%= scanAgainPath %>">Scan another</a></p>
     </section>
   </main>
 </body>

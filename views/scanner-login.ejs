@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>Door scanner | Asile</title>
+  <link rel="stylesheet" href="/public/style.css?v=20260721a">
+</head>
+<body>
+  <main class="hero">
+    <section class="card" aria-labelledby="scanner-login-title">
+      <h1 id="scanner-login-title">Door scanner</h1>
+      <p>Enter the scanner password to check in tickets.</p>
+      <% if (error) { %><p class="bad" role="alert"><%= error %></p><% } %>
+      <form method="post">
+        <label>Password<input type="password" name="password" required autocomplete="current-password" autofocus></label>
+        <button type="submit">Open scanner</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

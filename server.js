@@ -145,10 +145,14 @@ const adminSession = session({
   cookie: { sameSite: 'lax', secure: process.env.NODE_ENV === 'production' }
 });
 app.use((req, res, next) => {
-  if (req.path.startsWith('/admin')) return adminSession(req, res, next);
+  if (req.path.startsWith('/admin') || req.path.startsWith('/scanner')) return adminSession(req, res, next);
   return next();
 });
 app.use('/admin', (req, res, next) => {
+  res.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  next();
+});
+app.use('/scanner', (req, res, next) => {
   res.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
   next();
 });
@@ -348,6 +352,17 @@ function isOldEnough(dob, event = currentEventContext()) {
   return age !== null && age >= event.MIN_AGE;
 }
 function requireAdmin(req, res, next) { if (req.session.admin) return next(); res.redirect('/admin/login'); }
+function requireScanner(req, res, next) {
+  if (req.session.admin || req.session.scanner) return next();
+  res.redirect('/scanner/login');
+}
+
+async function scannerPasswordAllowed(password) {
+  const raw = String(password || '');
+  const hashes = (process.env.SCANNER_PASSWORD_HASH || '').split(',').map(value => value.trim()).filter(Boolean);
+  if (hashes.length) return (await Promise.all(hashes.map(hash => bcrypt.compare(raw, hash)))).some(Boolean);
+  return raw === (process.env.SCANNER_PASSWORD || 'scan1122');
+}
 
 function normalizeWaitlistPhone(value) {
   let phone = String(value || '').trim().replace(/[\s().-]/g, '');
@@ -860,6 +875,25 @@ app.post('/admin/login', async (req, res) => {
   req.session.admin = true; req.session.adminName = adminName; res.redirect('/admin');
 });
 app.get('/admin/logout', (req, res) => { req.session.destroy(() => res.redirect('/')); });
+app.get('/scanner/login', (req, res) => {
+  if (req.session.admin || req.session.scanner) return res.redirect('/scanner');
+  res.render('scanner-login', { error: null });
+});
+app.post('/scanner/login', async (req, res) => {
+  if (!sensitiveRateAllowed(req, 8, 15 * 60 * 1000)) {
+    return res.status(429).render('scanner-login', { error: 'Too many attempts. Please wait and try again.' });
+  }
+  if (!(await scannerPasswordAllowed(req.body.password))) {
+    return res.status(401).render('scanner-login', { error: 'Wrong scanner password' });
+  }
+  req.session.scanner = true;
+  req.session.scannerName = 'Door Scanner';
+  res.redirect('/scanner');
+});
+app.get('/scanner/logout', requireScanner, (req, res) => {
+  if (req.session.admin) return res.redirect('/admin');
+  req.session.destroy(() => res.redirect('/scanner/login'));
+});
 function cleanManagedEventImageUrl(value) {
   const imageUrl = cleanText(value, 500);
   if (!imageUrl) return '';
@@ -1556,12 +1590,46 @@ app.post('/admin/orders/:id/deny', requireAdmin, async (req, res) => {
   res.redirect(`/admin/orders/${order.id}`);
 });
 
-app.get('/admin/scanner', requireAdmin, (req, res) => res.render('scanner')); // Camera scanning requires HTTPS on phones, except localhost.
-app.get('/admin/scan', requireAdmin, async (req, res) => { const ticket = await getTicketById(req.query.ticket); res.render('scan-result', { ticket, ...eventInfo }); });
+app.get('/admin/scanner', requireAdmin, (req, res) => res.render('scanner', {
+  scanResultPath: '/admin/scan',
+  backUrl: '/admin',
+  backLabel: 'Back to dashboard'
+})); // Camera scanning requires HTTPS on phones, except localhost.
+app.get('/admin/scan', requireAdmin, async (req, res) => {
+  const ticket = await getTicketById(req.query.ticket);
+  res.render('scan-result', {
+    ticket,
+    ...eventInfo,
+    scanAgainPath: '/admin/scanner',
+    checkInPath: `/admin/tickets/${encodeURIComponent(req.query.ticket || '')}/check-in`
+  });
+});
 app.post('/admin/tickets/:id/check-in', requireAdmin, async (req, res) => {
   try {
     await safeCheckIn(req.params.id, req.session.adminName || 'Admin');
     res.redirect(`/admin/scan?ticket=${encodeURIComponent(req.params.id)}`);
+  } catch (err) {
+    res.status(500).render('message', { title: 'Check-in error', message: 'The ticket could not be checked in. Please try again.' });
+  }
+});
+app.get('/scanner', requireScanner, (req, res) => res.render('scanner', {
+  scanResultPath: '/scanner/scan',
+  backUrl: req.session.admin ? '/admin' : '/scanner/logout',
+  backLabel: req.session.admin ? 'Back to dashboard' : 'Log out scanner'
+}));
+app.get('/scanner/scan', requireScanner, async (req, res) => {
+  const ticket = await getTicketById(req.query.ticket);
+  res.render('scan-result', {
+    ticket,
+    ...eventInfo,
+    scanAgainPath: '/scanner',
+    checkInPath: `/scanner/tickets/${encodeURIComponent(req.query.ticket || '')}/check-in`
+  });
+});
+app.post('/scanner/tickets/:id/check-in', requireScanner, async (req, res) => {
+  try {
+    await safeCheckIn(req.params.id, req.session.adminName || req.session.scannerName || 'Door Scanner');
+    res.redirect(`/scanner/scan?ticket=${encodeURIComponent(req.params.id)}`);
   } catch (err) {
     res.status(500).render('message', { title: 'Check-in error', message: 'The ticket could not be checked in. Please try again.' });
   }

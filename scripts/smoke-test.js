@@ -131,6 +131,33 @@ async function run() {
     assert.equal(response.status, 302);
     assert.equal(response.headers.get('location'), '/admin/login');
 
+    response = await request('/scanner');
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get('location'), '/scanner/login');
+
+    response = await request('/scanner/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: form({ password: 'wrong-password' })
+    });
+    assert.equal(response.status, 401);
+
+    response = await request('/scanner/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: form({ password: 'scan1122' })
+    });
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get('location'), '/scanner');
+
+    response = await request('/scanner');
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /Camera QR Scanner/);
+
+    response = await request('/scanner/scan?ticket=not-a-real-ticket');
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /Invalid ticket/);
+
     response = await request('/admin/events');
     assert.equal(response.status, 302);
     assert.equal(response.headers.get('location'), '/admin/login');
