@@ -966,7 +966,7 @@ async function safeCheckIn(ticketId, adminName) {
       client = await getPool().connect();
       await client.query('BEGIN');
       const update = await client.query(
-        `UPDATE tickets SET status='used', data=jsonb_set(jsonb_set(data, '{status}', '"used"'), '{usedAt}', to_jsonb(NOW()::text)) || jsonb_build_object('usedBy', $2), updated_at=NOW()
+        `UPDATE tickets SET status='used', data=jsonb_set(jsonb_set(data, '{status}', '"used"'), '{usedAt}', to_jsonb(NOW()::text)) || jsonb_build_object('usedBy', $2::text), updated_at=NOW()
          WHERE id=$1 AND status='valid' RETURNING data`, [ticketId, adminName]
       );
       let result = 'checked_in';
@@ -1148,11 +1148,11 @@ async function reserveAtomic(validateAndBuild) {
   try {
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock($1)', [RESERVE_LOCK_KEY]);
-    const [orders, tickets, vipCodes] = await Promise.all([
-      client.query('SELECT data FROM orders'),
-      client.query('SELECT data FROM tickets'),
-      client.query('SELECT data FROM vip_codes')
-    ]);
+    // A transaction uses one Postgres client, so these queries must remain
+    // sequential. Parallel client.query calls can overlap on one connection.
+    const orders = await client.query('SELECT data FROM orders');
+    const tickets = await client.query('SELECT data FROM tickets');
+    const vipCodes = await client.query('SELECT data FROM vip_codes');
     const db = { orders: orders.rows.map(r => r.data), tickets: tickets.rows.map(r => r.data), scanHistory: [], vipCodes: vipCodes.rows.map(r => r.data) };
     const outcome = await validateAndBuild(db);
     if (outcome.error) { await client.query('ROLLBACK'); return outcome; }
