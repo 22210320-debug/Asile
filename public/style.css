@@ -350,6 +350,28 @@ td {
 .scanner-history {
   margin-top: 18px;
 }
+.scanner-test-controls {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 18px;
+}
+.scanner-test-controls h2 {
+  margin: 0 0 8px;
+}
+.scanner-test-controls p {
+  max-width: 620px;
+}
+.scanner-test-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.scanner-test-actions form {
+  margin: 0;
+}
 .scanner-history h2 {
   margin: 0 0 12px;
 }

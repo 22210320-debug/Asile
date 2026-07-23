@@ -222,6 +222,22 @@ async function run() {
     assert.equal(response.status, 200);
     assert.match(await response.text(), /Valid ticket/);
 
+    response = await request('/admin/scanner/test-tickets', { method: 'POST' });
+    assert.equal(response.status, 302);
+    assert.match(response.headers.get('location'), /20%20scanner%20test%20tickets/);
+
+    response = await request('/admin?ticketSearch=Scanner%20Test');
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /Scanner Test 01/);
+
+    response = await request('/admin/scanner/test-tickets/remove', { method: 'POST' });
+    assert.equal(response.status, 302);
+    assert.match(response.headers.get('location'), /Removed%2020%20scanner%20test/);
+
+    response = await request('/admin?ticketSearch=Scanner%20Test');
+    assert.equal(response.status, 200);
+    assert.doesNotMatch(await response.text(), /Scanner Test 01/);
+
     response = await request('/admin/events', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },

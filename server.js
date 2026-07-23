@@ -13,7 +13,7 @@ const { ensureCustomerMarketingSchema, listCustomers, getCustomerProfile, update
 
 const app = express();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY, { timeout: Number(process.env.STRIPE_TIMEOUT_MS || 10000) }) : null;
-const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, resetTicketCheckIn, readRecentScans, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount, upsertWaitlistEntry, readWaitlistDashboard, updateWaitlistStatus, exportWaitlistEntries, WAITLIST_STATUSES, MANAGED_EVENT_STATUSES, listManagedEvents, getManagedEvent, upsertManagedEvent } = require('./db');
+const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, resetTicketCheckIn, readRecentScans, removeScannerTestTickets, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount, upsertWaitlistEntry, readWaitlistDashboard, updateWaitlistStatus, exportWaitlistEntries, WAITLIST_STATUSES, MANAGED_EVENT_STATUSES, listManagedEvents, getManagedEvent, upsertManagedEvent } = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
@@ -51,6 +51,7 @@ const WAITLIST_RATE_LIMIT = Number(process.env.WAITLIST_RATE_LIMIT || 5);
 const ASILE_LOGO_PATH = path.join(__dirname, 'public', 'favicon.png');
 const waitlistAttempts = new Map();
 const sensitiveAttempts = new Map();
+const SCANNER_TEST_BATCH = 'scanner-test-v1';
 
 const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_TIME, EVENT_START_AT, EVENT_THEME, DRESS_CODE, MIN_AGE, CAPACITY, TICKET_PRICE, CURRENCY, MAP_URL, WHATSAPP_1, INSTAGRAM_URL, BAR_PARTNER, SPONSOR_NAME, SPONSOR_LOGO_URL, DJ_NAME, DJ_IMAGE_URL, SITE_IMAGE_URL, PAYMENT_METHODS, PAYMENT_PROVIDER_LABEL, PHOTO_BOOTH_PARTNER };
 
@@ -1620,6 +1621,66 @@ app.post('/admin/scans/:id/reset', requireAdmin, async (req, res) => {
       ? 'This ticket is already available to scan.'
       : 'Ticket not found.';
   res.redirect(`/admin/scanner?notice=${encodeURIComponent(notice)}`);
+});
+app.post('/admin/scanner/test-tickets', requireAdmin, async (req, res) => {
+  if (!sensitiveRateAllowed(req, 4)) return res.status(429).render('message', { title: 'Please slow down', message: 'Try creating the test tickets again in a few minutes.' });
+  const event = currentEventContext();
+  const createdAt = new Date().toISOString();
+  const attendees = Array.from({ length: 20 }, (_, index) => {
+    const number = String(index + 1).padStart(2, '0');
+    return { firstName: 'Scanner', lastName: `Test ${number}`, name: `Scanner Test ${number}`, dateOfBirth: '01/01/2000', gender: '' };
+  });
+  const order = {
+    id: `SCANNER-TEST-${id(10)}`,
+    eventId: event.id,
+    eventName: event.EVENT_NAME,
+    eventDate: event.EVENT_DATE,
+    eventTime: event.EVENT_TIME,
+    eventLocation: event.EVENT_LOCATION,
+    eventCapacity: event.CAPACITY,
+    ticketPrice: 0,
+    dressCode: event.DRESS_CODE,
+    minimumAge: event.MIN_AGE,
+    barPartner: event.BAR_PARTNER,
+    sponsorName: event.SPONSOR_NAME,
+    photoBoothPartner: event.PHOTO_BOOTH_PARTNER,
+    buyerName: 'Scanner Test Batch',
+    buyerEmail: '',
+    qty: attendees.length,
+    attendees,
+    amount: 0,
+    paymentMethods: ['Scanner test'],
+    paymentProvider: 'Scanner test only',
+    status: 'approved_captured',
+    approvedAt: createdAt,
+    createdAt,
+    scannerTestBatch: SCANNER_TEST_BATCH,
+    createdBy: req.session.adminName || 'Admin'
+  };
+  const reservation = await reserveAtomic(async freshDb => {
+    if ((freshDb.tickets || []).some(ticket => ticket.scannerTestBatch === SCANNER_TEST_BATCH)) return { error: 'already_exists' };
+    const tickets = [];
+    for (const attendee of attendees) {
+      tickets.push(await createTicketForAttendee(order, attendee, {
+        manual: true,
+        price: 'Scanner test',
+        createdAt,
+        scannerTestBatch: SCANNER_TEST_BATCH
+      }));
+    }
+    return { order, tickets };
+  });
+  const notice = reservation.error === 'already_exists'
+    ? 'The 20 scanner test tickets already exist.'
+    : reservation.error
+      ? 'Test tickets could not be created. Please try again.'
+      : '20 scanner test tickets were created. No payment or email was used.';
+  res.redirect(`/admin/scanner?notice=${encodeURIComponent(notice)}`);
+});
+app.post('/admin/scanner/test-tickets/remove', requireAdmin, async (req, res) => {
+  if (!sensitiveRateAllowed(req, 4)) return res.status(429).render('message', { title: 'Please slow down', message: 'Try removing the test tickets again in a few minutes.' });
+  const deleted = await removeScannerTestTickets(SCANNER_TEST_BATCH);
+  res.redirect(`/admin/scanner?notice=${encodeURIComponent(`Removed ${deleted.ticketsDeleted} scanner test ticket(s) and their scan records.`)}`);
 });
 app.get('/scanner', requireScanner, async (req, res) => {
   const recentScans = await readRecentScans({ limit: 10 });

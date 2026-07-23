@@ -1069,6 +1069,40 @@ async function resetTicketCheckIn(ticketId, adminName) {
   }
 }
 
+async function removeScannerTestTickets(batch) {
+  const marker = String(batch || '').trim();
+  if (!marker) return { ordersDeleted: 0, ticketsDeleted: 0 };
+  if (!usePostgres()) {
+    const db = await readDb();
+    const ticketIds = (db.tickets || []).filter(ticket => ticket.scannerTestBatch === marker).map(ticket => ticket.id);
+    const orderIds = (db.orders || []).filter(order => order.scannerTestBatch === marker).map(order => order.id);
+    db.tickets = (db.tickets || []).filter(ticket => !ticketIds.includes(ticket.id));
+    db.orders = (db.orders || []).filter(order => !orderIds.includes(order.id));
+    db.scanHistory = (db.scanHistory || []).filter(scan => !ticketIds.includes(scan.ticketId));
+    await writeDb(db);
+    return { ordersDeleted: orderIds.length, ticketsDeleted: ticketIds.length };
+  }
+  await initDb();
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const tickets = await client.query("SELECT id FROM tickets WHERE data->>'scannerTestBatch'=$1", [marker]);
+    const ticketIds = tickets.rows.map(row => row.id);
+    if (ticketIds.length) await client.query('DELETE FROM scan_history WHERE ticket_id = ANY($1::text[])', [ticketIds]);
+    const deletedTickets = ticketIds.length
+      ? await client.query('DELETE FROM tickets WHERE id = ANY($1::text[])', [ticketIds])
+      : { rowCount: 0 };
+    const deletedOrders = await client.query("DELETE FROM orders WHERE data->>'scannerTestBatch'=$1", [marker]);
+    await client.query('COMMIT');
+    return { ordersDeleted: deletedOrders.rowCount || 0, ticketsDeleted: deletedTickets.rowCount || 0 };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 // Atomically validate-and-commit a reservation so two simultaneous buyers can
 // never oversell capacity or double-book the same attendee name.
 // `validateAndBuild(freshDb)` is run against the latest data while the write is
@@ -1262,4 +1296,4 @@ async function getSoldOrPendingCount(eventId = '', legacyEventName = '') {
   return result.rows[0]?.count || 0;
 }
 
-module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, resetTicketCheckIn, readRecentScans, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount, upsertWaitlistEntry, readWaitlistDashboard, updateWaitlistStatus, exportWaitlistEntries, WAITLIST_STATUSES, MANAGED_EVENT_STATUSES, listManagedEvents, getManagedEvent, upsertManagedEvent };
+module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, resetTicketCheckIn, readRecentScans, removeScannerTestTickets, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount, upsertWaitlistEntry, readWaitlistDashboard, updateWaitlistStatus, exportWaitlistEntries, WAITLIST_STATUSES, MANAGED_EVENT_STATUSES, listManagedEvents, getManagedEvent, upsertManagedEvent };
