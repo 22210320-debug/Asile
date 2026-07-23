@@ -10,6 +10,9 @@
 <body>
   <main class="hero">
     <section class="card">
+      <% if (scanError) { %>
+        <p class="bad" role="alert">Check-in could not be saved. Please try again. You can return to the scanner below.</p>
+      <% } %>
       <% if (!ticket) { %>
         <h1 class="bad">Invalid ticket</h1>
         <p>This QR code does not match a ticket in the system.</p>
@@ -36,7 +39,7 @@
         <p><b>Sponsor:</b> <%= SPONSOR_NAME %></p>
         <form method="post" action="<%= checkInPath %>"><button type="submit">Check in now</button></form>
       <% } %>
-      <p><a href="<%= scanAgainPath %>">Scan another</a></p>
+      <p><a href="<%= scanAgainPath %>">Return to scanner</a></p>
     </section>
   </main>
 </body>

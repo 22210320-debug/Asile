@@ -1600,6 +1600,7 @@ app.get('/admin/scan', requireAdmin, async (req, res) => {
   res.render('scan-result', {
     ticket,
     ...eventInfo,
+    scanError: req.query.error === 'checkin',
     scanAgainPath: '/admin/scanner',
     checkInPath: `/admin/tickets/${encodeURIComponent(req.query.ticket || '')}/check-in`
   });
@@ -1609,7 +1610,8 @@ app.post('/admin/tickets/:id/check-in', requireAdmin, async (req, res) => {
     await safeCheckIn(req.params.id, req.session.adminName || 'Admin');
     res.redirect(`/admin/scan?ticket=${encodeURIComponent(req.params.id)}`);
   } catch (err) {
-    res.status(500).render('message', { title: 'Check-in error', message: 'The ticket could not be checked in. Please try again.' });
+    console.error('Admin check-in failed:', { ticketId: req.params.id, message: err.message });
+    res.redirect(`/admin/scan?ticket=${encodeURIComponent(req.params.id)}&error=checkin`);
   }
 });
 app.post('/admin/scans/:id/reset', requireAdmin, async (req, res) => {
@@ -1696,6 +1698,7 @@ app.get('/scanner/scan', requireScanner, async (req, res) => {
   res.render('scan-result', {
     ticket,
     ...eventInfo,
+    scanError: req.query.error === 'checkin',
     scanAgainPath: '/scanner',
     checkInPath: `/scanner/tickets/${encodeURIComponent(req.query.ticket || '')}/check-in`
   });
@@ -1705,7 +1708,8 @@ app.post('/scanner/tickets/:id/check-in', requireScanner, async (req, res) => {
     await safeCheckIn(req.params.id, req.session.adminName || req.session.scannerName || 'Door Scanner');
     res.redirect(`/scanner/scan?ticket=${encodeURIComponent(req.params.id)}`);
   } catch (err) {
-    res.status(500).render('message', { title: 'Check-in error', message: 'The ticket could not be checked in. Please try again.' });
+    console.error('Scanner check-in failed:', { ticketId: req.params.id, message: err.message });
+    res.redirect(`/scanner/scan?ticket=${encodeURIComponent(req.params.id)}&error=checkin`);
   }
 });
 

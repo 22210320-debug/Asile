@@ -958,29 +958,41 @@ async function safeCheckIn(ticketId, adminName) {
     return { ticket, result };
   }
   await initDb();
-  const p = getPool();
-  const client = await p.connect();
-  try {
-    await client.query('BEGIN');
-    const update = await client.query(
-      `UPDATE tickets SET status='used', data=jsonb_set(jsonb_set(data, '{status}', '"used"'), '{usedAt}', to_jsonb(NOW()::text)) || jsonb_build_object('usedBy', $2), updated_at=NOW()
-       WHERE id=$1 AND status='valid' RETURNING data`, [ticketId, adminName]
-    );
-    let result = 'checked_in';
-    let ticket;
-    if (update.rowCount) ticket = update.rows[0].data;
-    else {
-      const existing = await client.query('SELECT data FROM tickets WHERE id=$1', [ticketId]);
-      ticket = existing.rows[0]?.data;
-      result = ticket ? 'already_used' : 'not_found';
+  const attempts = Math.max(1, Number(process.env.DATABASE_QUERY_RETRIES || 2));
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    let client;
+    try {
+      client = await getPool().connect();
+      await client.query('BEGIN');
+      const update = await client.query(
+        `UPDATE tickets SET status='used', data=jsonb_set(jsonb_set(data, '{status}', '"used"'), '{usedAt}', to_jsonb(NOW()::text)) || jsonb_build_object('usedBy', $2), updated_at=NOW()
+         WHERE id=$1 AND status='valid' RETURNING data`, [ticketId, adminName]
+      );
+      let result = 'checked_in';
+      let ticket;
+      if (update.rowCount) ticket = update.rows[0].data;
+      else {
+        const existing = await client.query('SELECT data FROM tickets WHERE id=$1', [ticketId]);
+        ticket = existing.rows[0]?.data;
+        result = ticket ? 'already_used' : 'not_found';
+      }
+      await client.query('INSERT INTO scan_history (ticket_id, scanned_by, result) VALUES ($1, $2, $3)', [ticketId, adminName, result]);
+      await client.query('COMMIT');
+      return { ticket, result };
+    } catch (err) {
+      lastError = err;
+      if (client) {
+        try { await client.query('ROLLBACK'); } catch { /* Connection may already be closed. */ }
+      }
+      if (attempt >= attempts || !isTransientDbError(err)) throw err;
+      console.warn(`Check-in retry ${attempt}/${attempts}:`, err.message);
+      await wait(250 * attempt);
+    } finally {
+      if (client) client.release();
     }
-    await client.query('INSERT INTO scan_history (ticket_id, scanned_by, result) VALUES ($1, $2, $3)', [ticketId, adminName, result]);
-    await client.query('COMMIT');
-    return { ticket, result };
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally { client.release(); }
+  }
+  throw lastError;
 }
 
 async function readRecentScans({ limit = 10 } = {}) {
