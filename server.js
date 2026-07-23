@@ -1601,14 +1601,16 @@ app.get('/admin/scan', requireAdmin, async (req, res) => {
     ticket,
     ...eventInfo,
     scanError: req.query.error === 'checkin',
+    justCheckedIn: req.query.checkedIn === '1',
     scanAgainPath: '/admin/scanner',
     checkInPath: `/admin/tickets/${encodeURIComponent(req.query.ticket || '')}/check-in`
   });
 });
 app.post('/admin/tickets/:id/check-in', requireAdmin, async (req, res) => {
   try {
-    await safeCheckIn(req.params.id, req.session.adminName || 'Admin');
-    res.redirect(`/admin/scan?ticket=${encodeURIComponent(req.params.id)}`);
+    const result = await safeCheckIn(req.params.id, req.session.adminName || 'Admin');
+    const checkedIn = result.result === 'checked_in' ? '&checkedIn=1' : '';
+    res.redirect(`/admin/scan?ticket=${encodeURIComponent(req.params.id)}${checkedIn}`);
   } catch (err) {
     console.error('Admin check-in failed:', { ticketId: req.params.id, message: err.message });
     res.redirect(`/admin/scan?ticket=${encodeURIComponent(req.params.id)}&error=checkin`);
@@ -1699,14 +1701,16 @@ app.get('/scanner/scan', requireScanner, async (req, res) => {
     ticket,
     ...eventInfo,
     scanError: req.query.error === 'checkin',
+    justCheckedIn: req.query.checkedIn === '1',
     scanAgainPath: '/scanner',
     checkInPath: `/scanner/tickets/${encodeURIComponent(req.query.ticket || '')}/check-in`
   });
 });
 app.post('/scanner/tickets/:id/check-in', requireScanner, async (req, res) => {
   try {
-    await safeCheckIn(req.params.id, req.session.adminName || req.session.scannerName || 'Door Scanner');
-    res.redirect(`/scanner/scan?ticket=${encodeURIComponent(req.params.id)}`);
+    const result = await safeCheckIn(req.params.id, req.session.adminName || req.session.scannerName || 'Door Scanner');
+    const checkedIn = result.result === 'checked_in' ? '&checkedIn=1' : '';
+    res.redirect(`/scanner/scan?ticket=${encodeURIComponent(req.params.id)}${checkedIn}`);
   } catch (err) {
     console.error('Scanner check-in failed:', { ticketId: req.params.id, message: err.message });
     res.redirect(`/scanner/scan?ticket=${encodeURIComponent(req.params.id)}&error=checkin`);

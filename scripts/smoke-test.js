@@ -208,7 +208,11 @@ async function run() {
 
     response = await request(`/scanner/tickets/${scanTicketId}/check-in`, { method: 'POST' });
     assert.equal(response.status, 302);
-    assert.equal(response.headers.get('location'), `/scanner/scan?ticket=${scanTicketId}`);
+    assert.equal(response.headers.get('location'), `/scanner/scan?ticket=${scanTicketId}&checkedIn=1`);
+
+    response = await request(`/scanner/scan?ticket=${scanTicketId}&checkedIn=1`);
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /Checked in successfully/);
 
     response = await request('/admin/scanner');
     assert.equal(response.status, 200);
