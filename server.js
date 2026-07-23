@@ -13,7 +13,7 @@ const { ensureCustomerMarketingSchema, listCustomers, getCustomerProfile, update
 
 const app = express();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY, { timeout: Number(process.env.STRIPE_TIMEOUT_MS || 10000) }) : null;
-const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount, upsertWaitlistEntry, readWaitlistDashboard, updateWaitlistStatus, exportWaitlistEntries, WAITLIST_STATUSES, MANAGED_EVENT_STATUSES, listManagedEvents, getManagedEvent, upsertManagedEvent } = require('./db');
+const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, resetTicketCheckIn, readRecentScans, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount, upsertWaitlistEntry, readWaitlistDashboard, updateWaitlistStatus, exportWaitlistEntries, WAITLIST_STATUSES, MANAGED_EVENT_STATUSES, listManagedEvents, getManagedEvent, upsertManagedEvent } = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
@@ -1590,11 +1590,10 @@ app.post('/admin/orders/:id/deny', requireAdmin, async (req, res) => {
   res.redirect(`/admin/orders/${order.id}`);
 });
 
-app.get('/admin/scanner', requireAdmin, (req, res) => res.render('scanner', {
-  scanResultPath: '/admin/scan',
-  backUrl: '/admin',
-  backLabel: 'Back to dashboard'
-})); // Camera scanning requires HTTPS on phones, except localhost.
+app.get('/admin/scanner', requireAdmin, async (req, res) => {
+  const scans = await readRecentScans({ limit: 100 });
+  res.render('scanner-admin', { scans, notice: cleanText(req.query.notice, 180) });
+});
 app.get('/admin/scan', requireAdmin, async (req, res) => {
   const ticket = await getTicketById(req.query.ticket);
   res.render('scan-result', {
@@ -1612,11 +1611,25 @@ app.post('/admin/tickets/:id/check-in', requireAdmin, async (req, res) => {
     res.status(500).render('message', { title: 'Check-in error', message: 'The ticket could not be checked in. Please try again.' });
   }
 });
-app.get('/scanner', requireScanner, (req, res) => res.render('scanner', {
-  scanResultPath: '/scanner/scan',
-  backUrl: req.session.admin ? '/admin' : '/scanner/logout',
-  backLabel: req.session.admin ? 'Back to dashboard' : 'Log out scanner'
-}));
+app.post('/admin/scans/:id/reset', requireAdmin, async (req, res) => {
+  if (!sensitiveRateAllowed(req, 30)) return res.status(429).render('message', { title: 'Please slow down', message: 'Try resetting this ticket again in a few minutes.' });
+  const result = await resetTicketCheckIn(req.params.id, req.session.adminName || 'Admin');
+  const notice = result.result === 'reset'
+    ? 'Ticket reset. It can be scanned again.'
+    : result.result === 'not_checked_in'
+      ? 'This ticket is already available to scan.'
+      : 'Ticket not found.';
+  res.redirect(`/admin/scanner?notice=${encodeURIComponent(notice)}`);
+});
+app.get('/scanner', requireScanner, async (req, res) => {
+  const recentScans = await readRecentScans({ limit: 10 });
+  res.render('scanner', {
+    scanResultPath: '/scanner/scan',
+    backUrl: req.session.admin ? '/admin' : '/scanner/logout',
+    backLabel: req.session.admin ? 'Back to dashboard' : 'Log out scanner',
+    recentScans
+  });
+});
 app.get('/scanner/scan', requireScanner, async (req, res) => {
   const ticket = await getTicketById(req.query.ticket);
   res.render('scan-result', {

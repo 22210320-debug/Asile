@@ -347,6 +347,50 @@ td {
   font-size: 14px;
   font-weight: 700;
 }
+.scanner-history {
+  margin-top: 18px;
+}
+.scanner-history h2 {
+  margin: 0 0 12px;
+}
+.scanner-scan-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.scanner-scan-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid rgba(215, 164, 91, 0.22);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.18);
+}
+.scanner-scan-list li > div {
+  display: grid;
+  gap: 4px;
+}
+.scanner-scan-list li > div:last-child {
+  justify-items: end;
+}
+.scanner-scan-list span,
+.scanner-scan-list time {
+  color: #d8bc8b;
+  font-size: 12px;
+}
+@media (max-width: 520px) {
+  .scanner-scan-list li {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .scanner-scan-list li > div:last-child {
+    justify-items: start;
+  }
+}
 .note {
   background: rgba(255, 248, 238, 0.88);
   border: 1px solid rgba(215, 164, 91, 0.26);

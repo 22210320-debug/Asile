@@ -124,6 +124,7 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
     CREATE INDEX IF NOT EXISTS idx_tickets_attendee_name ON tickets(attendee_name);
     CREATE INDEX IF NOT EXISTS idx_tickets_attendee_first_last ON tickets(attendee_first_name, attendee_last_name);
+    CREATE INDEX IF NOT EXISTS idx_scan_history_scanned_at ON scan_history (scanned_at DESC);
     CREATE INDEX IF NOT EXISTS idx_waitlist_status_created_at ON waitlist_entries (status, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_waitlist_email ON waitlist_entries (email);
     CREATE INDEX IF NOT EXISTS idx_waitlist_phone ON waitlist_entries (phone);
@@ -982,6 +983,92 @@ async function safeCheckIn(ticketId, adminName) {
   } finally { client.release(); }
 }
 
+async function readRecentScans({ limit = 10 } = {}) {
+  const safeLimit = Math.min(100, Math.max(1, Number(limit) || 10));
+  if (!usePostgres()) {
+    const db = await readDb();
+    const ticketsById = new Map((db.tickets || []).map(ticket => [ticket.id, ticket]));
+    return (db.scanHistory || [])
+      .slice()
+      .sort((a, b) => new Date(b.scannedAt || 0) - new Date(a.scannedAt || 0))
+      .slice(0, safeLimit)
+      .map(scan => {
+        const ticket = ticketsById.get(scan.ticketId);
+        return {
+          ...scan,
+          attendeeName: ticket?.attendeeName || '',
+          eventName: ticket?.eventName || '',
+          ticketStatus: ticket?.status || ''
+        };
+      });
+  }
+  await initDb();
+  const result = await pgQuery(
+    `SELECT sh.ticket_id, sh.scanned_by, sh.result, sh.scanned_at,
+            t.attendee_name, t.status AS ticket_status, t.data->>'eventName' AS event_name
+     FROM scan_history sh
+     LEFT JOIN tickets t ON t.id=sh.ticket_id
+     ORDER BY sh.scanned_at DESC
+     LIMIT $1`,
+    [safeLimit]
+  );
+  return result.rows.map(row => ({
+    ticketId: row.ticket_id,
+    scannedBy: row.scanned_by,
+    result: row.result,
+    scannedAt: row.scanned_at,
+    attendeeName: row.attendee_name || '',
+    eventName: row.event_name || '',
+    ticketStatus: row.ticket_status || ''
+  }));
+}
+
+async function resetTicketCheckIn(ticketId, adminName) {
+  if (!usePostgres()) {
+    const db = await readDb();
+    const ticket = (db.tickets || []).find(item => item.id === ticketId);
+    if (!ticket) return { ticket: null, result: 'not_found' };
+    if (ticket.status !== 'used') return { ticket, result: 'not_checked_in' };
+    ticket.status = 'valid';
+    delete ticket.usedAt;
+    delete ticket.usedBy;
+    db.scanHistory = db.scanHistory || [];
+    db.scanHistory.unshift({ ticketId, scannedBy: adminName, result: 'check_in_reset', scannedAt: new Date().toISOString() });
+    await writeDb(db);
+    return { ticket, result: 'reset' };
+  }
+  await initDb();
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const update = await client.query(
+      `UPDATE tickets
+       SET status='valid',
+           data=(data - 'usedAt' - 'usedBy') || jsonb_build_object('status', 'valid'),
+           updated_at=NOW()
+       WHERE id=$1 AND status='used'
+       RETURNING data`,
+      [ticketId]
+    );
+    let ticket = update.rows[0]?.data || null;
+    let result = 'reset';
+    if (!ticket) {
+      const existing = await client.query('SELECT data, status FROM tickets WHERE id=$1', [ticketId]);
+      ticket = existing.rows[0]?.data || null;
+      result = ticket ? 'not_checked_in' : 'not_found';
+    } else {
+      await client.query('INSERT INTO scan_history (ticket_id, scanned_by, result) VALUES ($1, $2, $3)', [ticketId, adminName, 'check_in_reset']);
+    }
+    await client.query('COMMIT');
+    return { ticket, result };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 // Atomically validate-and-commit a reservation so two simultaneous buyers can
 // never oversell capacity or double-book the same attendee name.
 // `validateAndBuild(freshDb)` is run against the latest data while the write is
@@ -1175,4 +1262,4 @@ async function getSoldOrPendingCount(eventId = '', legacyEventName = '') {
   return result.rows[0]?.count || 0;
 }
 
-module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount, upsertWaitlistEntry, readWaitlistDashboard, updateWaitlistStatus, exportWaitlistEntries, WAITLIST_STATUSES, MANAGED_EVENT_STATUSES, listManagedEvents, getManagedEvent, upsertManagedEvent };
+module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, resetTicketCheckIn, readRecentScans, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount, upsertWaitlistEntry, readWaitlistDashboard, updateWaitlistStatus, exportWaitlistEntries, WAITLIST_STATUSES, MANAGED_EVENT_STATUSES, listManagedEvents, getManagedEvent, upsertManagedEvent };

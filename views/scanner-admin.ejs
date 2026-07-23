@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>Check-in management | Asile</title>
+  <link rel="stylesheet" href="/public/style.css?v=20260723a">
+</head>
+<body>
+  <main class="wrap admin-wrap">
+    <header class="panel admin-page-header">
+      <div>
+        <p class="eyebrow">Door management</p>
+        <h1>Scanned tickets</h1>
+        <p class="muted">The camera scanner is available at <a href="/scanner">/scanner</a>. Reset a ticket only when it was checked in by mistake.</p>
+      </div>
+      <nav class="admin-nav" aria-label="Admin navigation">
+        <a href="/admin">Dashboard</a>
+        <a href="/scanner">Open camera scanner</a>
+      </nav>
+    </header>
+
+    <% if (notice) { %><p class="notice" role="status"><%= notice %></p><% } %>
+
+    <section class="panel admin-data-section" aria-labelledby="scanned-tickets-title">
+      <div class="admin-section-header">
+        <div class="admin-section-title">
+          <p class="eyebrow">Latest activity</p>
+          <h2 id="scanned-tickets-title">Scanned tickets</h2>
+          <p class="muted">Showing the latest <%= scans.length %> scan record(s).</p>
+        </div>
+      </div>
+      <% if (!scans.length) { %>
+        <p class="muted">No QR tickets have been scanned yet.</p>
+      <% } else { %>
+        <table class="admin-card-table">
+          <tr><th>Guest</th><th>Ticket</th><th>Result</th><th>Scanned by</th><th>Time</th><th>Action</th></tr>
+          <% scans.forEach(scan => { %>
+            <tr>
+              <td data-label="Guest"><%= scan.attendeeName || 'Unknown ticket' %></td>
+              <td data-label="Ticket"><%= scan.ticketId %></td>
+              <td data-label="Result"><span class="status-pill"><%= String(scan.result || '').replace(/_/g, ' ') %></span></td>
+              <td data-label="Scanned by"><%= scan.scannedBy || 'Scanner' %></td>
+              <td data-label="Time"><%= scan.scannedAt %></td>
+              <td data-label="Action">
+                <% if (scan.ticketStatus === 'used') { %>
+                  <form method="post" action="/admin/scans/<%= encodeURIComponent(scan.ticketId) %>/reset" onsubmit="return confirm('Reset this ticket so it can be scanned again?')">
+                    <button class="danger compact-action" type="submit">Reset scan</button>
+                  </form>
+                <% } else { %>
+                  <span class="muted">Available</span>
+                <% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </table>
+      <% } %>
+    </section>
+  </main>
+</body>
+</html>

@@ -176,11 +176,51 @@ async function run() {
       '/admin/events',
       '/admin/waitlist',
       '/admin/customers',
+      '/admin/scanner',
       '/admin/marketing?audience=priority_access'
     ]) {
       response = await request(page);
       assert.equal(response.status, 200, `${page} should load for an authenticated admin.`);
     }
+
+    response = await request('/admin/manual-ticket', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: form({
+        eventId: 'sunset-house-party-2026',
+        firstName: 'Scan',
+        lastName: 'Test',
+        dateOfBirth: '24/07/2000',
+        gender: 'Female',
+        buyerEmail: ''
+      })
+    });
+    assert.equal(response.status, 302);
+    const manualOrderUrl = response.headers.get('location');
+    assert.ok(manualOrderUrl, 'Manual ticket did not redirect to its order.');
+
+    response = await request(manualOrderUrl);
+    assert.equal(response.status, 200);
+    const manualOrderHtml = await response.text();
+    const ticketMatch = manualOrderHtml.match(/ASILE-[A-F0-9]+/);
+    assert.ok(ticketMatch, 'Manual ticket ID was not shown on its order page.');
+    const scanTicketId = ticketMatch[0];
+
+    response = await request(`/scanner/tickets/${scanTicketId}/check-in`, { method: 'POST' });
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get('location'), `/scanner/scan?ticket=${scanTicketId}`);
+
+    response = await request('/admin/scanner');
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /Scan Test/);
+
+    response = await request(`/admin/scans/${scanTicketId}/reset`, { method: 'POST' });
+    assert.equal(response.status, 302);
+    assert.match(response.headers.get('location'), /Ticket%20reset/);
+
+    response = await request(`/scanner/scan?ticket=${scanTicketId}`);
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /Valid ticket/);
 
     response = await request('/admin/events', {
       method: 'POST',

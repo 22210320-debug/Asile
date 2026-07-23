@@ -20,6 +20,30 @@
       </div>
       <div id="reader" class="scanner-reader"></div>
     </section>
+    <section class="panel scanner-history" aria-labelledby="recent-scans-title">
+      <div>
+        <p class="eyebrow">Door activity</p>
+        <h2 id="recent-scans-title">Last 10 scans</h2>
+      </div>
+      <% if (!recentScans || !recentScans.length) { %>
+        <p class="muted">No tickets have been scanned yet.</p>
+      <% } else { %>
+        <ol class="scanner-scan-list">
+          <% recentScans.forEach(scan => { %>
+            <li>
+              <div>
+                <b><%= scan.attendeeName || scan.ticketId %></b>
+                <span><%= scan.ticketId %></span>
+              </div>
+              <div>
+                <span class="status-pill"><%= String(scan.result || '').replace(/_/g, ' ') %></span>
+                <time><%= scan.scannedAt %></time>
+              </div>
+            </li>
+          <% }) %>
+        </ol>
+      <% } %>
+    </section>
   </main>
   <script>
     window.addEventListener('DOMContentLoaded', async () => {
