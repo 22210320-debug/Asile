@@ -23,22 +23,6 @@
 
     <% if (notice) { %><p class="notice" role="status"><%= notice %></p><% } %>
 
-    <section class="panel scanner-test-controls" aria-labelledby="scanner-test-title">
-      <div>
-        <p class="eyebrow">Testing only</p>
-        <h2 id="scanner-test-title">Scanner test tickets</h2>
-        <p class="muted">Creates exactly 20 marked test tickets. They do not charge Stripe or send email. Remove deletes only this test batch and its scan records.</p>
-      </div>
-      <div class="scanner-test-actions">
-        <form method="post" action="/admin/scanner/test-tickets" onsubmit="return confirm('Generate 20 scanner test tickets?')">
-          <button class="button compact command-primary" type="submit">Generate 20 test tickets</button>
-        </form>
-        <form method="post" action="/admin/scanner/test-tickets/remove" onsubmit="return confirm('Remove all scanner test tickets and their scan records?')">
-          <button class="danger compact-action" type="submit">Remove test tickets</button>
-        </form>
-      </div>
-    </section>
-
     <section class="panel admin-data-section" aria-labelledby="scanned-tickets-title">
       <div class="admin-section-header">
         <div class="admin-section-title">
