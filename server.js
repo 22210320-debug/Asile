@@ -450,8 +450,20 @@ function priorityAccessEmail(entry) {
   </div>`;
 }
 
-function priorityAccessSuccess(res) {
-  return res.render('waitlist', { success: true, error: null, values: {}, INSTAGRAM_URL, SITE_IMAGE_URL });
+function renderPriorityList(res, { success = false, error = null, values = {}, mainPage = false } = {}) {
+  return res.render('waitlist', {
+    success,
+    error,
+    values,
+    mainPage,
+    formAction: mainPage ? '/' : WAITLIST_PATH,
+    INSTAGRAM_URL,
+    SITE_IMAGE_URL
+  });
+}
+
+function priorityAccessSuccess(res, mainPage = false) {
+  return renderPriorityList(res, { success: true, mainPage });
 }
 
 function htmlToText(html) {
@@ -605,11 +617,7 @@ async function createTicketForAttendee(order, attendee, overrides = {}) {
 
 app.get('/healthz', (req, res) => res.status(200).json({ ok: true, service: 'asile-ticket-site' }));
 
-app.get(WAITLIST_PATH, (req, res) => {
-  res.render('waitlist', { success: false, error: null, values: {}, INSTAGRAM_URL, SITE_IMAGE_URL });
-});
-
-app.post(WAITLIST_PATH, async (req, res) => {
+async function handlePriorityListSubmission(req, res, { mainPage = false } = {}) {
   const values = {
     fullName: cleanText(req.body.fullName, 100),
     phone: cleanText(req.body.phone, 32),
@@ -618,11 +626,14 @@ app.post(WAITLIST_PATH, async (req, res) => {
     attendedBefore: cleanText(req.body.attendedBefore, 3),
     referralSource: cleanText(req.body.referralSource, 32)
   };
-  const showError = (message, status = 400) => res.status(status).render('waitlist', { success: false, error: message, values, INSTAGRAM_URL, SITE_IMAGE_URL });
+  const showError = (message, status = 400) => {
+    res.status(status);
+    return renderPriorityList(res, { error: message, values, mainPage });
+  };
 
   // Bots normally fill invisible fields. Reply with the normal success state
   // without saving anything so the check does not reveal itself.
-  if (cleanText(req.body.company, 100)) return priorityAccessSuccess(res);
+  if (cleanText(req.body.company, 100)) return priorityAccessSuccess(res, mainPage);
   if (!waitlistRateAllowed(req)) return showError('Too many attempts. Please wait a few minutes, then try again.', 429);
   if (!values.fullName) return showError('Enter your full name.');
   const phone = normalizeWaitlistPhone(values.phone);
@@ -661,12 +672,17 @@ app.post(WAITLIST_PATH, async (req, res) => {
         attachments: [{ filename: 'asile-logo.png', path: ASILE_LOGO_PATH, cid: 'asile-priority-logo', contentType: 'image/png' }]
       });
     }
-    return priorityAccessSuccess(res);
+    return priorityAccessSuccess(res, mainPage);
   } catch (err) {
     console.error('Priority access submission failed:', err.message);
     return showError('We could not save your information right now. Please try again in a moment.', 503);
   }
-});
+}
+
+app.get(WAITLIST_PATH, (req, res) => renderPriorityList(res));
+app.post(WAITLIST_PATH, (req, res) => handlePriorityListSubmission(req, res));
+app.get('/', (req, res) => renderPriorityList(res, { mainPage: true }));
+app.post('/', (req, res) => handlePriorityListSubmission(req, res, { mainPage: true }));
 
 async function renderHomePage(req, res, { privateReserve = false, event = currentEventContext() } = {}) {
   try {
@@ -694,7 +710,6 @@ async function renderHomePage(req, res, { privateReserve = false, event = curren
   }
 }
 
-app.get('/', (req, res) => renderHomePage(req, res));
 app.get(VIP_RESERVE_PATH, (req, res) => renderHomePage(req, res, { privateReserve: true }));
 app.get('/events/:eventId', async (req, res) => {
   const event = await getEventContext(req.params.eventId);
@@ -707,22 +722,15 @@ app.get('/events/:eventId/private-reserve', async (req, res) => {
   return renderHomePage(req, res, { event, privateReserve: true });
 });
 app.get('/events', async (req, res) => {
-  let ticketAvailability = { soldOrPending: 0, remaining: CAPACITY, soldOut: false };
   let futureEvents = [];
 
   try {
-    const [soldOrPending, publishedEvents] = await Promise.all([getSoldOrPendingCount(CURRENT_EVENT_ID, EVENT_NAME), listManagedEvents({ publicOnly: true })]);
-    ticketAvailability = {
-      soldOrPending,
-      remaining: Math.max(0, CAPACITY - soldOrPending),
-      soldOut: soldOrPending >= CAPACITY
-    };
-    futureEvents = publishedEvents;
+    futureEvents = await listManagedEvents({ publicOnly: true });
   } catch (err) {
     console.error('Events availability unavailable:', err.message);
   }
 
-  res.render('events', { ...eventInfo, money, ticketAvailability, futureEvents, WAITLIST_PATH });
+  res.render('events', { ...eventInfo, money, futureEvents, WAITLIST_PATH });
 });
 
 async function handleReserve(req, res, { bypassCapacity = false, event = currentEventContext() } = {}) {
@@ -821,7 +829,7 @@ async function handleReserve(req, res, { bypassCapacity = false, event = current
   }
 }
 
-app.post('/reserve', (req, res) => handleReserve(req, res));
+app.post('/reserve', (req, res) => res.status(410).render('message', { title: 'Event completed', message: 'Sunset House Party has ended. Join the Priority List for the next Asile experience.' }));
 app.post(VIP_RESERVE_PATH, (req, res) => handleReserve(req, res, { bypassCapacity: true }));
 app.post('/events/:eventId/reserve', async (req, res) => {
   const event = await getEventContext(req.params.eventId);

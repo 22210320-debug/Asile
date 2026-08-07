@@ -82,11 +82,11 @@ async function run() {
 
     let response = await request('/');
     assert.equal(response.status, 200);
-    assert.match(await response.text(), /Priority List for future events/);
+    assert.match(await response.text(), /FIRST ACCESS TO FUTURE ASILE EVENTS/);
 
     response = await request('/events');
     assert.equal(response.status, 200);
-    assert.match(await response.text(), /Current experience/);
+    assert.match(await response.text(), /Previous event/);
 
     response = await request('/waitlist');
     assert.equal(response.status, 200);
@@ -116,6 +116,18 @@ async function run() {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: form(priorityEntry)
+    });
+    assert.equal(response.status, 200);
+
+    response = await request('/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: form({
+        ...priorityEntry,
+        phone: '+970 599 123 457',
+        email: 'main.priority@example.com',
+        instagramUsername: 'mainpriority'
+      })
     });
     assert.equal(response.status, 200);
     assert.match(await response.text(), /YOU’RE ON THE LIST/);

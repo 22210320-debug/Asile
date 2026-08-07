@@ -19,7 +19,7 @@
 </head>
 <body class="priority-body asile-public-page">
   <main class="priority-shell">
-    <a class="priority-back" href="/">Back to Asile.site</a>
+    <% if (!mainPage) { %><a class="priority-back" href="/">Back to Asile.site</a><% } %>
     <a class="priority-logo-link" href="/" aria-label="Return to Asile.site"><img class="priority-logo" src="/public/asile-logo-ivory.png?v=20260715a" alt="Asile Events"></a>
 
     <% if (success) { %>
@@ -31,7 +31,7 @@
         <p class="priority-note">Joining the list does not guarantee admission or a ticket.</p>
         <div class="priority-actions">
           <a class="priority-button" href="<%= INSTAGRAM_URL %>" target="_blank" rel="noopener">FOLLOW ASILE ON INSTAGRAM</a>
-          <a class="priority-button priority-button-secondary" href="/">RETURN TO ASILE.SITE</a>
+          <a class="priority-button priority-button-secondary" href="/events">VIEW ASILE EVENTS</a>
         </div>
       </section>
     <% } else { %>
@@ -39,7 +39,7 @@
         <p class="priority-kicker">PRIVATE ACCESS</p>
         <h1>FIRST ACCESS TO FUTURE ASILE EVENTS</h1>
         <p class="priority-intro">Join the Asile Priority List for early access to future event releases, private invitations, and exclusive announcements.</p>
-        <p class="priority-soldout">The current event is sold out. Join the Priority List to hear first if places reopen and to receive early access to upcoming Asile experiences.</p>
+        <p class="priority-soldout">Sunset House Party has ended. Join the Priority List to receive early access to the next Asile experience.</p>
         <div class="priority-benefits" aria-label="Priority List benefits">
           <span>Early ticket releases</span>
           <span>Private event invitations</span>
@@ -47,7 +47,7 @@
         </div>
 
         <% if (error) { %><p class="priority-error" role="alert"><%= error %></p><% } %>
-        <form method="post" action="/waitlist" class="priority-form" id="priorityForm" novalidate>
+        <form method="post" action="<%= formAction %>" class="priority-form" id="priorityForm" novalidate>
           <div class="priority-honeypot" aria-hidden="true">
             <label>Company<input name="company" tabindex="-1" autocomplete="off"></label>
           </div>
