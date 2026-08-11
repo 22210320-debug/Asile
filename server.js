@@ -19,6 +19,7 @@ const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 const EVENT_NAME = process.env.EVENT_NAME || 'Sunset House Party';
 const CURRENT_EVENT_ID = process.env.EVENT_ID || 'sunset-house-party-2026';
+const ADMIN_DEFAULT_EVENT_ID = 'from-horizon-to-underground-2026';
 const COMPANY_NAME = process.env.COMPANY_NAME || "ASIL'E";
 const EVENT_LOCATION = process.env.EVENT_LOCATION || 'Cremisan';
 const EVENT_DATE = process.env.EVENT_DATE || 'July 24, 2026';
@@ -1007,7 +1008,8 @@ app.get('/admin', requireAdmin, async (req, res) => {
   try {
     const managedEvents = await listManagedEvents();
     const eventOptions = [currentEventContext(), ...managedEvents.map(managedEventContext)];
-    const selectedEvent = eventOptions.find(event => event.id === cleanText(req.query.event, 80)) || currentEventContext();
+    const defaultAdminEvent = eventOptions.find(event => event.id === ADMIN_DEFAULT_EVENT_ID) || currentEventContext();
+    const selectedEvent = eventOptions.find(event => event.id === cleanText(req.query.event, 80)) || defaultAdminEvent;
     const pageSize = 10;
     const searches = {
       orderSearch: String(req.query.orderSearch || '').trim(),
