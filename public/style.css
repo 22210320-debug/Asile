@@ -3024,7 +3024,7 @@ body.events-body.asile-public-page {
   --parallax-x: 0px;
   --parallax-y: 0px;
   position: relative;
-  min-height: 220svh;
+  min-height: 240svh;
   overflow: visible;
   color: #f5f1e8;
   text-align: center;
@@ -3317,7 +3317,7 @@ body.events-body.asile-public-page {
     width: min(100% - 32px, 1120px);
   }
   .events-transition {
-    min-height: 200svh;
+    min-height: 220svh;
   }
   .transition-sunset-content,
   .transition-underground-content {
