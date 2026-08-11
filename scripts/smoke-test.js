@@ -94,7 +94,8 @@ async function run() {
     assert.match(undergroundEventHtml, /FROM THE HORIZON TO THE UNDERGROUND/);
     assert.match(undergroundEventHtml, /Warshe Pub/);
     assert.match(undergroundEventHtml, /Official beer sponsor/);
-    assert.match(undergroundEventHtml, /keo-logo\.jpeg/);
+    assert.match(undergroundEventHtml, /keo-logo\.png/);
+    assert.match(undergroundEventHtml, /warshe-pub-logo\.png/);
     assert.doesNotMatch(undergroundEventHtml, /tickets left/);
 
     response = await request('/waitlist');

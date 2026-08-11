@@ -1229,10 +1229,7 @@ table.admin-card-table tr:hover td {
 .event-detail-grid .detail-venue img {
   display: block;
   width: min(148px, 100%);
-  max-height: 64px;
-  padding: 7px 10px;
-  border-radius: 4px;
-  background: #f5f1e8;
+  max-height: 72px;
   object-fit: contain;
 }
 .feature-strip {
@@ -2884,8 +2881,18 @@ body.asile-public-page .panel,
   pointer-events: none;
 }
 .event-scene .modern-home::after {
-  height: 30%;
-  background: linear-gradient(transparent, rgba(8, 8, 8, 0.88));
+  height: 36%;
+  background: linear-gradient(transparent 10%, rgba(8, 8, 8, 0.68));
+}
+.event-scene .home-wrap {
+  position: relative;
+  z-index: 1;
+  margin-top: -100px;
+  padding-top: 20px;
+}
+.event-scene .home-wrap > * {
+  position: relative;
+  z-index: 1;
 }
 .event-scene .home-nav {
   border-color: rgba(201, 31, 53, 0.5);
