@@ -15,9 +15,10 @@
   <title>Asile Events</title>
   <link rel="icon" type="image/png" sizes="1024x1024" href="/public/favicon.png?v=20260715b">
   <link rel="apple-touch-icon" sizes="1024x1024" href="/public/favicon.png?v=20260715b">
+  <link rel="preload" href="/public/vineyard-sunset.svg" as="image" type="image/svg+xml">
   <link rel="preload" href="/public/underground-red-carpet.jpg" as="image">
-  <link rel="stylesheet" href="/public/style.css?v=20260811d">
-  <script src="/public/events-story.js?v=20260811a" defer></script>
+  <link rel="stylesheet" href="/public/style.css?v=20260811f">
+  <script src="/public/events-story.js?v=20260811b" defer></script>
 </head>
 <body class="events-body asile-public-page">
   <header class="events-nav">
@@ -40,45 +41,52 @@
     </section>
 
     <section class="events-section sunset-event-section" aria-labelledby="previous-event-heading">
-      <div class="events-section-heading">
-        <div>
-          <p class="eyebrow">Previous event</p>
-          <h2 id="previous-event-heading"><%= EVENT_NAME %></h2>
-        </div>
-        <span class="event-state event-state-sold-out">Completed</span>
-      </div>
-
-      <article class="event-directory-card sunset-event-card">
-        <div class="event-directory-image">
-          <img src="<%= DJ_IMAGE_URL %>" alt="<%= DJ_NAME %>" decoding="async">
-          <span><%= EVENT_THEME %></span>
-        </div>
-        <div class="event-directory-content">
-          <p class="event-directory-kicker"><%= EVENT_DATE %> · <%= EVENT_TIME %></p>
-          <h3><%= EVENT_NAME %></h3>
-          <p>An <%= DRESS_CODE.toLowerCase() %> sunset gathering at <%= EVENT_LOCATION %>, with house music from <%= DJ_NAME %>, named QR entry, and an approved guest list.</p>
-          <dl class="event-directory-facts">
-            <div><dt>Location</dt><dd><%= EVENT_LOCATION %></dd></div>
-            <div><dt>Entry</dt><dd><%= MIN_AGE %>+</dd></div>
-            <div><dt>Dress</dt><dd><%= DRESS_CODE %></dd></div>
-            <div><dt>Status</dt><dd>Completed</dd></div>
-          </dl>
-          <div class="event-directory-actions">
-            <a class="button secondary" href="<%= MAP_URL %>" target="_blank" rel="noopener">Open location</a>
+      <div class="sunset-event-sticky">
+        <div class="events-section-heading">
+          <div>
+            <p class="eyebrow">Previous event</p>
+            <h2 id="previous-event-heading"><%= EVENT_NAME %></h2>
           </div>
+          <span class="event-state event-state-sold-out">Completed</span>
         </div>
-      </article>
+
+        <article class="event-directory-card sunset-event-card">
+          <div class="event-directory-image">
+            <img src="<%= DJ_IMAGE_URL %>" alt="<%= DJ_NAME %>" decoding="async">
+            <span><%= EVENT_THEME %></span>
+          </div>
+          <div class="event-directory-content">
+            <p class="event-directory-kicker"><%= EVENT_DATE %> · <%= EVENT_TIME %></p>
+            <h3><%= EVENT_NAME %></h3>
+            <p>An <%= DRESS_CODE.toLowerCase() %> sunset gathering at <%= EVENT_LOCATION %>, with house music from <%= DJ_NAME %>, named QR entry, and an approved guest list.</p>
+            <dl class="event-directory-facts">
+              <div><dt>Location</dt><dd><%= EVENT_LOCATION %></dd></div>
+              <div><dt>Entry</dt><dd><%= MIN_AGE %>+</dd></div>
+              <div><dt>Dress</dt><dd><%= DRESS_CODE %></dd></div>
+              <div><dt>Status</dt><dd>Completed</dd></div>
+            </dl>
+            <div class="event-directory-actions">
+              <a class="button secondary" href="<%= MAP_URL %>" target="_blank" rel="noopener">Open location</a>
+            </div>
+          </div>
+        </article>
+      </div>
     </section>
 
     <% if (undergroundEvent) { %>
       <section class="events-transition" aria-label="Transition from Sunset House Party to the next Asile experience">
-        <div class="events-transition-sunset" aria-hidden="true"></div>
-        <div class="events-transition-underground" aria-hidden="true"></div>
-        <div class="events-transition-charcoal" aria-hidden="true"></div>
-        <div class="events-transition-crimson" aria-hidden="true"></div>
-        <div class="events-transition-copy">
-          <p>FROM THE HORIZON TO THE UNDERGROUND</p>
-          <span>The sun has set. A new chapter begins.</span>
+        <div class="events-transition-sticky">
+          <div class="events-transition-sunset" aria-hidden="true"></div>
+          <div class="events-transition-underground" aria-hidden="true"></div>
+          <div class="events-transition-charcoal" aria-hidden="true"></div>
+          <div class="events-transition-crimson" aria-hidden="true"></div>
+          <div class="events-transition-copy">
+            <p aria-label="From the horizon to the underground">
+              <span>From the horizon</span>
+              <span>To the underground</span>
+            </p>
+            <span class="events-transition-subtitle">The sun has set. A new chapter begins.</span>
+          </div>
         </div>
       </section>
 

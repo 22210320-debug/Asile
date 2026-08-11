@@ -3019,6 +3019,10 @@ body.asile-public-page .panel,
   background-attachment: scroll;
   overflow-x: clip;
 }
+body.events-body.asile-public-page {
+  background: linear-gradient(180deg, #5b291a 0, #30191a 22%, #120e10 48%, #080808 72%), #080808;
+  background-attachment: scroll;
+}
 .events-story {
   padding-top: 58px;
 }
@@ -3035,7 +3039,44 @@ body.asile-public-page .panel,
   color: #ead7c2;
 }
 .sunset-event-section {
-  margin-top: 46px;
+  --sunset-progress: 0;
+  --sunset-content-offset: 0px;
+  --sunset-background-opacity: 0.72;
+  --sunset-content-opacity: 1;
+  position: relative;
+  min-height: 126svh;
+  width: 100vw;
+  margin: 28px calc(50% - 50vw) 0;
+}
+.sunset-event-sticky {
+  position: sticky;
+  top: 0;
+  display: grid;
+  min-height: 100svh;
+  align-content: center;
+  gap: 28px;
+  padding: 100px max(20px, calc((100vw - 1160px) / 2)) 72px;
+  overflow: hidden;
+}
+.sunset-event-sticky::before,
+.sunset-event-sticky::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  pointer-events: none;
+}
+.sunset-event-sticky::before {
+  background: url('/public/vineyard-sunset.svg') center / cover no-repeat;
+  opacity: var(--sunset-background-opacity);
+}
+.sunset-event-sticky::after {
+  background: linear-gradient(180deg, rgba(83, 31, 18, 0.26), rgba(14, 9, 10, 0.86));
+}
+.sunset-event-sticky > * {
+  position: relative;
+  z-index: 1;
+  opacity: var(--sunset-content-opacity);
+  transform: translateY(var(--sunset-content-offset));
 }
 .sunset-event-card {
   border-color: rgba(232, 161, 86, 0.35) !important;
@@ -3058,13 +3099,19 @@ body.asile-public-page .panel,
 .events-transition {
   --transition-progress: 0;
   position: relative;
-  display: grid;
-  min-height: 72svh;
-  place-items: center;
+  min-height: 150svh;
   overflow: hidden;
   margin: 0 calc(50% - 50vw);
   color: #f5f1e8;
   text-align: center;
+}
+.events-transition-sticky {
+  position: sticky;
+  top: 0;
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+  overflow: hidden;
 }
 .events-transition-sunset,
 .events-transition-underground,
@@ -3076,21 +3123,22 @@ body.asile-public-page .panel,
 }
 .events-transition-sunset {
   background:
-    linear-gradient(180deg, rgba(75, 25, 16, 0.1), rgba(54, 22, 16, 0.34)),
+    linear-gradient(180deg, rgba(75, 25, 16, 0.04), rgba(54, 22, 16, 0.28)),
     url('/public/vineyard-sunset.svg') center / cover no-repeat;
   opacity: calc(1 - var(--transition-progress));
 }
 .events-transition-underground {
   background: url('/public/underground-red-carpet.jpg') center / cover no-repeat;
   opacity: var(--transition-progress);
+  transform: scale(calc(1.06 - var(--transition-progress) * 0.06));
 }
 .events-transition-charcoal {
   background: #161616;
-  opacity: calc(0.12 + var(--transition-progress) * 0.68);
+  opacity: calc(0.08 + var(--transition-progress) * 0.42);
 }
 .events-transition-crimson {
-  background: linear-gradient(180deg, rgba(97, 7, 21, 0.04), rgba(142, 12, 32, 0.46));
-  opacity: calc(var(--transition-progress) * 0.58);
+  background: radial-gradient(ellipse 70% 46% at 50% 100%, rgba(157, 11, 35, 0.56), transparent 72%);
+  opacity: calc(var(--transition-progress) * 0.72);
 }
 .events-transition-copy {
   position: relative;
@@ -3101,15 +3149,34 @@ body.asile-public-page .panel,
 .events-transition-copy p {
   margin: 0;
   color: #f5f1e8;
-  font-size: clamp(28px, 4vw, 54px);
+  font-size: clamp(32px, 5vw, 68px);
   font-weight: 700;
-  line-height: 1.06;
+  line-height: 0.98;
+  text-transform: uppercase;
 }
-.events-transition-copy span {
+.events-transition-copy p span {
+  display: block;
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 180ms linear,
+    transform 180ms linear;
+}
+.events-transition-copy p span:first-child {
+  opacity: clamp(0, calc((var(--transition-progress) - 0.16) * 4), 1);
+  transform: translateY(clamp(0px, calc((0.42 - var(--transition-progress)) * 52px), 22px));
+}
+.events-transition-copy p span:nth-child(2) {
+  opacity: clamp(0, calc((var(--transition-progress) - 0.32) * 4), 1);
+  transform: translateY(clamp(0px, calc((0.58 - var(--transition-progress)) * 52px), 22px));
+}
+.events-transition-subtitle {
   display: block;
   margin-top: 14px;
   color: #e1d8db;
   font-size: clamp(14px, 1.8vw, 18px);
+  opacity: clamp(0, calc((var(--transition-progress) - 0.52) * 3), 1);
+  transform: translateY(clamp(0px, calc((0.76 - var(--transition-progress)) * 24px), 16px));
 }
 .underground-event-section {
   position: relative;
@@ -3218,7 +3285,7 @@ body.asile-public-page .panel,
     padding-top: 34px;
   }
   .events-transition {
-    min-height: 70svh;
+    min-height: 130svh;
   }
   .events-transition,
   .underground-event-section {
@@ -3228,6 +3295,9 @@ body.asile-public-page .panel,
   }
   .events-transition-copy {
     padding: 24px 20px;
+  }
+  .events-transition-underground {
+    transform: scale(calc(1.025 - var(--transition-progress) * 0.025));
   }
   .underground-event-section {
     padding: 0;
@@ -3252,17 +3322,31 @@ body.asile-public-page .panel,
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .events-transition {
+    min-height: 82svh;
+  }
+  .events-transition-sticky {
+    position: relative;
+    min-height: 82svh;
+  }
   .events-transition-sunset {
-    opacity: 0.38;
+    opacity: 0;
   }
   .events-transition-underground {
-    opacity: 0.62;
+    opacity: 1;
+    transform: none;
   }
   .events-transition-charcoal {
-    opacity: 0.5;
+    opacity: 0.42;
   }
   .events-transition-crimson {
-    opacity: 0.28;
+    opacity: 0.46;
+  }
+  .events-transition-copy p span,
+  .events-transition-subtitle {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
   .underground-event-card {
     transform: none !important;
