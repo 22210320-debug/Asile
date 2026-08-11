@@ -176,7 +176,7 @@ function combineName(first, last) { return cleanName(`${cleanName(first)} ${clea
 function ticketDisplayName(ticket = {}) {
   const validName = value => {
     const name = cleanName(value);
-    return name && !['undefined', 'null', 'n/a', 'na', 'unknown'].includes(name.toLowerCase()) ? name : '';
+    return name && !/(^|\s)(undefined|null|n\/a|na|unknown)(\s|$)/i.test(name) ? name : '';
   };
   return validName(ticket.attendeeName)
     || validName(combineName(ticket.attendeeFirstName, ticket.attendeeLastName))
@@ -561,9 +561,10 @@ function ticketPublicUrl(ticket) {
 function ticketEmailHtml(ticket) {
   const qrCid = `qr-${ticket.id}@asile`;
   const publicUrl = ticketPublicUrl(ticket);
+  const name = ticketDisplayName(ticket);
   return `<div style="background:#fffaf3;border:1px solid #d7a45b;border-radius:18px;padding:18px;margin:14px 0;font-family:Arial,sans-serif;max-width:430px;color:#1d130d;box-shadow:0 10px 30px rgba(0,0,0,.18)">
     <h2 style="margin:0 0 12px;color:#1d130d">${EVENT_NAME}</h2>
-    <p style="margin:6px 0"><b>Name:</b> ${ticket.attendeeName}</p>
+    <p style="margin:6px 0"><b>Name:</b> ${name}</p>
     <p style="margin:6px 0"><b>Ticket:</b> ${ticket.id}</p>
     <p style="margin:6px 0"><b>Time:</b> ${EVENT_TIME}</p>
     <p style="margin:6px 0"><b>Location:</b> ${EVENT_LOCATION}</p>
@@ -590,7 +591,7 @@ function ticketEmailBackground(content) {
 function ticketEmailText(ticket) {
   return [
     `${ticket.eventName || EVENT_NAME} ticket`,
-    `Name: ${ticket.attendeeName}`,
+    `Name: ${ticketDisplayName(ticket)}`,
     `Ticket ID: ${ticket.id}`,
     `Time: ${ticket.eventTime || EVENT_TIME}`,
     `Location: ${ticket.location || EVENT_LOCATION}`,

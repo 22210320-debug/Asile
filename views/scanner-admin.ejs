@@ -36,9 +36,9 @@
       <% } else { %>
         <table class="admin-card-table">
           <tr><th>Guest</th><th>Ticket</th><th>Result</th><th>Scanned by</th><th>Time</th><th>Action</th></tr>
-          <% scans.forEach(scan => { %>
+          <% scans.forEach(scan => { const scanName = ticketDisplayName(scan); %>
             <tr>
-              <td data-label="Guest"><%= scan.attendeeName || 'Unknown ticket' %></td>
+              <td data-label="Guest"><%= scanName %></td>
               <td data-label="Ticket"><%= scan.ticketId %></td>
               <td data-label="Result"><span class="status-pill"><%= String(scan.result || '').replace(/_/g, ' ') %></span></td>
               <td data-label="Scanned by"><%= scan.scannedBy || 'Scanner' %></td>

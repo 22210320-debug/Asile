@@ -29,10 +29,10 @@
         <p class="muted">No tickets have been scanned yet.</p>
       <% } else { %>
         <ol class="scanner-scan-list">
-          <% recentScans.forEach(scan => { %>
+          <% recentScans.forEach(scan => { const scanName = ticketDisplayName(scan); %>
             <li>
               <div>
-                <b><%= scan.attendeeName || scan.ticketId %></b>
+                <b><%= scanName === 'Guest name unavailable' ? scan.ticketId : scanName %></b>
                 <span><%= scan.ticketId %></span>
               </div>
               <div>
