@@ -82,7 +82,7 @@ async function run() {
 
     let response = await request('/');
     assert.equal(response.status, 200);
-    assert.match(await response.text(), /FIRST ACCESS TO FUTURE ASILE EVENTS/);
+    assert.match(await response.text(), /FROM THE HORIZON TO THE UNDERGROUND/);
 
     response = await request('/events');
     assert.equal(response.status, 200);

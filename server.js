@@ -689,7 +689,15 @@ async function handlePriorityListSubmission(req, res, { mainPage = false } = {})
 
 app.get(WAITLIST_PATH, (req, res) => renderPriorityList(res));
 app.post(WAITLIST_PATH, (req, res) => handlePriorityListSubmission(req, res));
-app.get('/', (req, res) => renderPriorityList(res, { mainPage: true }));
+app.get('/', async (req, res) => {
+  try {
+    const featuredEvent = (await listManagedEvents({ publicOnly: true }))[0];
+    if (featuredEvent) return renderHomePage(req, res, { event: managedEventContext(featuredEvent) });
+  } catch (err) {
+    console.error('Featured event unavailable:', err.message);
+  }
+  return renderPriorityList(res, { mainPage: true });
+});
 app.post('/', (req, res) => handlePriorityListSubmission(req, res, { mainPage: true }));
 
 async function renderHomePage(req, res, { privateReserve = false, event = currentEventContext() } = {}) {
