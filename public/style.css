@@ -3415,7 +3415,9 @@ body.events-body.asile-public-page {
     position: fixed;
     z-index: 0;
     inset: 0;
-    background: var(--asile-site-background);
+    background:
+      linear-gradient(180deg, rgba(4, 4, 5, 0.28), rgba(4, 4, 5, 0.08) 48%, rgba(4, 4, 5, 0.62)),
+      url('/public/underground-red-carpet-mobile.jpg') center / cover no-repeat;
     background-position: center center;
     content: '';
     pointer-events: none;
