@@ -3407,14 +3407,26 @@ body.events-body.asile-public-page {
 }
 @media (max-width: 760px) {
   body.asile-public-page.event-scene {
+    isolation: isolate;
     background: #080808;
     background-attachment: scroll;
   }
-  .event-scene .modern-home {
-    /* Mobile Safari does not reliably paint a fixed body background through a transparent hero. */
+  body.asile-public-page.event-scene::after {
+    position: fixed;
+    z-index: 0;
+    inset: 0;
     background: var(--asile-site-background);
-    background-attachment: scroll;
     background-position: center center;
+    content: '';
+    pointer-events: none;
+  }
+  body.asile-public-page.event-scene > * {
+    position: relative;
+    z-index: 1;
+  }
+  .event-scene .modern-home {
+    /* The fixed scene layer keeps the background still while mobile content scrolls. */
+    background: transparent;
   }
   .event-scene .modern-home {
     min-height: 100svh;
