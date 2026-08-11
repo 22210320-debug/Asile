@@ -3406,10 +3406,19 @@ body.events-body.asile-public-page {
   }
 }
 @media (max-width: 760px) {
+  body.asile-public-page.event-scene {
+    background: #080808;
+    background-attachment: scroll;
+  }
+  .event-scene .modern-home {
+    /* Mobile Safari does not reliably paint a fixed body background through a transparent hero. */
+    background: var(--asile-site-background);
+    background-attachment: scroll;
+    background-position: center center;
+  }
   .event-scene .modern-home {
     min-height: 100svh;
     padding: 92px 16px 9vh;
-    background-position: center center;
   }
   .event-scene .hero-copy {
     padding: 20px 18px 22px;
