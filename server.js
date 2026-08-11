@@ -58,13 +58,14 @@ const SCANNER_TEST_BATCH = 'scanner-test-v1';
 const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_TIME, EVENT_START_AT, EVENT_THEME, DRESS_CODE, MIN_AGE, CAPACITY, TICKET_PRICE, EVENT_DISPLAY_NAME: '', EVENT_DESCRIPTION: '', EVENT_CAPACITY_LABEL: '', EVENT_ENTRY_POLICY: '', EVENT_MUSIC_DESCRIPTION: '', EVENT_CONCEPT: '', EVENT_PARTNERS: [], CURRENCY, MAP_URL, WHATSAPP_1, INSTAGRAM_URL, BAR_PARTNER, EVENT_BEVERAGE_PARTNER_LABEL, SPONSOR_NAME, SPONSOR_LOGO_URL, DJ_NAME, DJ_IMAGE_URL, SITE_IMAGE_URL, PAYMENT_METHODS, PAYMENT_PROVIDER_LABEL, PHOTO_BOOTH_PARTNER };
 
 function currentEventContext() {
-  return { id: CURRENT_EVENT_ID, kind: 'current', ...eventInfo, eventPath: '/', reservePath: '/reserve', privateReservePath: VIP_RESERVE_PATH };
+  return { id: CURRENT_EVENT_ID, kind: 'current', EVENT_STATUS: 'completed', ...eventInfo, eventPath: '/', reservePath: '/reserve', privateReservePath: VIP_RESERVE_PATH };
 }
 
 function managedEventContext(event) {
   return {
     id: event.id,
     kind: 'managed',
+    EVENT_STATUS: event.status || 'draft',
     EVENT_NAME: event.name,
     COMPANY_NAME,
     EVENT_LOCATION: event.location,
@@ -113,6 +114,15 @@ async function getAdminEventContext(eventId) {
   if (!eventId || eventId === CURRENT_EVENT_ID) return currentEventContext();
   const event = await getManagedEvent(eventId);
   return event ? managedEventContext(event) : null;
+}
+
+async function getAdminShell(req, activePage) {
+  const managedEvents = await listManagedEvents();
+  const eventOptions = [currentEventContext(), ...managedEvents.map(managedEventContext)];
+  const defaultEvent = eventOptions.find(event => event.id === ADMIN_DEFAULT_EVENT_ID) || currentEventContext();
+  const requestedEvent = cleanText(req.query.event, 80);
+  const selectedEvent = eventOptions.find(event => event.id === requestedEvent) || defaultEvent;
+  return { activePage, eventOptions, selectedEvent };
 }
 
 app.set('view engine', 'ejs');
@@ -270,6 +280,8 @@ function dashboardStats(stats, event = currentEventContext()) {
   const ratioTotal = femaleCount + maleCount;
   return {
     approvedCount: stats.approvedCount || 0,
+    checkedInCount: stats.checkedInCount || 0,
+    paidRevenue: stats.paidRevenue || 0,
     awaitingPaymentCount: stats.awaitingPaymentCount || 0,
     stuckOrderCount: stats.stuckOrderCount || 0,
     remaining: Math.max(0, event.CAPACITY - Number(stats.remainingSoldOrPending || 0)),
@@ -977,9 +989,9 @@ function managedEventValues(body, existing = {}) {
 
 app.get('/admin/events', requireAdmin, async (req, res) => {
   try {
-    const events = await listManagedEvents();
+    const [events, adminShell] = await Promise.all([listManagedEvents(), getAdminShell(req, 'events')]);
     const editEvent = req.query.edit ? await getManagedEvent(cleanText(req.query.edit, 80)) : null;
-    res.render('event-manager', { events, editEvent, statuses: MANAGED_EVENT_STATUSES, notice: cleanText(req.query.notice, 180) });
+    res.render('event-manager', { events, editEvent, statuses: MANAGED_EVENT_STATUSES, notice: cleanText(req.query.notice, 180), adminShell });
   } catch (err) {
     console.error('Event manager unavailable:', err.message);
     res.status(503).render('message', { title: 'Event manager unavailable', message: 'Event listings could not be loaded. Please refresh in a moment.' });
@@ -1006,11 +1018,9 @@ app.post('/admin/events/:id', requireAdmin, async (req, res) => {
 
 app.get('/admin', requireAdmin, async (req, res) => {
   try {
-    const managedEvents = await listManagedEvents();
-    const eventOptions = [currentEventContext(), ...managedEvents.map(managedEventContext)];
-    const defaultAdminEvent = eventOptions.find(event => event.id === ADMIN_DEFAULT_EVENT_ID) || currentEventContext();
-    const selectedEvent = eventOptions.find(event => event.id === cleanText(req.query.event, 80)) || defaultAdminEvent;
-    const pageSize = 10;
+    const adminShell = await getAdminShell(req, 'dashboard');
+    const { eventOptions, selectedEvent } = adminShell;
+    const pageSize = 5;
     const searches = {
       orderSearch: String(req.query.orderSearch || '').trim(),
       orderStatus: String(req.query.orderStatus || '').trim(),
@@ -1022,7 +1032,7 @@ app.get('/admin', requireAdmin, async (req, res) => {
       ticketsPage: pageNumber(req.query.ticketsPage),
       scansPage: pageNumber(req.query.scansPage)
     };
-    const dashboard = await readAdminDashboard({
+    const [dashboard, priorityOverview] = await Promise.all([readAdminDashboard({
       orderLimit: pageSize,
       orderOffset: (pages.ordersPage - 1) * pageSize,
       orderSearch: searches.orderSearch,
@@ -1034,7 +1044,7 @@ app.get('/admin', requireAdmin, async (req, res) => {
       scanOffset: (pages.scansPage - 1) * pageSize,
       eventId: selectedEvent.id,
       legacyEventName: selectedEvent.EVENT_NAME
-    });
+    }), readWaitlistDashboard({ limit: 1, offset: 0 })]);
     res.render('admin', {
       orders: dashboard.orders,
       tickets: dashboard.tickets.filter(isIssuedTicket),
@@ -1052,15 +1062,93 @@ app.get('/admin', requireAdmin, async (req, res) => {
       ...selectedEvent,
       eventOptions,
       selectedEvent,
+      adminShell,
       money,
       orderStatusLabel,
       statusClass,
       notice: req.query.notice || '',
-      usePostgres: usePostgres()
+      usePostgres: usePostgres(),
+      prioritySignupCount: priorityOverview.totalAll || 0
     });
   } catch (err) {
     console.error('Admin dashboard database unavailable:', err.message);
     res.status(503).render('message', { title: 'Database temporarily unavailable', message: 'The admin database did not respond. Please refresh in a moment.' });
+  }
+});
+
+app.get('/admin/orders', requireAdmin, async (req, res) => {
+  try {
+    const adminShell = await getAdminShell(req, 'orders');
+    const pageSize = 20;
+    const page = pageNumber(req.query.page);
+    const search = cleanText(req.query.search, 120);
+    const status = cleanText(req.query.status, 80);
+    const dashboard = await readAdminDashboard({
+      orderLimit: pageSize,
+      orderOffset: (page - 1) * pageSize,
+      orderSearch: search,
+      orderStatus: status,
+      ticketLimit: 1,
+      scanLimit: 1,
+      eventId: adminShell.selectedEvent.id,
+      legacyEventName: adminShell.selectedEvent.EVENT_NAME
+    });
+    const pageInfo = pageMeta(page, dashboard.orderCount, pageSize);
+    const pageUrl = targetPage => {
+      const params = new URLSearchParams({ event: adminShell.selectedEvent.id, page: String(targetPage) });
+      if (search) params.set('search', search);
+      if (status) params.set('status', status);
+      return `/admin/orders?${params.toString()}`;
+    };
+    res.render('admin-orders', {
+      adminShell,
+      orders: dashboard.orders,
+      stats: dashboardStats(dashboard.stats, adminShell.selectedEvent),
+      search,
+      selectedStatus: status,
+      pageInfo,
+      pageUrl,
+      money,
+      orderStatusLabel,
+      statusClass
+    });
+  } catch (err) {
+    console.error('Admin orders unavailable:', err.message);
+    res.status(503).render('message', { title: 'Orders temporarily unavailable', message: 'Orders could not be loaded. Please refresh in a moment.' });
+  }
+});
+
+app.get('/admin/tickets', requireAdmin, async (req, res) => {
+  try {
+    const adminShell = await getAdminShell(req, 'tickets');
+    const pageSize = 20;
+    const page = pageNumber(req.query.page);
+    const search = cleanText(req.query.search, 120);
+    const dashboard = await readAdminDashboard({
+      orderLimit: 1,
+      ticketLimit: pageSize,
+      ticketOffset: (page - 1) * pageSize,
+      ticketSearch: search,
+      scanLimit: 1,
+      eventId: adminShell.selectedEvent.id,
+      legacyEventName: adminShell.selectedEvent.EVENT_NAME
+    });
+    const pageInfo = pageMeta(page, dashboard.ticketCount, pageSize);
+    const pageUrl = targetPage => {
+      const params = new URLSearchParams({ event: adminShell.selectedEvent.id, page: String(targetPage) });
+      if (search) params.set('search', search);
+      return `/admin/tickets?${params.toString()}`;
+    };
+    res.render('admin-tickets', {
+      adminShell,
+      tickets: dashboard.tickets.filter(isIssuedTicket),
+      search,
+      pageInfo,
+      pageUrl
+    });
+  } catch (err) {
+    console.error('Admin tickets unavailable:', err.message);
+    res.status(503).render('message', { title: 'Tickets temporarily unavailable', message: 'Tickets could not be loaded. Please refresh in a moment.' });
   }
 });
 
@@ -1088,7 +1176,7 @@ app.get('/admin/customers', requireAdmin, async (req, res) => {
       page: pageNumber(req.query.page),
       limit: 50
     };
-    const result = await listCustomers(filters);
+    const [result, adminShell] = await Promise.all([listCustomers(filters), getAdminShell(req, 'customers')]);
     res.render('customers', {
       customers: result.customers,
       filters,
@@ -1099,7 +1187,8 @@ app.get('/admin/customers', requireAdmin, async (req, res) => {
       duplicateCandidates: result.duplicateCandidates,
       pageInfo: pageMeta(result.page, result.total, result.pageSize),
       customerQueryUrl,
-      money
+      money,
+      adminShell
     });
   } catch (err) {
     console.error('Customer directory unavailable:', err.message);
@@ -1109,9 +1198,9 @@ app.get('/admin/customers', requireAdmin, async (req, res) => {
 
 app.get('/admin/customers/:id', requireAdmin, async (req, res) => {
   try {
-    const customer = await getCustomerProfile(req.params.id);
+    const [customer, adminShell] = await Promise.all([getCustomerProfile(req.params.id), getAdminShell(req, 'customers')]);
     if (!customer) return res.status(404).render('message', { title: 'Customer not found', message: 'This customer profile does not exist.' });
-    res.render('customer-profile', { customer, customerStatuses: CUSTOMER_STATUSES, money, orderStatusLabel, ...eventInfo });
+    res.render('customer-profile', { customer, customerStatuses: CUSTOMER_STATUSES, money, orderStatusLabel, ...eventInfo, adminShell });
   } catch (err) {
     console.error('Customer profile unavailable:', err.message);
     res.status(503).render('message', { title: 'Customer profile unavailable', message: 'This customer could not be loaded. Please refresh in a moment.' });
@@ -1158,9 +1247,10 @@ app.get('/admin/marketing', requireAdmin, async (req, res) => {
   try {
     const audience = cleanText(req.query.audience, 80) || 'all_subscribed';
     const selectedEvent = cleanText(req.query.selectedEvent, 160);
-    const [campaigns, customers] = await Promise.all([
+    const [campaigns, customers, adminShell] = await Promise.all([
       listCampaigns(),
-      listCustomers({ limit: 100000 })
+      listCustomers({ limit: 100000 }),
+      getAdminShell(req, 'marketing')
     ]);
     const eligibleCustomers = customers.customers.filter(customer => {
       if (customer.marketingStatus !== 'subscribed' || !customer.email) return false;
@@ -1181,7 +1271,8 @@ app.get('/admin/marketing', requireAdmin, async (req, res) => {
       bulkProviderReady: false,
       defaultReplyTo: process.env.MARKETING_REPLY_TO || process.env.SMTP_USER || '',
       defaultSenderName: process.env.MARKETING_SENDER_NAME || 'Asile Events',
-      previewHtml: req.query.previewBody ? marketingEmailHtml({ senderName: cleanText(req.query.senderName, 100) || 'Asile Events', body: cleanText(req.query.previewBody, 10000), unsubscribeUrl: `${BASE_URL}/email/unsubscribe?token={{secure_token}}` }) : ''
+      previewHtml: req.query.previewBody ? marketingEmailHtml({ senderName: cleanText(req.query.senderName, 100) || 'Asile Events', body: cleanText(req.query.previewBody, 10000), unsubscribeUrl: `${BASE_URL}/email/unsubscribe?token={{secure_token}}` }) : '',
+      adminShell
     });
   } catch (err) {
     console.error('Marketing admin unavailable:', err.message);
@@ -1240,12 +1331,12 @@ app.get('/admin/waitlist', requireAdmin, async (req, res) => {
     const page = pageNumber(req.query.page);
     const search = cleanText(req.query.search, 120);
     const status = String(req.query.status || '').trim().toLowerCase();
-    const dashboard = await readWaitlistDashboard({
+    const [dashboard, adminShell] = await Promise.all([readWaitlistDashboard({
       limit: pageSize,
       offset: (page - 1) * pageSize,
       search,
       status
-    });
+    }), getAdminShell(req, 'waitlist')]);
     const pageInfo = pageMeta(page, dashboard.total, pageSize);
     res.render('waitlist-admin', {
       entries: dashboard.entries,
@@ -1262,7 +1353,8 @@ app.get('/admin/waitlist', requireAdmin, async (req, res) => {
         params.set('page', String(targetPage));
         return `/admin/waitlist?${params.toString()}`;
       },
-      notice: cleanText(req.query.notice, 180)
+      notice: cleanText(req.query.notice, 180),
+      adminShell
     });
   } catch (err) {
     console.error('Waitlist admin database unavailable:', err.message);
@@ -1302,7 +1394,7 @@ app.get('/admin/waitlist/export.csv', requireAdmin, async (req, res) => {
 
 app.get('/admin/orders/:id', requireAdmin, async (req, res) => {
   try {
-    const order = await getOrderById(req.params.id);
+    const [order, adminShell] = await Promise.all([getOrderById(req.params.id), getAdminShell(req, 'orders')]);
     try {
       if (await syncOrderFromStripe(order)) await upsertOrder(order);
     } catch (err) {
@@ -1322,7 +1414,7 @@ app.get('/admin/orders/:id', requireAdmin, async (req, res) => {
       SPONSOR_NAME: order.sponsorName || SPONSOR_NAME,
       PHOTO_BOOTH_PARTNER: order.photoBoothPartner || PHOTO_BOOTH_PARTNER
     } : eventInfo;
-    res.render('order', { order, tickets, ...orderEvent, money });
+    res.render('order', { order, tickets, ...orderEvent, money, orderStatusLabel, statusClass, adminShell });
   } catch (err) {
     console.error('Admin order database unavailable:', req.params.id, err.message);
     res.status(503).render('message', { title: 'Database temporarily unavailable', message: 'This order could not be loaded right now. Please refresh in a moment.' });
@@ -1635,8 +1727,8 @@ app.post('/admin/orders/:id/deny', requireAdmin, async (req, res) => {
 });
 
 app.get('/admin/scanner', requireAdmin, async (req, res) => {
-  const scans = await readRecentScans({ limit: 100 });
-  res.render('scanner-admin', { scans, notice: cleanText(req.query.notice, 180) });
+  const [scans, adminShell] = await Promise.all([readRecentScans({ limit: 10 }), getAdminShell(req, 'scanner')]);
+  res.render('scanner-admin', { scans, notice: cleanText(req.query.notice, 180), adminShell });
 });
 app.get('/admin/scan', requireAdmin, async (req, res) => {
   const ticket = await getTicketById(req.query.ticket);

@@ -5,21 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>Check-in management | Asile</title>
-  <link rel="stylesheet" href="/public/style.css?v=20260723a">
+  <link rel="stylesheet" href="/public/style.css?v=20260811-admin">
 </head>
-<body>
-  <main class="wrap admin-wrap">
-    <header class="panel admin-page-header">
-      <div>
-        <p class="eyebrow">Door management</p>
-        <h1>Scanned tickets</h1>
-        <p class="muted">The camera scanner is available at <a href="/scanner">/scanner</a>. Reset a ticket only when it was checked in by mistake.</p>
-      </div>
-      <nav class="admin-nav" aria-label="Admin navigation">
-        <a href="/admin">Dashboard</a>
-        <a href="/scanner">Open camera scanner</a>
-      </nav>
-    </header>
+<body class="admin-app-body">
+  <div class="admin-app-shell">
+    <%- include('partials/admin-sidebar', { adminShell }) %>
+    <main class="admin-app-main">
+      <%- include('partials/admin-topbar', { adminShell, pageTitle: 'QR check-in' }) %>
+      <section class="admin-page-intro"><p>Use the camera scanner for entry. Reset a scan only when a guest was checked in by mistake.</p><a class="button compact command-primary" href="/scanner">Open camera scanner</a></section>
 
     <% if (notice) { %><p class="notice" role="status"><%= notice %></p><% } %>
 
@@ -57,6 +50,7 @@
         </table>
       <% } %>
     </section>
-  </main>
+    </main>
+  </div>
 </body>
 </html>

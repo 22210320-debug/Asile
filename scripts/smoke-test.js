@@ -198,6 +198,8 @@ async function run() {
     assert.match(await response.text(), /ASILE - FROM THE HORIZON TO THE UNDERGROUND/);
 
     for (const page of [
+      '/admin/orders',
+      '/admin/tickets',
       '/admin/events',
       '/admin/waitlist',
       '/admin/customers',
@@ -255,7 +257,7 @@ async function run() {
     assert.equal(response.status, 302);
     assert.match(response.headers.get('location'), /20%20scanner%20test%20tickets/);
 
-    response = await request('/admin?event=sunset-house-party-2026&ticketSearch=Scanner%20Test');
+    response = await request('/admin/tickets?event=sunset-house-party-2026&search=Scanner%20Test');
     assert.equal(response.status, 200);
     assert.match(await response.text(), /Scanner Test 01/);
 
@@ -263,7 +265,7 @@ async function run() {
     assert.equal(response.status, 302);
     assert.match(response.headers.get('location'), /Removed%2020%20scanner%20test/);
 
-    response = await request('/admin?event=sunset-house-party-2026&ticketSearch=Scanner%20Test');
+    response = await request('/admin/tickets?event=sunset-house-party-2026&search=Scanner%20Test');
     assert.equal(response.status, 200);
     assert.doesNotMatch(await response.text(), /Scanner Test 01/);
 

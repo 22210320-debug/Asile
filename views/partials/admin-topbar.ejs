@@ -1,0 +1,19 @@
+<header class="admin-topbar">
+  <div>
+    <p class="eyebrow">Asile control</p>
+    <h1><%= pageTitle %></h1>
+  </div>
+  <div class="admin-topbar-actions">
+    <form class="admin-topbar-event" method="get" action="/admin" aria-label="Select event dashboard">
+      <label for="adminTopbarEvent">Event</label>
+      <select id="adminTopbarEvent" name="event" onchange="this.form.submit()">
+        <% adminShell.eventOptions.forEach(event => { %>
+          <option value="<%= event.id %>" <%= adminShell.selectedEvent.id === event.id ? 'selected' : '' %>><%= event.EVENT_NAME %></option>
+        <% }) %>
+      </select>
+    </form>
+    <span class="admin-event-status status-pill admin-event-status-<%= adminShell.selectedEvent.EVENT_STATUS %>"><%= adminShell.selectedEvent.EVENT_STATUS %></span>
+    <a class="button compact command-primary" href="/admin/events">Create event</a>
+    <a class="admin-profile-link" href="/admin/logout" title="Log out">Admin</a>
+  </div>
+</header>

@@ -597,6 +597,10 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearc
       scanCount: (db.scanHistory || []).filter(scan => eventTickets.some(ticket => ticket.id === scan.ticketId)).length,
       stats: {
         approvedCount: issuedTickets.length,
+        checkedInCount: issuedTickets.filter(ticket => ticket.status === 'used').length,
+        paidRevenue: eventOrders
+          .filter(order => order.status === 'approved_captured')
+          .reduce((sum, order) => sum + Number(order.amount || 0), 0),
         awaitingPaymentCount: eventOrders.filter(order => order.status === 'awaiting_payment_authorization').length,
         stuckOrderCount: eventOrders.filter(order => {
           if (['payment_error', 'cancelled'].includes(order.status)) return true;
@@ -673,6 +677,17 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearc
           END
         ), 0)::int AS remaining_sold_or_pending
         ,
+        COALESCE(SUM(
+          CASE WHEN data->>'status' = 'approved_captured'
+            THEN COALESCE((data->>'amount')::int, 0)
+            ELSE 0
+          END
+        ), 0)::int AS paid_revenue,
+        (
+          SELECT COUNT(*)::int
+          FROM tickets
+          WHERE event_id=$2 AND status = 'used'
+        ) AS checked_in_count,
         (
           SELECT COUNT(*)::int
           FROM tickets
@@ -747,6 +762,8 @@ async function readAdminDashboard({ orderLimit = 10, orderOffset = 0, orderSearc
     scanCount: scanCount.rows[0]?.count || 0,
     stats: {
       approvedCount: ticketCount.rows[0]?.count || 0,
+      checkedInCount: statsRow.checked_in_count || 0,
+      paidRevenue: statsRow.paid_revenue || 0,
       awaitingPaymentCount: statsRow.awaiting_payment_count || 0,
       stuckOrderCount: statsRow.stuck_order_count || 0,
       remainingSoldOrPending: statsRow.remaining_sold_or_pending || 0,

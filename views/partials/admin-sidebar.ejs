@@ -1,0 +1,24 @@
+<aside class="admin-sidebar" aria-label="Admin navigation">
+  <a class="admin-sidebar-brand" href="/admin" aria-label="Asile admin dashboard">
+    <img src="/public/asile-logo-ivory.png" alt="Asile Events">
+    <span>Operations</span>
+  </a>
+  <nav class="admin-sidebar-nav">
+    <p>Overview</p>
+    <a class="<%= adminShell.activePage === 'dashboard' ? 'is-active' : '' %>" href="/admin?event=<%= encodeURIComponent(adminShell.selectedEvent.id) %>">Dashboard</a>
+    <p>Event operations</p>
+    <a class="<%= adminShell.activePage === 'orders' ? 'is-active' : '' %>" href="/admin/orders?event=<%= encodeURIComponent(adminShell.selectedEvent.id) %>">Orders</a>
+    <a class="<%= adminShell.activePage === 'tickets' ? 'is-active' : '' %>" href="/admin/tickets?event=<%= encodeURIComponent(adminShell.selectedEvent.id) %>">Tickets</a>
+    <a class="<%= adminShell.activePage === 'scanner' ? 'is-active' : '' %>" href="/admin/scanner">QR check-in</a>
+    <a class="<%= adminShell.activePage === 'events' ? 'is-active' : '' %>" href="/admin/events">Event manager</a>
+    <p>Guests</p>
+    <a class="<%= adminShell.activePage === 'customers' ? 'is-active' : '' %>" href="/admin/customers">Customers</a>
+    <a class="<%= adminShell.activePage === 'waitlist' ? 'is-active' : '' %>" href="/admin/waitlist">Priority List</a>
+    <p>Marketing</p>
+    <a class="<%= adminShell.activePage === 'marketing' ? 'is-active' : '' %>" href="/admin/marketing">Campaigns &amp; drafts</a>
+  </nav>
+  <div class="admin-sidebar-footer">
+    <a href="/admin/events">Create event</a>
+    <a class="admin-signout" href="/admin/logout">Log out</a>
+  </div>
+</aside>

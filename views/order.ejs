@@ -1,73 +1,63 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
-  <title>Order</title>
-  <link rel="stylesheet" href="/public/style.css?v=20260714f">
+  <title>Order review | Asile Admin</title>
+  <link rel="stylesheet" href="/public/style.css?v=20260811-admin">
 </head>
-<body>
-<main class="wrap">
-  <a href="/admin">← Dashboard</a>
-  <% if(!order){ %>
-    <h1>Order not found</h1>
-  <% } else { %>
-    <h1><%= order.buyerName %></h1>
-    <div class="panel">
-      <p><b>Email:</b> <%= order.buyerEmail %></p>
-      <p><b>Quantity:</b> <%= order.qty %></p>
-      <p><b>Amount:</b> <%= money(order.amount) %></p>
-      <p><b>Payment:</b> Apple Pay, Google Pay, and Visa/card support through Stripe Checkout.</p>
-      <p><b>Status:</b> <%= order.status %></p>
-      <p><b>Event:</b> <%= EVENT_DATE %>, <%= EVENT_TIME %>, <%= EVENT_LOCATION %></p>
-      <p><b>Dress code:</b> <%= DRESS_CODE %> · <b>Age:</b> <%= MIN_AGE %>+</p>
-      <p><b>Bar:</b> <%= BAR_PARTNER %> · <b>Sponsor:</b> <%= SPONSOR_NAME %> · <b>Included:</b> <%= PHOTO_BOOTH_PARTNER %></p>
-      <p class="note"><b>Door rule:</b> Ticket name must match the attendee ID. Every attendee must arrive wearing <%= DRESS_CODE %>.</p>
-    </div>
+<body class="admin-app-body">
+  <div class="admin-app-shell">
+    <%- include('partials/admin-sidebar', { adminShell }) %>
+    <main class="admin-app-main admin-order-review">
+      <%- include('partials/admin-topbar', { adminShell, pageTitle: 'Order review' }) %>
+      <a class="text-link" href="/admin/orders?event=<%= encodeURIComponent(adminShell.selectedEvent.id) %>">Back to orders</a>
 
-    <h2>Requested attendees</h2>
-    <table>
-      <tr><th>First name</th><th>Last name</th><th>Full name</th><th>Date of birth</th><th>Gender</th><th></th></tr>
-      <% (order.attendees || []).forEach((a, index)=>{ const attendeeName = ticketDisplayName({ attendeeName: a.name, attendeeFirstName: a.firstName, attendeeLastName: a.lastName, buyerName: order.buyerName }); %>
-        <tr>
-          <td><%= a.firstName || '' %></td>
-          <td><%= a.lastName || '' %></td>
-          <td><%= attendeeName %></td>
-          <td><%= a.dateOfBirth %></td>
-          <td><%= a.gender || 'Not specified' %></td>
-          <td>
-            <% if(order.status === 'approved_captured'){ %>
-              <form class="inline" method="post" action="/admin/orders/<%= order.id %>/replacement-ticket">
-                <input type="hidden" name="attendeeIndex" value="<%= index %>">
-                <button type="submit">Generate replacement ticket</button>
-              </form>
-            <% } %>
-          </td>
-        </tr>
-      <% }) %>
-    </table>
+      <% if (!order) { %>
+        <section class="admin-data-section"><h2>Order not found</h2><p class="muted">This order may have been removed.</p></section>
+      <% } else { %>
+        <section class="admin-operation-header">
+          <div>
+            <p class="eyebrow">Order <%= order.id %></p>
+            <h2><%= order.buyerName %></h2>
+            <p class="admin-page-intro"><%= order.buyerEmail %> · <%= order.qty %> ticket<%= order.qty === 1 ? '' : 's' %> · <%= money(order.amount) %></p>
+          </div>
+          <span class="<%= statusClass(order.status) %>"><%= orderStatusLabel(order.status) %></span>
+        </section>
 
-    <% if(order.status === 'pending_admin_approval'){ %>
-      <form class="inline" method="post" action="/admin/orders/<%= order.id %>/approve"><button>Approve, capture payment, send ticket</button></form>
-      <form class="inline" method="post" action="/admin/orders/<%= order.id %>/deny"><button class="danger">Deny and release payment</button></form>
-    <% } %>
-    <% if(order.status === 'approved_captured'){ %>
-      <form class="inline" method="post" action="/admin/orders/<%= order.id %>/resend-ticket"><button>Resend ticket email</button></form>
-    <% } %>
+        <section class="admin-detail-grid">
+          <article><span>Event</span><b><%= EVENT_NAME %></b><small><%= EVENT_DATE %> · <%= EVENT_TIME %></small></article>
+          <article><span>Location</span><b><%= EVENT_LOCATION %></b><small>Dress: <%= DRESS_CODE %></small></article>
+          <article><span>Entry</span><b><%= MIN_AGE %>+</b><small>Matching ID required</small></article>
+        </section>
 
-    <h2>Generated tickets</h2>
-    <% tickets.forEach(t=>{ const ticketName = ticketDisplayName(t); %>
-      <div class="ticket">
-        <h3><%= t.id %></h3>
-        <p><b>Name:</b> <%= ticketName %></p>
-        <p><b>DOB:</b> <%= t.dateOfBirth %></p>
-        <p><b>Dress:</b> <%= t.dressCode %> · <b>Status:</b> <%= t.status %></p>
-        <img src="<%= t.qrDataUrl %>" width="160" alt="QR code">
-      </div>
-    <% }) %>
-  <% } %>
-</main>
-<script src="/public/admin-autorefresh.js"></script>
+        <% if (order.status === 'pending_admin_approval') { %>
+          <section class="admin-quick-actions" aria-label="Order decision">
+            <form method="post" action="/admin/orders/<%= order.id %>/approve"><button class="button command-primary" type="submit">Approve and send tickets</button></form>
+            <form method="post" action="/admin/orders/<%= order.id %>/deny" onsubmit="return confirm('Deny this order and release the payment authorization?')"><button class="button command-danger" type="submit">Decline and release payment</button></form>
+          </section>
+        <% } else if (order.status === 'approved_captured') { %>
+          <section class="admin-quick-actions"><form method="post" action="/admin/orders/<%= order.id %>/resend-ticket"><button class="button command-tool" type="submit">Resend ticket email</button></form></section>
+        <% } %>
+
+        <section class="admin-data-section">
+          <div class="admin-section-title"><p class="eyebrow">Guests</p><h2>Requested attendees</h2></div>
+          <table class="admin-card-table"><tr><th>Name</th><th>Date of birth</th><th>Gender</th><th></th></tr>
+            <% (order.attendees || []).forEach((attendee, index) => { const attendeeName = ticketDisplayName({ attendeeName: attendee.name, attendeeFirstName: attendee.firstName, attendeeLastName: attendee.lastName, buyerName: order.buyerName }); %>
+              <tr><td data-label="Name"><b><%= attendeeName %></b></td><td data-label="Date of birth"><%= attendee.dateOfBirth || 'Not supplied' %></td><td data-label="Gender"><%= attendee.gender || 'Not specified' %></td><td data-label="Action"><% if (order.status === 'approved_captured') { %><form class="inline" method="post" action="/admin/orders/<%= order.id %>/replacement-ticket"><input type="hidden" name="attendeeIndex" value="<%= index %>"><button class="button compact command-tool" type="submit">Replacement ticket</button></form><% } %></td></tr>
+            <% }) %>
+          </table>
+        </section>
+
+        <section class="admin-data-section">
+          <div class="admin-section-title"><p class="eyebrow">Issued tickets</p><h2>Generated tickets</h2></div>
+          <% if (!tickets.length) { %><p class="muted">Tickets are issued only after an order is approved.</p><% } %>
+          <div class="admin-ticket-grid"><% tickets.forEach(ticket => { const ticketName = ticketDisplayName(ticket); %><article><img src="<%= ticket.qrDataUrl %>" width="120" height="120" alt="QR for <%= ticket.id %>"><div><b><%= ticketName %></b><span><%= ticket.id %></span><small>DOB: <%= ticket.dateOfBirth || 'Not supplied' %> · <%= ticket.status %></small></div></article><% }) %></div>
+        </section>
+      <% } %>
+    </main>
+  </div>
+  <script src="/public/admin-autorefresh.js" defer></script>
 </body>
 </html>
