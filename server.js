@@ -169,14 +169,17 @@ app.use('/scanner', (req, res, next) => {
 
 function id(size = 12) { return crypto.randomBytes(size).toString('hex').slice(0, size).toUpperCase(); }
 function money(amount = TICKET_PRICE) { return `${(amount / 100).toFixed(0)} NIS`; }
-function cleanName(value) { return String(value || '').trim().replace(/\s+/g, ' '); }
+function cleanName(value) {
+  const name = String(value || '').trim().replace(/\s+/g, ' ');
+  return /(^|\s)(undefined|null|n\/a|na|unknown)(\s|$)/i.test(name) ? '' : name;
+}
 function cleanText(value, maxLength = 120) { return String(value || '').replace(/[\u0000-\u001F\u007F]/g, '').trim().replace(/\s+/g, ' ').slice(0, maxLength); }
 function nameKey(value) { return cleanName(value).toLowerCase(); }
 function combineName(first, last) { return cleanName(`${cleanName(first)} ${cleanName(last)}`); }
 function ticketDisplayName(ticket = {}) {
   const validName = value => {
     const name = cleanName(value);
-    return name && !/(^|\s)(undefined|null|n\/a|na|unknown)(\s|$)/i.test(name) ? name : '';
+    return name || '';
   };
   return validName(ticket.attendeeName)
     || validName(combineName(ticket.attendeeFirstName, ticket.attendeeLastName))

@@ -14,6 +14,13 @@
   const checkoutStatus = document.getElementById('checkoutStatus');
   const reserveSubmit = form.querySelector('.reserve-submit');
 
+  function safeName(value) {
+    const name = String(value ?? '')
+      .trim()
+      .replace(/\s+/g, ' ');
+    return /(^|\s)(undefined|null|n\/a|na|unknown)(\s|$)/i.test(name) ? '' : name;
+  }
+
   function formatMoney(cents) {
     return `${(cents / 100).toFixed(0)} NIS`;
   }
@@ -37,8 +44,8 @@
 
   function attendeeValues() {
     return [...document.querySelectorAll('.attendee-box')].map((box) => ({
-      firstName: box.querySelector('.attendee-first-name')?.value || '',
-      lastName: box.querySelector('.attendee-last-name')?.value || '',
+      firstName: safeName(box.querySelector('.attendee-first-name')?.value),
+      lastName: safeName(box.querySelector('.attendee-last-name')?.value),
       dob: box.querySelector('.attendee-dob')?.value || '',
       gender: box.querySelector('.attendee-gender')?.value || ''
     }));
@@ -63,8 +70,8 @@
         <label>Date of birth <span class="hint">DD/MM/YYYY</span><input type="text" name="attendeeDob" class="attendee-dob" required inputmode="numeric" autocomplete="bday" maxlength="10" pattern="\\d{2}/\\d{2}/\\d{4}" placeholder="DD/MM/YYYY"></label>
         <p class="age-result muted"></p>
         <label>Gender<select name="attendeeGender" class="attendee-gender" required><option value="">Select gender</option><option value="female">Female</option><option value="male">Male</option></select></label>`;
-      attendee.querySelector('.attendee-first-name').value = saved.firstName;
-      attendee.querySelector('.attendee-last-name').value = saved.lastName;
+      attendee.querySelector('.attendee-first-name').value = safeName(saved.firstName);
+      attendee.querySelector('.attendee-last-name').value = safeName(saved.lastName);
       attendee.querySelector('.attendee-dob').value = saved.dob;
       attendee.querySelector('.attendee-gender').value = saved.gender;
       fragment.appendChild(attendee);
@@ -118,7 +125,7 @@
     const boxes = [...document.querySelectorAll('.attendee-box')];
     const names = boxes
       .map((box) =>
-        `${box.querySelector('.attendee-first-name')?.value || ''} ${box.querySelector('.attendee-last-name')?.value || ''}`
+        `${safeName(box.querySelector('.attendee-first-name')?.value)} ${safeName(box.querySelector('.attendee-last-name')?.value)}`
           .trim()
           .toLowerCase()
           .replace(/\s+/g, ' ')
@@ -156,6 +163,7 @@
   quantity.addEventListener('input', renderForms);
   document.addEventListener('input', (event) => {
     if (event.target.matches('.attendee-dob')) formatDobInput(event.target);
+    if (event.target.matches('.attendee-name-part')) event.target.value = safeName(event.target.value);
     if (event.target.matches('.attendee-name-part, .attendee-dob, .attendee-gender')) validateForm();
   });
 
