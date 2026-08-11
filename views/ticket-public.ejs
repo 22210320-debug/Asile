@@ -13,8 +13,9 @@
       <h1>Ticket not found</h1>
       <p>This ticket link is not valid.</p>
     <% } else { %>
+      <% const ticketName = ticket.attendeeName || [ticket.attendeeFirstName, ticket.attendeeLastName].filter(Boolean).join(' ') || ticket.buyerName || 'Unnamed guest'; %>
       <h1><%= ticket.eventName || EVENT_NAME %></h1>
-      <p><b>Name:</b> <%= ticket.attendeeName %></p>
+      <p><b>Name:</b> <%= ticketName %></p>
       <p><b>Ticket:</b> <%= ticket.id %></p>
       <p><b>Time:</b> <%= ticket.eventTime || EVENT_TIME %></p>
       <p><b>Location:</b> <%= ticket.location || EVENT_LOCATION %></p>

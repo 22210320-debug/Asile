@@ -22,7 +22,7 @@ html {
 }
 body {
   margin: 0;
-  font-family: Inter, Arial, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   background: #080808;
   color: var(--cream);
   line-height: 1.55;
@@ -115,7 +115,7 @@ body:before {
 }
 .hero h1,
 .home-hero h1 {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: clamp(50px, 9vw, 112px);
   line-height: 0.86;
   margin: 0 0 18px;
@@ -124,7 +124,7 @@ body:before {
   text-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
 h2 {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: clamp(30px, 4vw, 52px);
   line-height: 1;
   margin: 8px 0 14px;
@@ -602,7 +602,7 @@ td {
   font-weight: 800;
 }
 .admin-hero h1 {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: clamp(38px, 5vw, 64px);
   line-height: 0.9;
   margin: 0 0 12px;
@@ -1073,7 +1073,7 @@ table.admin-card-table tr:hover td {
   object-fit: contain;
 }
 .hero-copy h1 {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: clamp(54px, 10vw, 132px);
   line-height: 0.84;
   margin: 0 0 20px;
@@ -2179,7 +2179,7 @@ table.admin-card-table tr:hover td {
 .priority-card h1 {
   margin: 0 0 18px;
   color: #f5f1e8;
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: clamp(35px, 8vw, 58px);
   line-height: 0.98;
   letter-spacing: 0;
@@ -2566,7 +2566,7 @@ table.admin-card-table tr:hover td {
 .events-priority h2 {
   margin: 0;
   color: #f5f1e8;
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-weight: 500;
   letter-spacing: 0;
 }
@@ -2663,7 +2663,7 @@ table.admin-card-table tr:hover td {
 .event-directory-content h3 {
   margin: 12px 0 0;
   color: #f5f1e8;
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: clamp(36px, 5vw, 58px);
   font-weight: 500;
   line-height: 1;
@@ -2764,7 +2764,7 @@ table.admin-card-table tr:hover td {
 .future-event-card h3 {
   margin: 10px 0 0;
   color: #f5f1e8;
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 29px;
   font-weight: 500;
   line-height: 1.05;
@@ -2835,8 +2835,8 @@ body.asile-public-page .panel,
   background: rgba(201, 31, 53, 0.2);
 }
 .event-scene .hero-copy {
-  width: min(700px, 100%);
-  padding: 30px 34px 32px;
+  width: min(620px, 100%);
+  padding: 24px 28px 26px;
   border: 1px solid rgba(201, 31, 53, 0.46);
   border-radius: 8px;
   background: linear-gradient(135deg, rgba(4, 4, 5, 0.72), rgba(15, 8, 10, 0.42));
@@ -2845,7 +2845,7 @@ body.asile-public-page .panel,
     0 28px 80px rgba(0, 0, 0, 0.56);
   backdrop-filter: blur(7px);
   text-align: center;
-  transform: translateY(9vh);
+  transform: translateY(-3vh);
   animation: cinematic-arrival 1.25s ease-out both;
 }
 .event-scene .home-brand-logo {
@@ -2853,7 +2853,7 @@ body.asile-public-page .panel,
 }
 .event-scene .hero-copy h1 {
   color: #f9f6f5;
-  font-size: clamp(48px, 8vw, 94px);
+  font-size: clamp(40px, 6.8vw, 76px);
   letter-spacing: 0;
 }
 .event-scene .hero-copy .subtitle {
@@ -3011,11 +3011,11 @@ body.asile-public-page .panel,
 @keyframes cinematic-arrival {
   from {
     opacity: 0;
-    transform: translateY(calc(9vh + 22px)) scale(0.985);
+    transform: translateY(calc(-3vh + 22px)) scale(0.985);
   }
   to {
     opacity: 1;
-    transform: translateY(9vh) scale(1);
+    transform: translateY(-3vh) scale(1);
   }
 }
 @media (max-width: 760px) {
@@ -3025,8 +3025,8 @@ body.asile-public-page .panel,
     background-position: center center;
   }
   .event-scene .hero-copy {
-    padding: 24px 20px 26px;
-    transform: translateY(7vh);
+    padding: 20px 18px 22px;
+    transform: translateY(-1vh);
   }
   .event-scene .hero-event-summary {
     grid-template-columns: 1fr 1fr;
@@ -3043,11 +3043,11 @@ body.asile-public-page .panel,
   @keyframes cinematic-arrival {
     from {
       opacity: 0;
-      transform: translateY(calc(7vh + 18px)) scale(0.985);
+      transform: translateY(calc(-1vh + 18px)) scale(0.985);
     }
     to {
       opacity: 1;
-      transform: translateY(7vh) scale(1);
+      transform: translateY(-1vh) scale(1);
     }
   }
 }

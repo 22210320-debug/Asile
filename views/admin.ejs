@@ -240,10 +240,10 @@
 
   <table id="ticketsTable" class="admin-card-table">
     <tr><th>ID</th><th>Ticket name</th><th>DOB</th><th>Status</th><th></th></tr>
-    <% tickets.forEach(t=>{ %>
+    <% tickets.forEach(t=>{ const ticketName = t.attendeeName || [t.attendeeFirstName, t.attendeeLastName].filter(Boolean).join(' ') || t.buyerName || 'Unnamed guest'; %>
       <tr>
         <td data-label="ID"><%= t.id %></td>
-        <td data-label="Ticket name"><%= t.attendeeName %></td>
+        <td data-label="Ticket name"><%= ticketName %></td>
         <td data-label="DOB"><%= t.dateOfBirth %></td>
         <td data-label="Status"><span class="status-pill ticket-status-<%= String(t.status || 'unknown').replace(/[^a-z0-9_-]/gi, '-') %>"><%= t.status %></span></td>
         <td data-label="Action" class="row-actions-cell">
