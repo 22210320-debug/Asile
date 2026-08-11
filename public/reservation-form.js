@@ -72,8 +72,8 @@
         <label>Gender<select name="attendeeGender" class="attendee-gender" required><option value="">Select gender</option><option value="female">Female</option><option value="male">Male</option></select></label>`;
       attendee.querySelector('.attendee-first-name').value = safeName(saved.firstName);
       attendee.querySelector('.attendee-last-name').value = safeName(saved.lastName);
-      attendee.querySelector('.attendee-dob').value = saved.dob;
-      attendee.querySelector('.attendee-gender').value = saved.gender;
+      attendee.querySelector('.attendee-dob').value = String(saved.dob || '');
+      attendee.querySelector('.attendee-gender').value = String(saved.gender || '');
       fragment.appendChild(attendee);
     }
 

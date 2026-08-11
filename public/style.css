@@ -1206,11 +1206,14 @@ table.admin-card-table tr:hover td {
   gap: 12px;
 }
 .event-detail-grid span {
+  display: grid;
+  justify-items: center;
   padding: 16px;
   border: 1px solid rgba(245, 229, 204, 0.13);
   border-radius: 18px;
   background: rgba(0, 0, 0, 0.22);
   overflow-wrap: anywhere;
+  text-align: center;
 }
 .event-detail-grid b {
   display: block;
@@ -1219,18 +1222,34 @@ table.admin-card-table tr:hover td {
   text-transform: uppercase;
   letter-spacing: 0.13em;
 }
-.event-detail-grid .detail-sponsor,
-.event-detail-grid .detail-venue {
+.event-detail-grid .detail-sponsor {
   display: grid;
   align-content: space-between;
   gap: 12px;
+  justify-items: center;
+  text-align: center;
 }
-.event-detail-grid .detail-sponsor img,
-.event-detail-grid .detail-venue img {
+.event-detail-grid .detail-sponsor img {
   display: block;
-  width: min(148px, 100%);
-  max-height: 72px;
+  width: min(220px, 100%);
+  max-height: 110px;
   object-fit: contain;
+}
+.event-detail-grid .detail-partner {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  justify-items: center;
+  text-align: center;
+}
+.event-detail-grid .detail-partner small {
+  display: block;
+  margin: 0;
+  color: #cfc3c7;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
 }
 .feature-strip {
   display: grid;
@@ -1726,6 +1745,7 @@ table.admin-card-table tr:hover td {
   overflow-wrap: anywhere;
   color: var(--cream);
   text-decoration: none;
+  text-align: center;
 }
 .event-detail-grid .detail-bubble b {
   display: block;
@@ -1733,6 +1753,23 @@ table.admin-card-table tr:hover td {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.13em;
+}
+.event-detail-grid .detail-bubble.detail-location {
+  display: grid;
+  align-content: space-between;
+  gap: 9px;
+  justify-items: center;
+  text-align: center;
+}
+.event-detail-grid .detail-location-name {
+  color: var(--cream);
+  font-size: 16px;
+}
+.event-detail-grid .detail-location-logo {
+  display: block;
+  width: min(220px, 100%);
+  max-height: 110px;
+  object-fit: contain;
 }
 .event-detail-grid .detail-link:hover {
   border-color: rgba(37, 211, 102, 0.5);
@@ -2857,38 +2894,31 @@ body.asile-public-page .panel,
   box-shadow: var(--shadow);
   backdrop-filter: blur(12px);
 }
+body.asile-public-page.event-scene {
+  background: var(--asile-site-background);
+  background-attachment: fixed;
+}
 .event-scene .modern-home {
   min-height: 100svh;
   align-items: center;
   place-items: center;
   padding: 108px 24px 14vh;
-  background-position: center center;
+  /* The event scene uses the fixed body background so it stays continuous while sections scroll. */
+  background: transparent;
   isolation: isolate;
 }
 .event-scene .modern-home::before {
-  position: absolute;
-  z-index: 0;
-  inset: 0;
-  background:
-    radial-gradient(
-      ellipse at 50% 49%,
-      rgba(8, 8, 8, 0.04) 0,
-      rgba(8, 8, 8, 0.38) 40%,
-      rgba(8, 8, 8, 0.78) 100%
-    ),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.44), transparent 32%, transparent 68%, rgba(0, 0, 0, 0.44));
-  content: '';
-  pointer-events: none;
+  /* A hero-only overlay created a visible lighting jump at the next section. */
+  display: none;
 }
 .event-scene .modern-home::after {
-  height: 36%;
-  background: linear-gradient(transparent 10%, rgba(8, 8, 8, 0.68));
+  display: none;
 }
 .event-scene .home-wrap {
   position: relative;
   z-index: 1;
-  margin-top: -100px;
-  padding-top: 20px;
+  margin-top: 0;
+  padding-top: 56px;
 }
 .event-scene .home-wrap > * {
   position: relative;

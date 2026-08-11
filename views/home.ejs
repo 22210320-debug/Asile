@@ -20,7 +20,7 @@
   <link rel="icon" type="image/png" sizes="1024x1024" href="/public/favicon.png?v=20260715b">
   <link rel="apple-touch-icon" sizes="1024x1024" href="/public/favicon.png?v=20260715b">
   <link rel="preload" href="/public/underground-red-carpet.jpg" as="image">
-  <link rel="stylesheet" href="/public/style.css?v=20260811j">
+  <link rel="stylesheet" href="/public/style.css?v=20260811s">
 </head>
 <body class="asile-public-page event-scene">
   <main class="home-hero modern-home">
@@ -81,11 +81,11 @@
       </div>
       <div class="event-detail-grid">
         <span><b>Theme</b><%= EVENT_THEME %></span>
-        <a class="detail-bubble detail-link" href="<%= MAP_URL %>" target="_blank" rel="noopener"><b>Location</b><%= EVENT_LOCATION %></a>
-        <% if (EVENT_LOCATION === 'Warshe Pub') { %><span class="detail-venue"><b>Venue</b><img src="/public/warshe-pub-logo.png" alt="Warshe Pub logo" loading="lazy" decoding="async"></span><% } %>
+        <a class="detail-bubble detail-link detail-location" href="<%= MAP_URL %>" target="_blank" rel="noopener"><b>Location</b><strong class="detail-location-name"><%= EVENT_LOCATION %></strong><% if (EVENT_LOCATION === 'Warshe Pub') { %><img class="detail-location-logo" src="/public/warshe-pub-logo.png" alt="Warshe Pub logo" loading="lazy" decoding="async"><% } %></a>
         <span><b>Dress</b><%= DRESS_CODE %></span>
         <span><b>Capacity</b><%= EVENT_CAPACITY_LABEL || (ticketAvailability && ticketAvailability.soldOut ? `Sold out · ${CAPACITY}/${CAPACITY}` : `${ticketAvailability ? ticketAvailability.soldOrPending : 0}/${CAPACITY} reserved`) %></span>
         <% if (SPONSOR_LOGO_URL) { %><span class="detail-sponsor"><b>Official beer sponsor</b><img src="<%= SPONSOR_LOGO_URL %>" alt="<%= SPONSOR_NAME %> sponsor logo" loading="lazy" decoding="async"></span><% } %>
+        <% (EVENT_PARTNERS || []).forEach(partner => { %><span class="detail-partner"><b><%= partner.name %></b><small><%= partner.role %></small></span><% }) %>
         <span><b>Payment</b>Apple Pay, Visa card, Google Pay</span>
       </div>
     </div>
@@ -186,7 +186,7 @@
   </section>
 
 <% if (!ticketAvailability || !ticketAvailability.soldOut) { %>
-<script src="/public/reservation-form.js?v=20260811d" defer></script>
+<script src="/public/reservation-form.js?v=20260811e" defer></script>
 <% } %>
 </body>
 </html>
