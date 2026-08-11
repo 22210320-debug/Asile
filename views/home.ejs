@@ -20,7 +20,7 @@
   <link rel="icon" type="image/png" sizes="1024x1024" href="/public/favicon.png?v=20260715b">
   <link rel="apple-touch-icon" sizes="1024x1024" href="/public/favicon.png?v=20260715b">
   <link rel="preload" href="/public/underground-red-carpet.jpg" as="image">
-  <link rel="stylesheet" href="/public/style.css?v=20260811c">
+  <link rel="stylesheet" href="/public/style.css?v=20260811h">
 </head>
 <body class="asile-public-page event-scene">
   <main class="home-hero modern-home">
@@ -82,8 +82,10 @@
       <div class="event-detail-grid">
         <span><b>Theme</b><%= EVENT_THEME %></span>
         <a class="detail-bubble detail-link" href="<%= MAP_URL %>" target="_blank" rel="noopener"><b>Location</b><%= EVENT_LOCATION %></a>
+        <% if (EVENT_LOCATION === 'Warshe Pub') { %><span class="detail-venue"><b>Venue</b><img src="/public/warshe-pub-logo.jpeg" alt="Warshe Pub logo" loading="lazy" decoding="async"></span><% } %>
         <span><b>Dress</b><%= DRESS_CODE %></span>
-        <span><b>Capacity</b><%= EVENT_CAPACITY_LABEL || (ticketAvailability && ticketAvailability.soldOut ? `Sold out · ${CAPACITY}/${CAPACITY}` : `${ticketAvailability ? ticketAvailability.soldOrPending : 0}/${CAPACITY} reserved`) %><small><%= ticketAvailability && ticketAvailability.soldOut ? '0 tickets left' : `${ticketAvailability ? ticketAvailability.remaining : CAPACITY} tickets left` %></small></span>
+        <span><b>Capacity</b><%= EVENT_CAPACITY_LABEL || (ticketAvailability && ticketAvailability.soldOut ? `Sold out · ${CAPACITY}/${CAPACITY}` : `${ticketAvailability ? ticketAvailability.soldOrPending : 0}/${CAPACITY} reserved`) %></span>
+        <% if (SPONSOR_LOGO_URL) { %><span class="detail-sponsor"><b>Official beer sponsor</b><img src="<%= SPONSOR_LOGO_URL %>" alt="<%= SPONSOR_NAME %> sponsor logo" loading="lazy" decoding="async"></span><% } %>
         <span><b>Payment</b>Apple Pay, Visa card, Google Pay</span>
       </div>
     </div>
@@ -140,12 +142,6 @@
           <span><b><%= EVENT_DATE %></b>Date</span>
           <span><b><%= EVENT_TIME %></b>Time</span>
           <span><b><%= DRESS_CODE %></b>Dress</span>
-        </div>
-      <% } %>
-      <% if (!privateReserve && SPONSOR_LOGO_URL) { %>
-        <div class="sponsor-card fast-sponsor">
-          <p class="eyebrow">Official sponsor</p>
-          <img src="<%= SPONSOR_LOGO_URL %>" alt="<%= SPONSOR_NAME %> sponsor logo" loading="lazy" decoding="async">
         </div>
       <% } %>
     </div>

@@ -93,7 +93,9 @@ async function run() {
     const undergroundEventHtml = await response.text();
     assert.match(undergroundEventHtml, /FROM THE HORIZON TO THE UNDERGROUND/);
     assert.match(undergroundEventHtml, /Warshe Pub/);
-    assert.match(undergroundEventHtml, /400 tickets left/);
+    assert.match(undergroundEventHtml, /Official beer sponsor/);
+    assert.match(undergroundEventHtml, /keo-logo\.jpeg/);
+    assert.doesNotMatch(undergroundEventHtml, /tickets left/);
 
     response = await request('/waitlist');
     assert.equal(response.status, 200);
@@ -290,7 +292,9 @@ async function run() {
 
     response = await request(`/events/${futureEventId}`);
     assert.equal(response.status, 200);
-    assert.match(await response.text(), /250 tickets left/);
+    const futureEventHtml = await response.text();
+    assert.match(futureEventHtml, /Capacity/);
+    assert.doesNotMatch(futureEventHtml, /tickets left/);
 
     response = await request(`/events/${futureEventId}/reserve`, {
       method: 'POST',

@@ -4,14 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><%= title %> | Asile</title>
-  <link rel="stylesheet" href="/public/style.css?v=20260811c">
+  <link rel="stylesheet" href="/public/style.css?v=20260811g">
 </head>
-<body class="asile-public-page">
-  <main class="hero">
-    <section class="card">
+<% const isSuccessPage = typeof successPage !== 'undefined' && successPage; %>
+<body class="asile-public-page <%= isSuccessPage ? 'success-page' : '' %>">
+  <main class="hero <%= isSuccessPage ? 'success-hero' : '' %>">
+    <section class="card <%= isSuccessPage ? 'success-card' : '' %>">
       <h1><%= title %></h1>
       <p><%= message %></p>
-      <a href="/">Back home</a>
+      <a class="<%= isSuccessPage ? 'button' : '' %>" href="/">Back home</a>
     </section>
   </main>
 </body>

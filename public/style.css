@@ -66,6 +66,50 @@ body:before {
   background: linear-gradient(transparent, #120c08);
   pointer-events: none;
 }
+.success-hero {
+  isolation: isolate;
+  background: var(--asile-site-background);
+  background-position: center;
+}
+.success-hero::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: rgba(8, 8, 8, 0.28);
+  backdrop-filter: blur(5px);
+  content: '';
+  pointer-events: none;
+}
+.success-card {
+  position: relative;
+  z-index: 1;
+  width: min(680px, 100%);
+  padding: clamp(28px, 5vw, 52px);
+  border: 1px solid rgba(201, 31, 53, 0.44);
+  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(8, 8, 8, 0.78), rgba(22, 12, 15, 0.62));
+  box-shadow:
+    0 28px 82px rgba(0, 0, 0, 0.66),
+    0 0 34px rgba(175, 20, 43, 0.14);
+  backdrop-filter: blur(16px);
+  text-align: center;
+}
+.success-card h1 {
+  margin: 0;
+  color: #f5f1e8;
+  font-size: clamp(40px, 6vw, 74px);
+  line-height: 0.96;
+}
+.success-card p {
+  max-width: 520px;
+  margin: 22px auto 0;
+  color: #e5dcdf;
+  font-size: clamp(17px, 2vw, 20px);
+}
+.success-card .button {
+  min-width: 160px;
+  margin-top: 26px;
+}
 .wrap {
   padding: 46px 28px;
   max-width: 1180px;
@@ -1174,6 +1218,22 @@ table.admin-card-table tr:hover td {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.13em;
+}
+.event-detail-grid .detail-sponsor,
+.event-detail-grid .detail-venue {
+  display: grid;
+  align-content: space-between;
+  gap: 12px;
+}
+.event-detail-grid .detail-sponsor img,
+.event-detail-grid .detail-venue img {
+  display: block;
+  width: min(148px, 100%);
+  max-height: 64px;
+  padding: 7px 10px;
+  border-radius: 4px;
+  background: #f5f1e8;
+  object-fit: contain;
 }
 .feature-strip {
   display: grid;

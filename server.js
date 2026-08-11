@@ -878,7 +878,7 @@ app.post('/events/:eventId/private-reserve', async (req, res) => {
 app.get('/success', async (req, res) => {
   const order = await getOrderById(req.query.order);
   const name = order?.eventName || EVENT_NAME;
-  res.render('message', { title: 'Reservation received', message: `Your payment is authorized. Your ${name} ticket will be sent only after admin approval. Please check your inbox and spam/junk folder for the ticket email.` });
+  res.render('message', { successPage: true, title: 'Reservation received', message: `Your payment is authorized. Your ${name} ticket will be sent only after admin approval. Please check your inbox and spam/junk folder for the ticket email.` });
 });
 app.get('/cancel', async (req, res) => { const order = await getOrderById(req.query.order); if (order) { order.status = 'cancelled'; await upsertOrder(order); } res.render('message', { title: 'Checkout cancelled', message: 'No ticket was reserved.' }); });
 app.get('/ticket/:id', async (req, res) => {
