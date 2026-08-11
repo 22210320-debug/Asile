@@ -204,15 +204,10 @@ const BUILT_IN_MANAGED_EVENTS = [
     description: 'A darker, more intimate Asile experience at Warshe Pub. Carefully curated music, lighting, design, and the people inside the room.',
     capacityLabel: 'Limited capacity',
     entryPolicy: 'Approved guests only, subject to capacity and ratio.',
-    sponsorName: 'KEO',
-    sponsorLogoUrl: '',
-    barPartner: 'KEO',
-    beveragePartnerLabel: 'Official beer',
     djName: 'DJ LOCO',
     musicDescription: 'A journey from warm, groovy sounds into deeper and darker territory as the night progresses.',
     concept: 'This is not simply a change of venue. It is a different side of ASILE: closer, darker, and more intimate.',
     partners: [
-      { name: 'KEO', role: 'Official beer sponsor' },
       { name: 'Flowers Garden', role: 'Floral and visual design' },
       { name: 'Lighting Maestro', role: 'Immersive lighting production' }
     ],
