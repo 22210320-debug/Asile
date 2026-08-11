@@ -186,6 +186,44 @@ async function readDb() {
 
 const WAITLIST_STATUSES = ['waitlisted', 'contacted', 'invited', 'confirmed', 'removed'];
 const MANAGED_EVENT_STATUSES = ['draft', 'published', 'archived'];
+const BUILT_IN_MANAGED_EVENTS = [
+  {
+    id: 'from-horizon-to-underground-2026',
+    status: 'published',
+    name: 'ASILE - FROM THE HORIZON TO THE UNDERGROUND',
+    eventDate: '2026-08-21',
+    eventTime: '6:30 PM',
+    location: 'Warshe Pub',
+    mapUrl: 'https://www.google.com/maps/search/?api=1&query=Warshe%20Pub',
+    capacity: 400,
+    ticketPrice: 8000,
+    minimumAge: 18,
+    theme: 'From the Horizon to the Underground',
+    dressCode: 'Black After Dark',
+    description: 'A darker, more intimate Asile experience at Warshe Pub. Carefully curated music, lighting, design, and the people inside the room.',
+    capacityLabel: 'Limited capacity',
+    entryPolicy: 'Approved guests only, subject to capacity and ratio.',
+    sponsorName: 'KEO',
+    sponsorLogoUrl: '',
+    barPartner: 'KEO',
+    beveragePartnerLabel: 'Official beer',
+    djName: 'DJ LOCO',
+    musicDescription: 'A journey from warm, groovy sounds into deeper and darker territory as the night progresses.',
+    concept: 'This is not simply a change of venue. It is a different side of ASILE: closer, darker, and more intimate.',
+    partners: [
+      { name: 'KEO', role: 'Official beer sponsor' },
+      { name: 'Flowers Garden', role: 'Floral and visual design' },
+      { name: 'Lighting Maestro', role: 'Immersive lighting production' }
+    ],
+    createdAt: '2026-08-11T00:00:00.000Z',
+    updatedAt: '2026-08-11T00:00:00.000Z'
+  }
+];
+
+function withBuiltInManagedEvents(events = []) {
+  const savedIds = new Set(events.map(event => event.id));
+  return [...BUILT_IN_MANAGED_EVENTS.filter(event => !savedIds.has(event.id)), ...events];
+}
 
 function cleanManagedEventStatus(value) {
   const status = String(value || '').trim().toLowerCase();
@@ -204,25 +242,26 @@ function sortManagedEvents(events = []) {
 async function listManagedEvents({ publicOnly = false } = {}) {
   if (!usePostgres()) {
     const db = await readJsonFile();
-    const events = Array.isArray(db.managedEvents) ? db.managedEvents : [];
+    const events = withBuiltInManagedEvents(Array.isArray(db.managedEvents) ? db.managedEvents : []);
     return sortManagedEvents(publicOnly ? events.filter(event => event.status === 'published') : events);
   }
   await initDb();
   const result = publicOnly
     ? await pgQuery("SELECT data FROM managed_events WHERE status='published' ORDER BY event_date ASC NULLS LAST, created_at DESC")
     : await pgQuery('SELECT data FROM managed_events ORDER BY event_date ASC NULLS LAST, created_at DESC');
-  return result.rows.map(row => row.data);
+  const events = withBuiltInManagedEvents(result.rows.map(row => row.data));
+  return sortManagedEvents(publicOnly ? events.filter(event => event.status === 'published') : events);
 }
 
 async function getManagedEvent(eventId) {
   if (!eventId) return null;
   if (!usePostgres()) {
     const db = await readJsonFile();
-    return (db.managedEvents || []).find(event => event.id === eventId) || null;
+    return withBuiltInManagedEvents(db.managedEvents || []).find(event => event.id === eventId) || null;
   }
   await initDb();
   const result = await pgQuery('SELECT data FROM managed_events WHERE id=$1', [eventId]);
-  return result.rows[0]?.data || null;
+  return result.rows[0]?.data || BUILT_IN_MANAGED_EVENTS.find(event => event.id === eventId) || null;
 }
 
 async function upsertManagedEvent(event) {

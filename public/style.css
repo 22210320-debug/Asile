@@ -1,17 +1,17 @@
 :root {
-  --ink: #120c08;
-  --espresso: #1d130d;
-  --wine: #432116;
+  --ink: #080808;
+  --espresso: #101011;
+  --wine: #3d1018;
   --gold: #d7a45b;
-  --champagne: #f5e5cc;
-  --cream: #fff8ee;
-  --muted: #cbb79e;
-  --glass: rgba(18, 12, 8, 0.58);
-  --line: rgba(245, 229, 204, 0.2);
-  --shadow: 0 32px 90px rgba(0, 0, 0, 0.42);
-  --hero-photo: url('/public/vineyard-sunset.svg');
+  --champagne: #f5f1e8;
+  --cream: #f5f1e8;
+  --muted: #c7c2c4;
+  --glass: rgba(8, 8, 8, 0.62);
+  --line: rgba(245, 241, 232, 0.18);
+  --shadow: 0 32px 90px rgba(0, 0, 0, 0.58);
+  --hero-photo: url('/public/underground-red-carpet.jpg');
   --asile-site-background:
-    linear-gradient(100deg, rgba(7, 5, 4, 0.92), rgba(32, 18, 11, 0.62) 52%, rgba(156, 75, 32, 0.18)),
+    linear-gradient(180deg, rgba(4, 4, 5, 0.34), rgba(4, 4, 5, 0.12) 48%, rgba(4, 4, 5, 0.68)),
     var(--hero-photo) center/cover no-repeat;
 }
 * {
@@ -23,7 +23,7 @@ html {
 body {
   margin: 0;
   font-family: Inter, Arial, sans-serif;
-  background: radial-gradient(circle at top, #2c190f 0, #120c08 42%, #080604 100%);
+  background: #080808;
   color: var(--cream);
   line-height: 1.55;
 }
@@ -2779,6 +2779,282 @@ table.admin-card-table tr:hover td {
 .future-event-card .text-link {
   margin-top: auto;
   padding-top: 24px;
+}
+
+/* Underground crimson event theme for the public Asile experience. */
+body.asile-public-page,
+.priority-body,
+.events-body {
+  --gold: #c91f35;
+  --line: rgba(213, 32, 55, 0.38);
+  --muted: #d2cbce;
+  --shadow: 0 30px 86px rgba(0, 0, 0, 0.74);
+}
+body.asile-public-page .card,
+body.asile-public-page .panel,
+.events-body .event-directory-card,
+.events-body .events-priority,
+.events-body .future-event-card {
+  border-color: rgba(201, 31, 53, 0.4);
+  background: rgba(8, 8, 8, 0.7);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+}
+.event-scene .modern-home {
+  min-height: 100svh;
+  align-items: center;
+  place-items: center;
+  padding: 108px 24px 14vh;
+  background-position: center center;
+  isolation: isolate;
+}
+.event-scene .modern-home::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background:
+    radial-gradient(
+      ellipse at 50% 49%,
+      rgba(8, 8, 8, 0.04) 0,
+      rgba(8, 8, 8, 0.38) 40%,
+      rgba(8, 8, 8, 0.78) 100%
+    ),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.44), transparent 32%, transparent 68%, rgba(0, 0, 0, 0.44));
+  content: '';
+  pointer-events: none;
+}
+.event-scene .modern-home::after {
+  height: 30%;
+  background: linear-gradient(transparent, rgba(8, 8, 8, 0.88));
+}
+.event-scene .home-nav {
+  border-color: rgba(201, 31, 53, 0.5);
+  background: rgba(6, 6, 7, 0.7);
+}
+.event-scene .home-nav a:hover {
+  background: rgba(201, 31, 53, 0.2);
+}
+.event-scene .hero-copy {
+  width: min(700px, 100%);
+  padding: 30px 34px 32px;
+  border: 1px solid rgba(201, 31, 53, 0.46);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(4, 4, 5, 0.72), rgba(15, 8, 10, 0.42));
+  box-shadow:
+    0 0 34px rgba(201, 31, 53, 0.16),
+    0 28px 80px rgba(0, 0, 0, 0.56);
+  backdrop-filter: blur(7px);
+  text-align: center;
+  transform: translateY(9vh);
+  animation: cinematic-arrival 1.25s ease-out both;
+}
+.event-scene .home-brand-logo {
+  margin: 0 auto;
+}
+.event-scene .hero-copy h1 {
+  color: #f9f6f5;
+  font-size: clamp(48px, 8vw, 94px);
+  letter-spacing: 0;
+}
+.event-scene .hero-copy .subtitle {
+  margin: 0 auto;
+  color: #eee8e9;
+}
+.event-scene .hero-event-summary,
+.event-scene .hero-actions {
+  justify-content: center;
+}
+.event-scene .hero-event-summary span {
+  min-width: 132px;
+  border-color: rgba(201, 31, 53, 0.72);
+  color: #f5f1f2;
+}
+.event-scene .hero-event-summary b {
+  color: #ee4056;
+}
+.event-scene .hero-ticket {
+  display: none;
+}
+.underground-experience {
+  display: grid;
+  grid-template-columns: 1.12fr repeat(2, 1fr);
+  gap: 14px;
+  margin-top: 34px;
+  margin-bottom: 34px;
+}
+.underground-experience article {
+  min-height: 250px;
+  padding: 26px;
+  border: 1px solid rgba(213, 32, 55, 0.32);
+  border-radius: 8px;
+  background: rgba(8, 8, 8, 0.73);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(14px);
+}
+.underground-experience h2 {
+  margin: 0 0 14px;
+  color: var(--cream);
+  font-size: clamp(25px, 3vw, 42px);
+  line-height: 1.05;
+}
+.underground-experience p:not(.eyebrow) {
+  color: #d7d0d3;
+}
+.partner-list {
+  display: grid;
+  gap: 11px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.partner-list li {
+  display: grid;
+  gap: 2px;
+  padding-left: 12px;
+  border-left: 2px solid #9e1b2e;
+}
+.partner-list b {
+  color: var(--cream);
+}
+.partner-list span,
+.event-entry-policy {
+  color: #bdb5b9;
+  font-size: 14px;
+}
+.sponsor-name {
+  display: block;
+  padding: 20px 0 8px;
+  color: #f5f1e8;
+  font-size: clamp(36px, 6vw, 64px);
+  letter-spacing: 0;
+}
+.event-scene .button,
+.priority-body .priority-button {
+  border-color: #d52a40;
+  background: linear-gradient(135deg, #db3149, #8b1023);
+  color: #fffafb;
+  box-shadow: 0 14px 34px rgba(154, 17, 37, 0.36);
+}
+.event-scene .button.secondary,
+.priority-body .priority-button-secondary {
+  border-color: rgba(225, 58, 78, 0.64);
+  background: rgba(8, 8, 8, 0.38);
+  color: #f5f1f2;
+  box-shadow: none;
+}
+.event-scene .button:hover,
+.priority-body .priority-button:hover {
+  background: #f0e9ea;
+  color: #3e0811;
+  box-shadow: 0 18px 42px rgba(199, 29, 51, 0.36);
+}
+.event-scene .event-detail-panel,
+.event-scene .reserve-panel {
+  border-color: rgba(201, 31, 53, 0.38);
+  background: rgba(8, 8, 8, 0.72);
+}
+.event-scene .event-detail-grid span,
+.event-scene .feature-strip article {
+  border-color: rgba(201, 31, 53, 0.3);
+  background: rgba(5, 5, 6, 0.56);
+}
+.priority-body::before {
+  background: linear-gradient(180deg, rgba(3, 3, 4, 0.22), rgba(3, 3, 4, 0.54));
+  opacity: 1;
+}
+.priority-body::after {
+  background: radial-gradient(ellipse at 50% 50%, transparent 0, rgba(3, 3, 4, 0.5) 88%);
+  opacity: 1;
+}
+.priority-card {
+  border-color: rgba(201, 31, 53, 0.62);
+  background: rgba(8, 8, 8, 0.72);
+  box-shadow:
+    0 20px 56px rgba(0, 0, 0, 0.58),
+    0 0 28px rgba(201, 31, 53, 0.12);
+  backdrop-filter: blur(10px);
+}
+.priority-kicker,
+.priority-form label > span,
+.priority-hint,
+.priority-privacy,
+.priority-submit-note,
+.priority-loading {
+  color: #ee4056;
+}
+.priority-soldout,
+.priority-error {
+  border-color: rgba(201, 31, 53, 0.72);
+  background: rgba(8, 8, 8, 0.62);
+}
+.priority-soldout {
+  border-left-color: #d52a40;
+}
+.priority-benefits span {
+  border-top-color: rgba(201, 31, 53, 0.74);
+}
+.priority-form input:not([type='checkbox']),
+.priority-form select {
+  border-color: rgba(201, 31, 53, 0.78);
+}
+.priority-consent input {
+  accent-color: #d52a40;
+}
+.events-body .events-nav {
+  border-color: rgba(201, 31, 53, 0.38);
+}
+.events-body .event-state-sold-out {
+  border-color: rgba(201, 31, 53, 0.58);
+  background: rgba(201, 31, 53, 0.16);
+  color: #ffb7c1;
+}
+@keyframes cinematic-arrival {
+  from {
+    opacity: 0;
+    transform: translateY(calc(9vh + 22px)) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(9vh) scale(1);
+  }
+}
+@media (max-width: 760px) {
+  .event-scene .modern-home {
+    min-height: 100svh;
+    padding: 92px 16px 9vh;
+    background-position: center center;
+  }
+  .event-scene .hero-copy {
+    padding: 24px 20px 26px;
+    transform: translateY(7vh);
+  }
+  .event-scene .hero-event-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+  .event-scene .hero-actions .button {
+    width: 100%;
+  }
+  .underground-experience {
+    grid-template-columns: 1fr;
+  }
+  .underground-experience article {
+    min-height: auto;
+  }
+  @keyframes cinematic-arrival {
+    from {
+      opacity: 0;
+      transform: translateY(calc(7vh + 18px)) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(7vh) scale(1);
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .event-scene .hero-copy {
+    animation: none;
+  }
 }
 
 /* Admin event manager. It controls future public listings, never live checkout. */

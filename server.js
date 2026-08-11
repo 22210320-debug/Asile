@@ -34,6 +34,7 @@ const MAP_URL = process.env.MAP_URL || 'https://www.google.com/maps?q=Cremisan';
 const WHATSAPP_1 = process.env.WHATSAPP_1 || '972568576684';
 const INSTAGRAM_URL = process.env.INSTAGRAM_URL || 'https://www.instagram.com/events.asile?igsh=cXduejFvbHB4bjRo';
 const BAR_PARTNER = process.env.BAR_PARTNER || 'Double Shake';
+const EVENT_BEVERAGE_PARTNER_LABEL = 'Bar';
 const SPONSOR_NAME = process.env.SPONSOR_NAME || 'Carlsberg';
 const SPONSOR_LOGO_URL = process.env.SPONSOR_LOGO_URL || '/public/carlsberg-logo.jpeg';
 const DJ_NAME = process.env.DJ_NAME || 'DJ Loco';
@@ -53,7 +54,7 @@ const waitlistAttempts = new Map();
 const sensitiveAttempts = new Map();
 const SCANNER_TEST_BATCH = 'scanner-test-v1';
 
-const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_TIME, EVENT_START_AT, EVENT_THEME, DRESS_CODE, MIN_AGE, CAPACITY, TICKET_PRICE, CURRENCY, MAP_URL, WHATSAPP_1, INSTAGRAM_URL, BAR_PARTNER, SPONSOR_NAME, SPONSOR_LOGO_URL, DJ_NAME, DJ_IMAGE_URL, SITE_IMAGE_URL, PAYMENT_METHODS, PAYMENT_PROVIDER_LABEL, PHOTO_BOOTH_PARTNER };
+const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_TIME, EVENT_START_AT, EVENT_THEME, DRESS_CODE, MIN_AGE, CAPACITY, TICKET_PRICE, CURRENCY, MAP_URL, WHATSAPP_1, INSTAGRAM_URL, BAR_PARTNER, EVENT_BEVERAGE_PARTNER_LABEL, SPONSOR_NAME, SPONSOR_LOGO_URL, DJ_NAME, DJ_IMAGE_URL, SITE_IMAGE_URL, PAYMENT_METHODS, PAYMENT_PROVIDER_LABEL, PHOTO_BOOTH_PARTNER };
 
 function currentEventContext() {
   return { id: CURRENT_EVENT_ID, kind: 'current', ...eventInfo, eventPath: '/', reservePath: '/reserve', privateReservePath: VIP_RESERVE_PATH };
@@ -74,13 +75,20 @@ function managedEventContext(event) {
     MIN_AGE: Number(event.minimumAge || MIN_AGE),
     CAPACITY: Number(event.capacity || 0),
     TICKET_PRICE: Number(event.ticketPrice || 0),
+    EVENT_DESCRIPTION: event.description || '',
+    EVENT_CAPACITY_LABEL: event.capacityLabel || '',
+    EVENT_ENTRY_POLICY: event.entryPolicy || '',
+    EVENT_MUSIC_DESCRIPTION: event.musicDescription || '',
+    EVENT_CONCEPT: event.concept || '',
+    EVENT_PARTNERS: Array.isArray(event.partners) ? event.partners : [],
+    EVENT_BEVERAGE_PARTNER_LABEL: event.beveragePartnerLabel || 'Bar',
     CURRENCY,
     MAP_URL: event.mapUrl || MAP_URL,
     WHATSAPP_1,
     INSTAGRAM_URL,
     BAR_PARTNER: event.barPartner || BAR_PARTNER,
     SPONSOR_NAME: event.sponsorName || SPONSOR_NAME,
-    SPONSOR_LOGO_URL,
+    SPONSOR_LOGO_URL: Object.hasOwn(event, 'sponsorLogoUrl') ? event.sponsorLogoUrl : SPONSOR_LOGO_URL,
     DJ_NAME: event.djName || DJ_NAME,
     DJ_IMAGE_URL: event.imageUrl || DJ_IMAGE_URL,
     SITE_IMAGE_URL,
@@ -734,17 +742,18 @@ app.get('/events', async (req, res) => {
 });
 
 async function handleReserve(req, res, { bypassCapacity = false, event = currentEventContext() } = {}) {
-  const buyerName = cleanName(req.body.buyerName);
-  const buyerEmail = String(req.body.buyerEmail || '').trim();
-  const vipCodeInput = normalizeVipCode(req.body.vipCode);
-  const attendeeFirstNames = asArray(req.body.attendeeFirstName).map(cleanName);
-  const attendeeLastNames = asArray(req.body.attendeeLastName).map(cleanName);
-  const legacyNames = asArray(req.body.attendeeName).map(cleanName);
-  const attendeeDobs = asArray(req.body.attendeeDob).map(v => String(v || '').trim());
-  const attendeeGenders = asArray(req.body.attendeeGender).map(normalizeGender);
-  const marketingConsent = req.body.marketingConsent === 'on';
+  const body = req.body || {};
+  const buyerName = cleanName(body.buyerName);
+  const buyerEmail = String(body.buyerEmail || '').trim();
+  const vipCodeInput = normalizeVipCode(body.vipCode);
+  const attendeeFirstNames = asArray(body.attendeeFirstName).map(cleanName);
+  const attendeeLastNames = asArray(body.attendeeLastName).map(cleanName);
+  const legacyNames = asArray(body.attendeeName).map(cleanName);
+  const attendeeDobs = asArray(body.attendeeDob).map(v => String(v || '').trim());
+  const attendeeGenders = asArray(body.attendeeGender).map(normalizeGender);
+  const marketingConsent = body.marketingConsent === 'on';
   const attendeeNames = legacyNames.length ? legacyNames : attendeeFirstNames.map((first, i) => combineName(first, attendeeLastNames[i]));
-  const qty = Number(req.body.quantity || attendeeNames.length || 1);
+  const qty = Number(body.quantity || attendeeNames.length || 1);
   if (!buyerName || !buyerEmail) return res.status(400).render('message', { title: 'Missing information', message: 'Buyer name and email are required.' });
   if (bypassCapacity && !vipCodeInput) return res.status(400).render('message', { title: 'VIP code required', message: 'Enter your private invite code to use this checkout link.' });
   if (!Number.isFinite(qty) || qty < 1) return res.status(400).render('message', { title: 'Invalid quantity', message: 'Cannot order 0 tickets. Please order at least 1.' });

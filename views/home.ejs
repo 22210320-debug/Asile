@@ -19,10 +19,10 @@
   <title><%= EVENT_NAME %> | <%= COMPANY_NAME %></title>
   <link rel="icon" type="image/png" sizes="1024x1024" href="/public/favicon.png?v=20260715b">
   <link rel="apple-touch-icon" sizes="1024x1024" href="/public/favicon.png?v=20260715b">
-  <link rel="preload" href="/public/vineyard-sunset.svg" as="image">
-  <link rel="stylesheet" href="/public/style.css?v=20260715g">
+  <link rel="preload" href="/public/underground-red-carpet.jpg" as="image">
+  <link rel="stylesheet" href="/public/style.css?v=20260811a">
 </head>
-<body class="asile-public-page">
+<body class="asile-public-page event-scene">
   <main class="home-hero modern-home">
     <nav class="home-nav" aria-label="Event links">
       <% if (!privateReserve) { %><a href="/events">Events</a><% } %>
@@ -37,7 +37,7 @@
         <img class="home-brand-logo" src="/public/asile-logo-ivory.png?v=20260715a" alt="<%= COMPANY_NAME %> Events">
       </div>
       <h1><%= privateReserve ? 'Private Reserve' : EVENT_NAME %></h1>
-      <p class="subtitle"><%= privateReserve ? `Invite-only access for ${EVENT_NAME}. Complete checkout here, then admin approval confirms the final QR ticket.` : `An all-white sunset house party in ${EVENT_LOCATION}. House music, approved guest-list entry, named QR tickets, and one free ${PHOTO_BOOTH_PARTNER} picture for every approved guest.` %></p>
+      <p class="subtitle"><%= privateReserve ? `Invite-only access for ${EVENT_NAME}. Complete checkout here, then admin approval confirms the final QR ticket.` : (EVENT_DESCRIPTION || `An all-white sunset house party in ${EVENT_LOCATION}. House music, approved guest-list entry, named QR tickets, and one free ${PHOTO_BOOTH_PARTNER} picture for every approved guest.`) %></p>
       <div class="hero-event-summary" aria-label="Event summary">
         <span><b>Date</b><%= EVENT_DATE %></span>
         <span><b>Time</b><%= EVENT_TIME %></span>
@@ -67,8 +67,8 @@
     <div class="event-detail-panel">
       <div class="event-detail-copy">
         <p class="eyebrow">Event details</p>
-        <h2>All-white sunset energy, controlled from checkout to the door.</h2>
-        <p>Every reservation is reviewed before tickets are issued. Approved guests receive named QR tickets, and the name on each ticket must match ID at entry.</p>
+        <h2><%= EVENT_CONCEPT ? 'Closer. Darker. More intimate.' : 'All-white sunset energy, controlled from checkout to the door.' %></h2>
+        <p><%= EVENT_CONCEPT || 'Every reservation is reviewed before tickets are issued. Approved guests receive named QR tickets, and the name on each ticket must match ID at entry.' %></p>
         <div class="detail-actions">
           <% if (ticketAvailability && ticketAvailability.soldOut) { %>
             <a class="button sold-out-button" href="#reserve">Sold out</a>
@@ -83,8 +83,8 @@
         <span><b>Theme</b><%= EVENT_THEME %></span>
         <a class="detail-bubble detail-link" href="<%= MAP_URL %>" target="_blank" rel="noopener"><b>Location</b><%= EVENT_LOCATION %></a>
         <span><b>Dress</b><%= DRESS_CODE %></span>
-        <span><b>Capacity</b><%= ticketAvailability && ticketAvailability.soldOut ? `Sold out · ${CAPACITY}/${CAPACITY}` : `${ticketAvailability ? ticketAvailability.soldOrPending : 0}/${CAPACITY} reserved` %><small><%= ticketAvailability && ticketAvailability.soldOut ? '0 tickets left' : `${ticketAvailability ? ticketAvailability.remaining : CAPACITY} tickets left` %></small></span>
-        <span><b>Bar</b><%= BAR_PARTNER %></span>
+        <span><b>Capacity</b><%= EVENT_CAPACITY_LABEL || (ticketAvailability && ticketAvailability.soldOut ? `Sold out · ${CAPACITY}/${CAPACITY}` : `${ticketAvailability ? ticketAvailability.soldOrPending : 0}/${CAPACITY} reserved`) %><small><%= ticketAvailability && ticketAvailability.soldOut ? '0 tickets left' : `${ticketAvailability ? ticketAvailability.remaining : CAPACITY} tickets left` %></small></span>
+        <span><b><%= EVENT_BEVERAGE_PARTNER_LABEL || 'Bar' %></b><%= BAR_PARTNER %></span>
         <span><b>Sponsor</b><%= SPONSOR_NAME %></span>
         <span><b>Included</b><%= PHOTO_BOOTH_PARTNER %></span>
         <span><b>Payment</b>Apple Pay, Visa card, Google Pay</span>
@@ -111,6 +111,29 @@
       <p><%= DRESS_CODE %>, sunset views, house music, and a free <%= PHOTO_BOOTH_PARTNER %> picture.</p>
     </article>
   </section>
+
+  <% if (EVENT_CONCEPT || EVENT_MUSIC_DESCRIPTION || (EVENT_PARTNERS && EVENT_PARTNERS.length)) { %>
+  <section class="wrap underground-experience" aria-label="Event experience">
+    <article>
+      <p class="eyebrow">Experience partners</p>
+      <h2>Built for the underground.</h2>
+      <ul class="partner-list">
+        <% EVENT_PARTNERS.forEach(partner => { %><li><b><%= partner.name %></b><span><%= partner.role %></span></li><% }) %>
+      </ul>
+    </article>
+    <article>
+      <p class="eyebrow">Music</p>
+      <h2>ASILE resident: <%= DJ_NAME %></h2>
+      <p><%= EVENT_MUSIC_DESCRIPTION %></p>
+    </article>
+    <article>
+      <p class="eyebrow">The concept</p>
+      <h2>From the horizon to the underground.</h2>
+      <p><%= EVENT_CONCEPT %></p>
+      <% if (EVENT_ENTRY_POLICY) { %><p class="event-entry-policy"><%= EVENT_ENTRY_POLICY %></p><% } %>
+    </article>
+  </section>
+  <% } %>
   <% } %>
 
   <section class="wrap reserve-wrap <%= privateReserve ? 'private-reserve-wrap' : '' %>" id="reserve">
@@ -128,7 +151,7 @@
       <% } else { %>
         <div class="sponsor-card fast-sponsor">
           <p class="eyebrow">Event sponsor</p>
-          <img src="<%= SPONSOR_LOGO_URL %>" alt="<%= SPONSOR_NAME %> sponsor logo" loading="lazy" decoding="async">
+          <% if (SPONSOR_LOGO_URL) { %><img src="<%= SPONSOR_LOGO_URL %>" alt="<%= SPONSOR_NAME %> sponsor logo" loading="lazy" decoding="async"><% } else { %><b class="sponsor-name"><%= SPONSOR_NAME %></b><% } %>
         </div>
       <% } %>
     </div>

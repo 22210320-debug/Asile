@@ -88,6 +88,13 @@ async function run() {
     assert.equal(response.status, 200);
     assert.match(await response.text(), /Previous event/);
 
+    response = await request('/events/from-horizon-to-underground-2026');
+    assert.equal(response.status, 200);
+    const undergroundEventHtml = await response.text();
+    assert.match(undergroundEventHtml, /FROM THE HORIZON TO THE UNDERGROUND/);
+    assert.match(undergroundEventHtml, /Warshe Pub/);
+    assert.match(undergroundEventHtml, /400 tickets left/);
+
     response = await request('/waitlist');
     assert.equal(response.status, 200);
     assert.match(await response.text(), /FIRST ACCESS TO FUTURE ASILE EVENTS/);
