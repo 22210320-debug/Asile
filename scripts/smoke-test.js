@@ -241,7 +241,7 @@ async function run() {
     assert.equal(response.status, 200);
     assert.match(await response.text(), /Checked in successfully/);
 
-    response = await request('/admin/scanner');
+    response = await request('/admin/scanner?event=sunset-house-party-2026');
     assert.equal(response.status, 200);
     assert.match(await response.text(), /Scan Test/);
 

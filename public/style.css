@@ -3905,6 +3905,14 @@ body.admin-app-body {
     grid-template-columns: 1fr;
   }
 }
+.admin-data-scope {
+  border: 1px solid rgba(245, 241, 232, 0.16);
+  border-radius: 999px;
+  color: #d5cec2;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 9px 12px;
+}
 
 /* Admin event manager. It controls future public listings, never live checkout. */
 .event-manager-layout {

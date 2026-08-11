@@ -122,7 +122,16 @@ async function getAdminShell(req, activePage) {
   const defaultEvent = eventOptions.find(event => event.id === ADMIN_DEFAULT_EVENT_ID) || currentEventContext();
   const requestedEvent = cleanText(req.query.event, 80);
   const selectedEvent = eventOptions.find(event => event.id === requestedEvent) || defaultEvent;
-  return { activePage, eventOptions, selectedEvent };
+  const eventScopedPages = new Set(['dashboard', 'orders', 'tickets', 'scanner']);
+  return {
+    activePage,
+    eventOptions,
+    selectedEvent,
+    eventScoped: eventScopedPages.has(activePage),
+    eventSelectorPath: activePage === 'orders' && /^\/admin\/orders\/[^/]+$/.test(req.path)
+      ? '/admin/orders'
+      : eventScopedPages.has(activePage) ? req.path : '/admin'
+  };
 }
 
 app.set('view engine', 'ejs');
@@ -1727,7 +1736,12 @@ app.post('/admin/orders/:id/deny', requireAdmin, async (req, res) => {
 });
 
 app.get('/admin/scanner', requireAdmin, async (req, res) => {
-  const [scans, adminShell] = await Promise.all([readRecentScans({ limit: 10 }), getAdminShell(req, 'scanner')]);
+  const adminShell = await getAdminShell(req, 'scanner');
+  const scans = await readRecentScans({
+    limit: 10,
+    eventId: adminShell.selectedEvent.id,
+    legacyEventName: adminShell.selectedEvent.EVENT_NAME
+  });
   res.render('scanner-admin', { scans, notice: cleanText(req.query.notice, 180), adminShell });
 });
 app.get('/admin/scan', requireAdmin, async (req, res) => {
@@ -1759,7 +1773,9 @@ app.post('/admin/scans/:id/reset', requireAdmin, async (req, res) => {
     : result.result === 'not_checked_in'
       ? 'This ticket is already available to scan.'
       : 'Ticket not found.';
-  res.redirect(`/admin/scanner?notice=${encodeURIComponent(notice)}`);
+  const eventId = cleanText(req.body?.eventId, 80);
+  const eventQuery = eventId ? `&event=${encodeURIComponent(eventId)}` : '';
+  res.redirect(`/admin/scanner?notice=${encodeURIComponent(notice)}${eventQuery}`);
 });
 app.post('/admin/scanner/test-tickets', requireAdmin, async (req, res) => {
   if (!sensitiveRateAllowed(req, 4)) return res.status(429).render('message', { title: 'Please slow down', message: 'Try creating the test tickets again in a few minutes.' });

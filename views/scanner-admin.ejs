@@ -12,7 +12,7 @@
     <%- include('partials/admin-sidebar', { adminShell }) %>
     <main class="admin-app-main">
       <%- include('partials/admin-topbar', { adminShell, pageTitle: 'QR check-in' }) %>
-      <section class="admin-page-intro"><p>Use the camera scanner for entry. Reset a scan only when a guest was checked in by mistake.</p><a class="button compact command-primary" href="/scanner">Open camera scanner</a></section>
+      <section class="admin-page-intro"><p>Showing check-ins for <b><%= adminShell.selectedEvent.EVENT_NAME %></b>. Reset a scan only when a guest was checked in by mistake.</p><a class="button compact command-primary" href="/scanner?event=<%= encodeURIComponent(adminShell.selectedEvent.id) %>">Open camera scanner</a></section>
 
     <% if (notice) { %><p class="notice" role="status"><%= notice %></p><% } %>
 
@@ -39,6 +39,7 @@
               <td data-label="Action">
                 <% if (scan.ticketStatus === 'used') { %>
                   <form method="post" action="/admin/scans/<%= encodeURIComponent(scan.ticketId) %>/reset" onsubmit="return confirm('Reset this ticket so it can be scanned again?')">
+                    <input type="hidden" name="eventId" value="<%= adminShell.selectedEvent.id %>">
                     <button class="danger compact-action" type="submit">Reset scan</button>
                   </form>
                 <% } else { %>

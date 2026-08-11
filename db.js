@@ -1049,12 +1049,17 @@ async function safeCheckIn(ticketId, adminName) {
   throw lastError;
 }
 
-async function readRecentScans({ limit = 10 } = {}) {
+async function readRecentScans({ limit = 10, eventId = '', legacyEventName = '' } = {}) {
   const safeLimit = Math.min(100, Math.max(1, Number(limit) || 10));
   if (!usePostgres()) {
     const db = await readDb();
     const ticketsById = new Map((db.tickets || []).map(ticket => [ticket.id, ticket]));
     return (db.scanHistory || [])
+      .filter(scan => {
+        if (!eventId) return true;
+        const ticket = ticketsById.get(scan.ticketId);
+        return ticket && (ticket.eventId === eventId || (!ticket.eventId && ticket.eventName === legacyEventName));
+      })
       .slice()
       .sort((a, b) => new Date(b.scannedAt || 0) - new Date(a.scannedAt || 0))
       .slice(0, safeLimit)
@@ -1069,14 +1074,23 @@ async function readRecentScans({ limit = 10 } = {}) {
       });
   }
   await initDb();
+  const query = eventId
+    ? `SELECT sh.ticket_id, sh.scanned_by, sh.result, sh.scanned_at,
+              t.attendee_name, t.status AS ticket_status, t.data->>'eventName' AS event_name
+       FROM scan_history sh
+       JOIN tickets t ON t.id=sh.ticket_id
+       WHERE t.event_id=$1
+       ORDER BY sh.scanned_at DESC
+       LIMIT $2`
+    : `SELECT sh.ticket_id, sh.scanned_by, sh.result, sh.scanned_at,
+              t.attendee_name, t.status AS ticket_status, t.data->>'eventName' AS event_name
+       FROM scan_history sh
+       LEFT JOIN tickets t ON t.id=sh.ticket_id
+       ORDER BY sh.scanned_at DESC
+       LIMIT $1`;
   const result = await pgQuery(
-    `SELECT sh.ticket_id, sh.scanned_by, sh.result, sh.scanned_at,
-            t.attendee_name, t.status AS ticket_status, t.data->>'eventName' AS event_name
-     FROM scan_history sh
-     LEFT JOIN tickets t ON t.id=sh.ticket_id
-     ORDER BY sh.scanned_at DESC
-     LIMIT $1`,
-    [safeLimit]
+    query,
+    eventId ? [eventId, safeLimit] : [safeLimit]
   );
   return result.rows.map(row => ({
     ticketId: row.ticket_id,
