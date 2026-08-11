@@ -1,10 +1,7 @@
 (() => {
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const transition = document.querySelector('.events-transition');
-  const undergroundEvent = document.querySelector('[data-scroll-reveal]');
-  if (!transition || !undergroundEvent || reducedMotion.matches) return;
-
-  document.documentElement.classList.add('events-motion-enabled');
+  if (!transition || reducedMotion.matches) return;
 
   let queued = false;
   const updateTransition = () => {
@@ -23,17 +20,4 @@
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', onScroll);
   updateTransition();
-
-  const observer = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('is-visible');
-          observer.unobserve(entry.target);
-        }
-      });
-    },
-    { threshold: 0.16 }
-  );
-  observer.observe(undergroundEvent);
 })();
