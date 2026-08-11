@@ -191,6 +191,7 @@ const BUILT_IN_MANAGED_EVENTS = [
     id: 'from-horizon-to-underground-2026',
     status: 'published',
     name: 'ASILE - FROM THE HORIZON TO THE UNDERGROUND',
+    displayName: 'FROM THE HORIZON TO THE UNDERGROUND',
     eventDate: '2026-08-21',
     eventTime: '6:30 PM',
     location: 'Warshe Pub',

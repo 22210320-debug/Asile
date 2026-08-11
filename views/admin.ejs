@@ -240,7 +240,7 @@
 
   <table id="ticketsTable" class="admin-card-table">
     <tr><th>ID</th><th>Ticket name</th><th>DOB</th><th>Status</th><th></th></tr>
-    <% tickets.forEach(t=>{ const ticketName = t.attendeeName || [t.attendeeFirstName, t.attendeeLastName].filter(Boolean).join(' ') || t.buyerName || 'Unnamed guest'; %>
+    <% tickets.forEach(t=>{ const ticketName = ticketDisplayName(t); %>
       <tr>
         <td data-label="ID"><%= t.id %></td>
         <td data-label="Ticket name"><%= ticketName %></td>

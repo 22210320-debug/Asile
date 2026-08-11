@@ -17,7 +17,7 @@
         <h1 class="bad">Invalid ticket</h1>
         <p>This QR code does not match a ticket in the system.</p>
       <% } else if (ticket.status === 'used') { %>
-        <% const ticketName = ticket.attendeeName || [ticket.attendeeFirstName, ticket.attendeeLastName].filter(Boolean).join(' ') || ticket.buyerName || 'Unnamed guest'; %>
+        <% const ticketName = ticketDisplayName(ticket); %>
         <h1 class="<%= justCheckedIn ? 'good' : 'bad' %>"><%= justCheckedIn ? 'Checked in successfully' : 'Already used' %></h1>
         <p><b>ID:</b> <%= ticket.id %></p>
         <p><b>Name:</b> <%= ticketName %></p>
@@ -27,7 +27,7 @@
         <p>This QR ticket exists, but it has not been assigned to an approved order yet.</p>
         <p><b>ID:</b> <%= ticket.id %></p>
       <% } else { %>
-        <% const ticketName = ticket.attendeeName || [ticket.attendeeFirstName, ticket.attendeeLastName].filter(Boolean).join(' ') || ticket.buyerName || 'Unnamed guest'; %>
+        <% const ticketName = ticketDisplayName(ticket); %>
         <h1 class="good">Valid ticket</h1>
         <p><b>ID:</b> <%= ticket.id %></p>
         <p><b>Name:</b> <%= ticketName %></p>

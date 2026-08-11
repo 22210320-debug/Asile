@@ -29,7 +29,7 @@
     <h2>Requested attendees</h2>
     <table>
       <tr><th>First name</th><th>Last name</th><th>Full name</th><th>Date of birth</th><th>Gender</th><th></th></tr>
-      <% (order.attendees || []).forEach((a, index)=>{ const attendeeName = a.name || [a.firstName, a.lastName].filter(Boolean).join(' ') || order.buyerName || 'Unnamed guest'; %>
+      <% (order.attendees || []).forEach((a, index)=>{ const attendeeName = ticketDisplayName({ attendeeName: a.name, attendeeFirstName: a.firstName, attendeeLastName: a.lastName, buyerName: order.buyerName }); %>
         <tr>
           <td><%= a.firstName || '' %></td>
           <td><%= a.lastName || '' %></td>
@@ -57,7 +57,7 @@
     <% } %>
 
     <h2>Generated tickets</h2>
-    <% tickets.forEach(t=>{ const ticketName = t.attendeeName || [t.attendeeFirstName, t.attendeeLastName].filter(Boolean).join(' ') || t.buyerName || 'Unnamed guest'; %>
+    <% tickets.forEach(t=>{ const ticketName = ticketDisplayName(t); %>
       <div class="ticket">
         <h3><%= t.id %></h3>
         <p><b>Name:</b> <%= ticketName %></p>

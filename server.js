@@ -54,7 +54,7 @@ const waitlistAttempts = new Map();
 const sensitiveAttempts = new Map();
 const SCANNER_TEST_BATCH = 'scanner-test-v1';
 
-const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_TIME, EVENT_START_AT, EVENT_THEME, DRESS_CODE, MIN_AGE, CAPACITY, TICKET_PRICE, EVENT_DESCRIPTION: '', EVENT_CAPACITY_LABEL: '', EVENT_ENTRY_POLICY: '', EVENT_MUSIC_DESCRIPTION: '', EVENT_CONCEPT: '', EVENT_PARTNERS: [], CURRENCY, MAP_URL, WHATSAPP_1, INSTAGRAM_URL, BAR_PARTNER, EVENT_BEVERAGE_PARTNER_LABEL, SPONSOR_NAME, SPONSOR_LOGO_URL, DJ_NAME, DJ_IMAGE_URL, SITE_IMAGE_URL, PAYMENT_METHODS, PAYMENT_PROVIDER_LABEL, PHOTO_BOOTH_PARTNER };
+const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_TIME, EVENT_START_AT, EVENT_THEME, DRESS_CODE, MIN_AGE, CAPACITY, TICKET_PRICE, EVENT_DISPLAY_NAME: '', EVENT_DESCRIPTION: '', EVENT_CAPACITY_LABEL: '', EVENT_ENTRY_POLICY: '', EVENT_MUSIC_DESCRIPTION: '', EVENT_CONCEPT: '', EVENT_PARTNERS: [], CURRENCY, MAP_URL, WHATSAPP_1, INSTAGRAM_URL, BAR_PARTNER, EVENT_BEVERAGE_PARTNER_LABEL, SPONSOR_NAME, SPONSOR_LOGO_URL, DJ_NAME, DJ_IMAGE_URL, SITE_IMAGE_URL, PAYMENT_METHODS, PAYMENT_PROVIDER_LABEL, PHOTO_BOOTH_PARTNER };
 
 function currentEventContext() {
   return { id: CURRENT_EVENT_ID, kind: 'current', ...eventInfo, eventPath: '/', reservePath: '/reserve', privateReservePath: VIP_RESERVE_PATH };
@@ -75,6 +75,7 @@ function managedEventContext(event) {
     MIN_AGE: Number(event.minimumAge || MIN_AGE),
     CAPACITY: Number(event.capacity || 0),
     TICKET_PRICE: Number(event.ticketPrice || 0),
+    EVENT_DISPLAY_NAME: event.displayName || '',
     EVENT_DESCRIPTION: event.description || '',
     EVENT_CAPACITY_LABEL: event.capacityLabel || '',
     EVENT_ENTRY_POLICY: event.entryPolicy || '',
@@ -172,6 +173,17 @@ function cleanName(value) { return String(value || '').trim().replace(/\s+/g, ' 
 function cleanText(value, maxLength = 120) { return String(value || '').replace(/[\u0000-\u001F\u007F]/g, '').trim().replace(/\s+/g, ' ').slice(0, maxLength); }
 function nameKey(value) { return cleanName(value).toLowerCase(); }
 function combineName(first, last) { return cleanName(`${cleanName(first)} ${cleanName(last)}`); }
+function ticketDisplayName(ticket = {}) {
+  const validName = value => {
+    const name = cleanName(value);
+    return name && !['undefined', 'null', 'n/a', 'na', 'unknown'].includes(name.toLowerCase()) ? name : '';
+  };
+  return validName(ticket.attendeeName)
+    || validName(combineName(ticket.attendeeFirstName, ticket.attendeeLastName))
+    || validName(ticket.buyerName)
+    || 'Guest name unavailable';
+}
+app.locals.ticketDisplayName = ticketDisplayName;
 function asArray(value) { return Array.isArray(value) ? value : (value ? [value] : []); }
 function isActiveOrder(order) {
   const inactive = ['denied_released', 'cancelled', 'rejected_refunded', 'payment_error', 'authorization_expired'];

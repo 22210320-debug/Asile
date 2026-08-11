@@ -2853,12 +2853,16 @@ body.asile-public-page .panel,
 }
 .event-scene .hero-copy h1 {
   color: #f9f6f5;
-  font-size: clamp(40px, 6.8vw, 76px);
+  max-width: 100%;
+  font-size: clamp(32px, 4.5vw, 54px);
+  line-height: 0.98;
   letter-spacing: 0;
+  overflow-wrap: anywhere;
 }
 .event-scene .hero-copy .subtitle {
   margin: 0 auto;
   color: #eee8e9;
+  font-size: clamp(16px, 1.35vw, 19px);
 }
 .event-scene .hero-event-summary,
 .event-scene .hero-actions {
