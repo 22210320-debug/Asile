@@ -3012,6 +3012,246 @@ body.asile-public-page .panel,
   background: rgba(201, 31, 53, 0.16);
   color: #ffb7c1;
 }
+
+/* Sunset-to-underground story on the public Events directory. */
+.events-body {
+  background: linear-gradient(180deg, #4a211a 0, #2a1717 24%, #120e10 49%, #080808 72%), #080808;
+  background-attachment: scroll;
+}
+.events-story {
+  padding-top: 58px;
+}
+.events-story .events-intro {
+  padding: 8px 0 20px;
+}
+.events-story .events-intro .eyebrow,
+.sunset-event-section .eyebrow,
+.sunset-event-card .event-directory-kicker {
+  color: #e5ab61;
+}
+.events-story .events-intro > p:last-child,
+.sunset-event-card .event-directory-content > p:not(.event-directory-kicker) {
+  color: #ead7c2;
+}
+.sunset-event-section {
+  margin-top: 46px;
+}
+.sunset-event-card {
+  border-color: rgba(232, 161, 86, 0.35) !important;
+  background:
+    linear-gradient(125deg, rgba(102, 45, 25, 0.68), rgba(33, 21, 21, 0.82)), rgba(33, 21, 21, 0.86) !important;
+  box-shadow: 0 24px 64px rgba(40, 17, 12, 0.34) !important;
+}
+.sunset-event-card .event-directory-image {
+  background: #1a100f;
+}
+.sunset-event-card .event-directory-image::after {
+  background: linear-gradient(180deg, rgba(190, 92, 36, 0.06), rgba(21, 10, 10, 0.78));
+}
+.sunset-event-card .event-directory-facts div {
+  border-color: rgba(238, 181, 111, 0.26);
+}
+.sunset-event-card .event-directory-facts dt {
+  color: #e5ab61;
+}
+.events-transition {
+  --transition-progress: 0;
+  position: relative;
+  display: grid;
+  min-height: clamp(310px, 47vw, 560px);
+  place-items: center;
+  overflow: hidden;
+  margin: 0 calc(50% - 50vw);
+  color: #f5f1e8;
+  text-align: center;
+}
+.events-transition::before,
+.events-transition::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  pointer-events: none;
+}
+.events-transition::before {
+  background:
+    linear-gradient(180deg, rgba(146, 62, 26, 0.16), rgba(18, 12, 14, 0.94)),
+    radial-gradient(ellipse at 50% 0%, rgba(236, 139, 67, 0.26), transparent 57%);
+  opacity: calc(1 - var(--transition-progress) * 0.38);
+}
+.events-transition::after {
+  background: linear-gradient(180deg, transparent, rgba(8, 8, 8, 0.92));
+  opacity: calc(0.25 + var(--transition-progress) * 0.75);
+}
+.events-transition-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 620px;
+  padding: 28px 24px;
+}
+.events-transition-copy p {
+  margin: 0;
+  color: #f5e4ce;
+  font-size: clamp(28px, 4vw, 54px);
+  font-weight: 700;
+  line-height: 1.06;
+}
+.events-transition-copy span {
+  display: block;
+  margin-top: 14px;
+  color: #c9b8ad;
+  font-size: clamp(14px, 1.8vw, 18px);
+}
+.underground-event-section {
+  position: relative;
+  width: 100vw;
+  margin: 0 calc(50% - 50vw);
+  padding: 0 max(20px, calc((100vw - 1160px) / 2));
+  background: #080808;
+}
+.underground-event-scene {
+  position: relative;
+  display: grid;
+  min-height: min(860px, 100svh);
+  place-items: center;
+  overflow: hidden;
+  padding: 96px 24px 12vh;
+  background:
+    linear-gradient(180deg, rgba(8, 8, 8, 0.24), rgba(8, 8, 8, 0.14) 48%, rgba(8, 8, 8, 0.84)),
+    url('/public/underground-red-carpet.jpg') center / cover no-repeat;
+}
+.underground-event-scene::before {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 48%, rgba(8, 8, 8, 0.08), rgba(8, 8, 8, 0.68) 86%),
+    linear-gradient(90deg, rgba(8, 8, 8, 0.36), transparent 28%, transparent 72%, rgba(8, 8, 8, 0.36));
+  content: '';
+  pointer-events: none;
+}
+.underground-event-card {
+  position: relative;
+  z-index: 1;
+  width: min(680px, 100%);
+  padding: clamp(26px, 4vw, 42px);
+  border: 1px solid rgba(195, 32, 51, 0.52);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(5, 5, 6, 0.75), rgba(18, 8, 10, 0.5));
+  box-shadow:
+    0 26px 74px rgba(0, 0, 0, 0.58),
+    0 0 32px rgba(180, 24, 45, 0.16);
+  backdrop-filter: blur(8px);
+  text-align: center;
+}
+.underground-event-card .eyebrow {
+  color: #ec465a;
+}
+.underground-event-card h2 {
+  margin: 0;
+  color: #f5f1e8;
+  font-size: clamp(34px, 5.3vw, 64px);
+  font-weight: 700;
+  line-height: 0.98;
+  overflow-wrap: anywhere;
+}
+.underground-event-description {
+  margin: 20px auto 0;
+  color: #e5dcdf;
+  font-size: 17px;
+  line-height: 1.6;
+}
+.underground-event-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 28px 0 0;
+  text-align: left;
+}
+.underground-event-facts div {
+  padding: 10px 0;
+  border-top: 1px solid rgba(231, 61, 83, 0.36);
+}
+.underground-event-facts dt {
+  color: #ec465a;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.underground-event-facts dd {
+  margin: 4px 0 0;
+  color: #f5f1e8;
+  font-size: 14px;
+  font-weight: 700;
+}
+.underground-entry-note {
+  margin: 22px 0 0;
+  color: #cfc3c7;
+  font-size: 14px;
+}
+.underground-event-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+.underground-event-actions .button {
+  border-color: #d52a40;
+  background: linear-gradient(135deg, #db3149, #8b1023);
+  color: #fffafb;
+}
+.underground-event-actions .button.secondary {
+  background: rgba(8, 8, 8, 0.42);
+}
+.events-motion-enabled [data-scroll-reveal] .underground-event-card {
+  opacity: 0;
+  transform: translateY(22px) scale(0.987);
+  transition:
+    opacity 800ms ease-out,
+    transform 800ms ease-out;
+}
+.events-motion-enabled [data-scroll-reveal].is-visible .underground-event-card {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+@media (max-width: 700px) {
+  .events-story {
+    padding-top: 34px;
+  }
+  .events-transition {
+    min-height: 300px;
+  }
+  .events-transition-copy {
+    padding: 24px 20px;
+  }
+  .underground-event-section {
+    padding: 0;
+  }
+  .underground-event-scene {
+    min-height: 760px;
+    padding: 74px 16px 56px;
+    background-position: center center;
+  }
+  .underground-event-card {
+    padding: 24px 20px;
+  }
+  .underground-event-card h2 {
+    font-size: clamp(30px, 9.5vw, 46px);
+  }
+  .underground-event-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 14px;
+  }
+  .underground-event-actions .button {
+    width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .underground-event-card {
+    transform: none !important;
+    transition: none !important;
+  }
+}
 @keyframes cinematic-arrival {
   from {
     opacity: 0;
