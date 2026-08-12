@@ -1253,7 +1253,7 @@ table.admin-card-table tr:hover td {
 }
 .feature-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 14px;
   padding-top: 0;
 }
@@ -2871,7 +2871,7 @@ body.asile-public-page.event-scene {
 }
 .underground-experience {
   display: grid;
-  grid-template-columns: 1.12fr repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 14px;
   margin-top: 34px;
   margin-bottom: 34px;
@@ -2914,6 +2914,23 @@ body.asile-public-page.event-scene {
 .event-entry-policy {
   color: #bdb5b9;
   font-size: 14px;
+}
+.music-feature {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+}
+.music-feature b {
+  color: #fff1dd;
+  font-size: 22px;
+}
+.music-feature p:not(.eyebrow) {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+.music-lineup-card p:empty {
+  display: none;
 }
 .sponsor-name {
   display: block;

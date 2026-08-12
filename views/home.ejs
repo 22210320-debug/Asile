@@ -92,12 +92,14 @@
     </div>
   </section>
 
+  <% const djLineup = Array.isArray(DJ_LINEUP) && DJ_LINEUP.length ? DJ_LINEUP : [{ name: DJ_NAME, detail: '' }]; %>
   <section class="wrap feature-strip">
     <article class="image-feature">
       <img src="<%= DJ_IMAGE_URL %>" alt="<%= DJ_NAME %>" loading="lazy" decoding="async">
-      <b>Music by <%= DJ_NAME %></b>
+      <b><%= djLineup[0].name %></b>
       <p>Live loud, stay loco.</p>
     </article>
+    <% djLineup.slice(1).forEach(dj => { %><article class="music-feature"><p class="eyebrow">Music</p><b><%= dj.name %></b><p><%= dj.detail %></p></article><% }) %>
     <article>
       <b>Approved guest list</b>
       <p>Reservations are checked before payment is captured and tickets are sent.</p>
@@ -117,11 +119,7 @@
         <% EVENT_PARTNERS.forEach(partner => { %><li><b><%= partner.name %></b><span><%= partner.role %></span></li><% }) %>
       </ul>
     </article>
-    <article>
-      <p class="eyebrow">Music</p>
-      <h2><%= DJ_NAME %></h2>
-      <p><%= EVENT_MUSIC_DESCRIPTION %></p>
-    </article>
+    <% djLineup.forEach((dj, index) => { %><article class="music-lineup-card"><p class="eyebrow">Music</p><h2><%= dj.name %></h2><p><%= dj.detail || (index === 0 ? EVENT_MUSIC_DESCRIPTION : '') %></p></article><% }) %>
     <article>
       <p class="eyebrow">The concept</p>
       <h2>From the horizon to the underground.</h2>

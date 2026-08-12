@@ -55,7 +55,7 @@ const waitlistAttempts = new Map();
 const sensitiveAttempts = new Map();
 const SCANNER_TEST_BATCH = 'scanner-test-v1';
 
-const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_TIME, EVENT_START_AT, EVENT_THEME, DRESS_CODE, MIN_AGE, CAPACITY, TICKET_PRICE, EVENT_DISPLAY_NAME: '', EVENT_DESCRIPTION: '', EVENT_CAPACITY_LABEL: '', EVENT_ENTRY_POLICY: '', EVENT_MUSIC_DESCRIPTION: '', EVENT_CONCEPT: '', EVENT_PARTNERS: [], CURRENCY, MAP_URL, WHATSAPP_1, INSTAGRAM_URL, BAR_PARTNER, EVENT_BEVERAGE_PARTNER_LABEL, SPONSOR_NAME, SPONSOR_LOGO_URL, DJ_NAME, DJ_IMAGE_URL, SITE_IMAGE_URL, PAYMENT_METHODS, PAYMENT_PROVIDER_LABEL, PHOTO_BOOTH_PARTNER };
+const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_TIME, EVENT_START_AT, EVENT_THEME, DRESS_CODE, MIN_AGE, CAPACITY, TICKET_PRICE, EVENT_DISPLAY_NAME: '', EVENT_DESCRIPTION: '', EVENT_CAPACITY_LABEL: '', EVENT_ENTRY_POLICY: '', EVENT_MUSIC_DESCRIPTION: '', EVENT_CONCEPT: '', EVENT_PARTNERS: [], DJ_LINEUP: [{ name: DJ_NAME, detail: '' }], CURRENCY, MAP_URL, WHATSAPP_1, INSTAGRAM_URL, BAR_PARTNER, EVENT_BEVERAGE_PARTNER_LABEL, SPONSOR_NAME, SPONSOR_LOGO_URL, DJ_NAME, DJ_IMAGE_URL, SITE_IMAGE_URL, PAYMENT_METHODS, PAYMENT_PROVIDER_LABEL, PHOTO_BOOTH_PARTNER };
 
 function currentEventContext() {
   return { id: CURRENT_EVENT_ID, kind: 'current', EVENT_STATUS: 'completed', ...eventInfo, eventPath: '/', reservePath: '/reserve', privateReservePath: VIP_RESERVE_PATH };
@@ -84,6 +84,9 @@ function managedEventContext(event) {
     EVENT_MUSIC_DESCRIPTION: event.musicDescription || '',
     EVENT_CONCEPT: event.concept || '',
     EVENT_PARTNERS: Array.isArray(event.partners) ? event.partners : [],
+    DJ_LINEUP: event.id === 'from-horizon-to-underground-2026'
+      ? [{ name: 'DJ LOCO', detail: 'ASILE resident' }, { name: 'George.Rh', detail: 'Haifa' }]
+      : [{ name: event.djName || DJ_NAME, detail: '' }],
     EVENT_BEVERAGE_PARTNER_LABEL: event.beveragePartnerLabel || 'Bar',
     CURRENCY,
     MAP_URL: event.mapUrl || MAP_URL,
@@ -92,9 +95,7 @@ function managedEventContext(event) {
     BAR_PARTNER: event.barPartner || BAR_PARTNER,
     SPONSOR_NAME: event.sponsorName || SPONSOR_NAME,
     SPONSOR_LOGO_URL: Object.hasOwn(event, 'sponsorLogoUrl') ? event.sponsorLogoUrl : SPONSOR_LOGO_URL,
-    DJ_NAME: event.id === 'from-horizon-to-underground-2026'
-      ? 'DJ LOCO & George.Rh (Haifa)'
-      : event.djName || DJ_NAME,
+    DJ_NAME: event.djName || DJ_NAME,
     DJ_IMAGE_URL: event.imageUrl || DJ_IMAGE_URL,
     SITE_IMAGE_URL,
     PAYMENT_METHODS,
