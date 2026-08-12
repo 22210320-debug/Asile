@@ -13,7 +13,7 @@ const { ensureCustomerMarketingSchema, listCustomers, getCustomerProfile, update
 
 const app = express();
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY, { timeout: Number(process.env.STRIPE_TIMEOUT_MS || 10000) }) : null;
-const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, resetTicketCheckIn, readRecentScans, removeScannerTestTickets, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount, upsertWaitlistEntry, readWaitlistDashboard, updateWaitlistStatus, exportWaitlistEntries, WAITLIST_STATUSES, MANAGED_EVENT_STATUSES, listManagedEvents, getManagedEvent, upsertManagedEvent } = require('./db');
+const { initDb, readDb, readAdminDashboard, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, safeCheckIn, resetTicketCheckIn, readRecentScans, removeScannerTestTickets, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getApprovedOrdersForEvent, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount, upsertWaitlistEntry, readWaitlistDashboard, updateWaitlistStatus, exportWaitlistEntries, WAITLIST_STATUSES, MANAGED_EVENT_STATUSES, listManagedEvents, getManagedEvent, upsertManagedEvent } = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
@@ -54,6 +54,7 @@ const ASILE_LOGO_PATH = path.join(__dirname, 'public', 'favicon.png');
 const waitlistAttempts = new Map();
 const sensitiveAttempts = new Map();
 const SCANNER_TEST_BATCH = 'scanner-test-v1';
+const ticketEmailResendJobs = new Map();
 
 const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_TIME, EVENT_START_AT, EVENT_THEME, DRESS_CODE, MIN_AGE, CAPACITY, TICKET_PRICE, EVENT_DISPLAY_NAME: '', EVENT_DESCRIPTION: '', EVENT_CAPACITY_LABEL: '', EVENT_ENTRY_POLICY: '', EVENT_MUSIC_DESCRIPTION: '', EVENT_CONCEPT: '', EVENT_PARTNERS: [], CURRENCY, MAP_URL, WHATSAPP_1, INSTAGRAM_URL, BAR_PARTNER, EVENT_BEVERAGE_PARTNER_LABEL, SPONSOR_NAME, SPONSOR_LOGO_URL, DJ_NAME, DJ_IMAGE_URL, SITE_IMAGE_URL, PAYMENT_METHODS, PAYMENT_PROVIDER_LABEL, PHOTO_BOOTH_PARTNER };
 
@@ -550,6 +551,36 @@ async function sendMail({ to, subject, html, text, attachments = [] }) {
 }
 function sendMailInBackground(mail) {
   sendMail(mail).catch(err => console.error('EMAIL BACKGROUND FAILED:', err.message));
+}
+function queueTicketEmailResend(event) {
+  if (ticketEmailResendJobs.has(event.id)) return false;
+  const job = { startedAt: new Date().toISOString(), sent: 0, failed: 0 };
+  ticketEmailResendJobs.set(event.id, job);
+  setImmediate(async () => {
+    try {
+      const orders = await getApprovedOrdersForEvent(event.id);
+      for (const order of orders) {
+        const tickets = (await getTicketsByOrderId(order.id)).filter(ticket => ticket.status === 'valid');
+        if (!tickets.length || !order.buyerEmail) continue;
+        const sent = await sendMail({
+          to: order.buyerEmail,
+          subject: `Your ${tickets[0].eventName || order.eventName || event.EVENT_NAME} ticket`,
+          html: ticketEmailBackground(`<p style="margin:0 0 12px;color:#f5f1e8">Here is your ticket again.</p>${tickets.map(ticketEmailHtml).join('')}`, tickets[0] || order),
+          text: `Here is your ticket again.\n\n${tickets.map(ticketEmailText).join('\n\n')}`,
+          attachments: [emailLogoAttachment(), ...tickets.map(qrAttachmentForTicket).filter(Boolean)]
+        });
+        if (sent) job.sent += 1; else job.failed += 1;
+      }
+      await audit('ticket_email_bulk_resend_complete', null, { eventId: event.id, sent: job.sent, failed: job.failed });
+      console.log('TICKET EMAIL RESEND COMPLETE', { eventId: event.id, sent: job.sent, failed: job.failed });
+    } catch (err) {
+      job.failed += 1;
+      console.error('TICKET EMAIL RESEND FAILED', { eventId: event.id, message: err.message });
+    } finally {
+      ticketEmailResendJobs.delete(event.id);
+    }
+  });
+  return true;
 }
 async function markOrderPendingApproval(order, paymentIntentId) {
   if (!order || order.status === 'pending_admin_approval') return false;
@@ -1164,6 +1195,7 @@ app.get('/admin/tickets', requireAdmin, async (req, res) => {
       adminShell,
       tickets: dashboard.tickets.filter(isIssuedTicket),
       search,
+      notice: cleanText(req.query.notice, 240),
       pageInfo,
       pageUrl
     });
@@ -1171,6 +1203,21 @@ app.get('/admin/tickets', requireAdmin, async (req, res) => {
     console.error('Admin tickets unavailable:', err.message);
     res.status(503).render('message', { title: 'Tickets temporarily unavailable', message: 'Tickets could not be loaded. Please refresh in a moment.' });
   }
+});
+
+app.post('/admin/tickets/resend-event-emails', requireAdmin, async (req, res) => {
+  if (!sensitiveRateAllowed(req, 2, 60 * 60 * 1000)) return res.status(429).render('message', { title: 'Please slow down', message: 'Wait before starting another ticket email resend.' });
+  const eventId = cleanText(req.body?.eventId, 80);
+  if (!eventId) return res.status(400).render('message', { title: 'Event required', message: 'Select the event whose approved ticket emails should be resent.' });
+  const event = await getAdminEventContext(eventId);
+  if (!event) return res.status(404).render('message', { title: 'Event not found', message: 'Choose an existing event first.' });
+  if (req.body?.confirmResend !== 'on') return res.status(400).render('message', { title: 'Confirmation needed', message: 'Confirm that you want to resend the ticket email to every approved buyer for this event.' });
+  const started = queueTicketEmailResend(event);
+  const notice = started
+    ? `Updated ticket emails are being resent for ${event.EVENT_NAME}. Existing QR codes stay exactly the same.`
+    : `A resend is already running for ${event.EVENT_NAME}.`;
+  await audit('ticket_email_bulk_resend_started', req.session.adminName || null, { eventId: event.id, started });
+  res.redirect(`/admin/tickets?event=${encodeURIComponent(event.id)}&notice=${encodeURIComponent(notice)}`);
 });
 
 function csvCell(value) {

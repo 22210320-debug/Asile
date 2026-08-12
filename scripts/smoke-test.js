@@ -210,6 +210,13 @@ async function run() {
       assert.equal(response.status, 200, `${page} should load for an authenticated admin.`);
     }
 
+    response = await request('/admin/tickets?event=from-horizon-to-underground-2026');
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /Resend updated ticket emails/);
+
+    response = await request('/admin/tickets/resend-event-emails', { method: 'POST' });
+    assert.equal(response.status, 400);
+
     response = await request('/admin/manual-ticket', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },

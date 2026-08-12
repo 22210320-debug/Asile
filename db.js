@@ -1275,6 +1275,31 @@ async function getTicketsByOrderId(orderId) {
   return r.rows.map(row => row.data);
 }
 
+async function getApprovedOrdersForEvent(eventId, limit = 1000) {
+  if (!eventId) return [];
+  const safeLimit = Math.min(5000, Math.max(1, Number(limit) || 1000));
+  if (!usePostgres()) {
+    const db = await readJsonFile();
+    return (db.orders || [])
+      .filter(order => order.eventId === eventId && order.status === 'approved_captured' && order.buyerEmail)
+      .slice()
+      .sort((a, b) => new Date(a.approvedAt || a.createdAt || 0) - new Date(b.approvedAt || b.createdAt || 0))
+      .slice(0, safeLimit);
+  }
+  await initDb();
+  const result = await pgQuery(
+    `SELECT data
+     FROM orders
+     WHERE event_id=$1
+       AND data->>'status'='approved_captured'
+       AND COALESCE(data->>'buyerEmail', '') <> ''
+     ORDER BY COALESCE(data->>'approvedAt', data->>'createdAt') ASC
+     LIMIT $2`,
+    [eventId, safeLimit]
+  );
+  return result.rows.map(row => row.data);
+}
+
 async function getPendingOrdersWithIssuedTickets(limit = 200) {
   if (!usePostgres()) {
     const db = await readJsonFile();
@@ -1376,4 +1401,4 @@ async function getSoldOrPendingCount(eventId = '', legacyEventName = '') {
   return result.rows[0]?.count || 0;
 }
 
-module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, resetTicketCheckIn, readRecentScans, removeScannerTestTickets, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount, upsertWaitlistEntry, readWaitlistDashboard, updateWaitlistStatus, exportWaitlistEntries, WAITLIST_STATUSES, MANAGED_EVENT_STATUSES, listManagedEvents, getManagedEvent, upsertManagedEvent };
+module.exports = { initDb, readDb, readAdminDashboard, writeDb, upsertOrder, upsertTicket, upsertVipCode, setVipCodeActive, deleteOrders, deleteTickets, deleteOrderWithTickets, resetEventData, safeCheckIn, resetTicketCheckIn, readRecentScans, removeScannerTestTickets, usePostgres, getPool, reserveAtomic, getOrderById, getTicketsByOrderId, getApprovedOrdersForEvent, getPendingOrdersWithIssuedTickets, getAwaitingPaymentOrders, getTicketById, ticketIdExists, getSoldOrPendingCount, upsertWaitlistEntry, readWaitlistDashboard, updateWaitlistStatus, exportWaitlistEntries, WAITLIST_STATUSES, MANAGED_EVENT_STATUSES, listManagedEvents, getManagedEvent, upsertManagedEvent };
