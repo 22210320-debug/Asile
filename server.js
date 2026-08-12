@@ -577,6 +577,14 @@ function qrAttachmentForTicket(ticket) {
     cid: `qr-${ticket.id}@asile`
   };
 }
+function emailLogoAttachment() {
+  return {
+    filename: 'asile-events.png',
+    path: ASILE_LOGO_PATH,
+    cid: 'asile-logo@asile',
+    contentType: 'image/png'
+  };
+}
 function ticketVerifyUrl(ticket) {
   return ticket.verifyUrl || `${BASE_URL}/admin/scan?ticket=${ticket.id}`;
 }
@@ -586,30 +594,34 @@ function ticketPublicUrl(ticket) {
 function ticketEmailHtml(ticket) {
   const qrCid = `qr-${ticket.id}@asile`;
   const publicUrl = ticketPublicUrl(ticket);
-  const name = ticketDisplayName(ticket);
-  return `<div style="background:#fffaf3;border:1px solid #d7a45b;border-radius:18px;padding:18px;margin:14px 0;font-family:Arial,sans-serif;max-width:430px;color:#1d130d;box-shadow:0 10px 30px rgba(0,0,0,.18)">
-    <h2 style="margin:0 0 12px;color:#1d130d">${EVENT_NAME}</h2>
+  const name = escapeHtml(ticketDisplayName(ticket));
+  return `<div style="background:#f5f1e8;border:1px solid #7e1820;border-radius:8px;padding:18px;margin:14px 0;font-family:Arial,sans-serif;max-width:430px;color:#161616;box-shadow:0 12px 32px rgba(0,0,0,.32)">
+    <p style="margin:0 0 4px;color:#8f1823;font-size:11px;font-weight:700;letter-spacing:1.4px">ADMISSION TICKET</p>
+    <h2 style="margin:0 0 14px;color:#080808;font-size:20px;line-height:1.25">${escapeHtml(ticket.eventName || EVENT_NAME)}</h2>
     <p style="margin:6px 0"><b>Name:</b> ${name}</p>
-    <p style="margin:6px 0"><b>Ticket:</b> ${ticket.id}</p>
-    <p style="margin:6px 0"><b>Time:</b> ${EVENT_TIME}</p>
-    <p style="margin:6px 0"><b>Location:</b> ${EVENT_LOCATION}</p>
-    <p style="margin:6px 0"><b>Dress:</b> ${DRESS_CODE}</p>
-    <div style="background:#fff;border-radius:14px;display:inline-block;padding:10px;margin:14px 0"><img src="cid:${qrCid}" width="190" height="190" alt="QR code" style="display:block"></div>
-    <p style="margin:8px 0"><a href="${publicUrl}" style="color:#8a5a17;font-weight:bold">Open QR ticket</a></p>
+    <p style="margin:6px 0"><b>Ticket ID:</b> ${escapeHtml(ticket.id)}</p>
+    <p style="margin:6px 0"><b>Date &amp; time:</b> ${escapeHtml(ticket.eventDate || EVENT_DATE)} · ${escapeHtml(ticket.eventTime || EVENT_TIME)}</p>
+    <p style="margin:6px 0"><b>Location:</b> ${escapeHtml(ticket.location || EVENT_LOCATION)}</p>
+    <p style="margin:6px 0"><b>Dress code:</b> ${escapeHtml(ticket.dressCode || DRESS_CODE)}</p>
+    <div style="background:#fff;display:inline-block;padding:10px;margin:14px 0;border:1px solid #d4cec2"><img src="cid:${qrCid}" width="190" height="190" alt="QR code" style="display:block"></div>
+    <p style="margin:8px 0"><a href="${publicUrl}" style="color:#8f1823;font-weight:700">Open QR ticket</a></p>
     <p style="font-size:13px;color:#555;margin:8px 0 0">Bring this QR and matching ID.</p>
   </div>`;
 }
-function ticketEmailBackground(content) {
-  return `<div style="margin:0;padding:28px 14px;background:#120c08;background-image:linear-gradient(135deg,#120c08 0%,#24140c 55%,#4b2b13 100%);font-family:Arial,sans-serif;color:#fff4df">
+function ticketEmailBackground(content, ticket = {}) {
+  const eventName = escapeHtml(ticket.eventName || EVENT_NAME);
+  const eventLocation = escapeHtml(ticket.location || ticket.eventLocation || EVENT_LOCATION);
+  return `<div style="margin:0;padding:28px 14px;background:#080808;font-family:Arial,sans-serif;color:#f5f1e8">
     <div style="max-width:520px;margin:0 auto">
       <div style="text-align:center;margin:0 0 18px">
-        <div style="font-size:24px;font-weight:800;letter-spacing:1px;color:#f4cf92">${COMPANY_NAME}</div>
-        <div style="font-size:13px;color:#d8bc8b;margin-top:4px">${EVENT_NAME}</div>
+        <img src="cid:asile-logo@asile" width="176" alt="Asile Events" style="display:block;margin:0 auto 12px;max-width:176px;height:auto">
+        <div style="font-size:12px;font-weight:700;letter-spacing:1.2px;color:#c9a969">${eventName}</div>
+        <div style="font-size:12px;color:#bcb5ac;margin-top:5px">${eventLocation}</div>
       </div>
-      <div style="background:rgba(255,250,243,.08);border:1px solid rgba(215,164,91,.35);border-radius:22px;padding:18px">
+      <div style="background:#161616;border:1px solid #5d121a;border-radius:8px;padding:18px;box-shadow:0 12px 36px rgba(111,11,22,.24)">
         ${content}
       </div>
-      <p style="text-align:center;font-size:12px;color:#c6aa7b;margin:16px 0 0">If the QR image is hidden, use the Open QR ticket link.</p>
+      <p style="text-align:center;font-size:12px;color:#bcb5ac;margin:16px 0 0">If the QR image is hidden, use the Open QR ticket link.</p>
     </div>
   </div>`;
 }
@@ -1593,11 +1605,11 @@ app.post('/admin/manual-ticket', requireAdmin, async (req, res) => {
   const ticket = reservation.ticket;
 
   if (buyerEmail) {
-    const attachments = [qrAttachmentForTicket(ticket)].filter(Boolean);
+    const attachments = [emailLogoAttachment(), qrAttachmentForTicket(ticket)].filter(Boolean);
     sendMailInBackground({
       to: buyerEmail,
       subject: `Your ${event.EVENT_NAME} ticket credentials`,
-      html: ticketEmailBackground(`<p style="margin:0 0 12px;color:#fff4df">Your ticket is ready.</p>${ticketEmailHtml(ticket)}`),
+      html: ticketEmailBackground(`<p style="margin:0 0 12px;color:#f5f1e8">Your ticket is ready.</p>${ticketEmailHtml(ticket)}`, ticket),
       text: `Your ticket is ready.\n\n${ticketEmailText(ticket)}`,
       attachments
     });
@@ -1660,11 +1672,11 @@ app.post('/admin/orders/:id/approve', requireAdmin, async (req, res) => {
   console.log('APPROVE:tickets-ready', order.id, 'count=', newTickets.length);
   const ticketHtml = newTickets.map(ticketEmailHtml).join('');
   const ticketText = newTickets.map(ticketEmailText).join('\n\n');
-  const attachments = newTickets.map(qrAttachmentForTicket).filter(Boolean);
+  const attachments = [emailLogoAttachment(), ...newTickets.map(qrAttachmentForTicket).filter(Boolean)];
   sendMailInBackground({
     to: order.buyerEmail,
-    subject: `Your ${EVENT_NAME} ticket`,
-    html: ticketEmailBackground(`<p style="margin:0 0 12px;color:#fff4df">Approved. Your ticket is ready.</p>${ticketHtml}`),
+    subject: `Your ${newTickets[0]?.eventName || order.eventName || EVENT_NAME} ticket`,
+    html: ticketEmailBackground(`<p style="margin:0 0 12px;color:#f5f1e8">Approved. Your ticket is ready.</p>${ticketHtml}`, newTickets[0] || order),
     text: `Approved. Your ticket is ready.\n\n${ticketText}`,
     attachments
   });
@@ -1693,11 +1705,11 @@ app.post('/admin/orders/:id/replacement-ticket', requireAdmin, async (req, res) 
     }
   }
   for (const changedTicket of [...replacedTickets, ticket]) await upsertTicket(changedTicket);
-  const attachments = [qrAttachmentForTicket(ticket)].filter(Boolean);
+  const attachments = [emailLogoAttachment(), qrAttachmentForTicket(ticket)].filter(Boolean);
   sendMailInBackground({
     to: order.buyerEmail,
-    subject: `Replacement ${EVENT_NAME} ticket`,
-    html: ticketEmailBackground(`<p style="margin:0 0 12px;color:#fff4df">Replacement ticket for ${attendee.name}. Use this QR only.</p>${ticketEmailHtml(ticket)}`),
+    subject: `Replacement ${ticket.eventName || order.eventName || EVENT_NAME} ticket`,
+    html: ticketEmailBackground(`<p style="margin:0 0 12px;color:#f5f1e8">Replacement ticket for ${escapeHtml(attendee.name)}. Use this QR only.</p>${ticketEmailHtml(ticket)}`, ticket),
     text: `Replacement ticket for ${attendee.name}. Use this QR only.\n\n${ticketEmailText(ticket)}`,
     attachments
   });
@@ -1713,8 +1725,8 @@ app.post('/admin/orders/:id/resend-ticket', requireAdmin, async (req, res) => {
   const validTickets = (await getTicketsByOrderId(order.id)).filter(t => t.status === 'valid');
   if (!validTickets.length) return res.status(400).render('message', { title: 'No tickets', message: 'This order has no valid tickets to send.' });
   const ticketHtml = validTickets.map(ticketEmailHtml).join('');
-  const attachments = validTickets.map(qrAttachmentForTicket).filter(Boolean);
-  const sent = await sendMail({ to: order.buyerEmail, subject: `Your ${EVENT_NAME} ticket`, html: `<p>Here is your ticket again.</p>${ticketHtml}`, attachments });
+  const attachments = [emailLogoAttachment(), ...validTickets.map(qrAttachmentForTicket).filter(Boolean)];
+  const sent = await sendMail({ to: order.buyerEmail, subject: `Your ${validTickets[0]?.eventName || order.eventName || EVENT_NAME} ticket`, html: ticketEmailBackground(`<p style="margin:0 0 12px;color:#f5f1e8">Here is your ticket again.</p>${ticketHtml}`, validTickets[0] || order), attachments });
   return res.render('message', { title: sent ? 'Ticket resent' : 'Resend failed', message: sent ? `Ticket email resent to ${order.buyerEmail}. Ask the buyer to check spam/promotions too.` : 'The email could not be sent. Check the server SMTP settings and logs.' });
 });
 
