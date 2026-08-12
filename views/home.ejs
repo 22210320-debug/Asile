@@ -92,7 +92,7 @@
     </div>
   </section>
 
-  <% const djLineup = Array.isArray(DJ_LINEUP) && DJ_LINEUP.length ? DJ_LINEUP : [{ name: DJ_NAME, detail: '' }]; %>
+  <% const djLineup = Array.isArray(DJ_LINEUP) && DJ_LINEUP.length ? DJ_LINEUP : [{ name: DJ_NAME, detail: '' }]; const combinedDjNames = djLineup.map(dj => dj.name).join(' & '); %>
   <section class="wrap feature-strip">
     <article class="image-feature">
       <img src="<%= DJ_IMAGE_URL %>" alt="<%= DJ_NAME %>" loading="lazy" decoding="async">
@@ -119,7 +119,11 @@
         <% EVENT_PARTNERS.forEach(partner => { %><li><b><%= partner.name %></b><span><%= partner.role %></span></li><% }) %>
       </ul>
     </article>
-    <% djLineup.forEach((dj, index) => { %><article class="music-lineup-card"><p class="eyebrow">Music</p><h2><%= dj.name %></h2><p><%= dj.detail || (index === 0 ? EVENT_MUSIC_DESCRIPTION : '') %></p></article><% }) %>
+    <article class="music-lineup-card">
+      <p class="eyebrow">Music</p>
+      <h2><%= combinedDjNames %></h2>
+      <% if (djLineup.length > 1) { %><p>ASILE resident DJ LOCO joins DJ George.Rh from Haifa for a night that moves from warm, groovy sounds into deeper and darker territory.</p><% } else { %><p><%= EVENT_MUSIC_DESCRIPTION %></p><% } %>
+    </article>
     <article>
       <p class="eyebrow">The concept</p>
       <h2>From the horizon to the underground.</h2>

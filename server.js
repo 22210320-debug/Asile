@@ -85,7 +85,10 @@ function managedEventContext(event) {
     EVENT_CONCEPT: event.concept || '',
     EVENT_PARTNERS: Array.isArray(event.partners) ? event.partners : [],
     DJ_LINEUP: event.id === 'from-horizon-to-underground-2026'
-      ? [{ name: 'DJ LOCO', detail: 'ASILE resident' }, { name: 'George.Rh', detail: 'Haifa' }]
+      ? [
+        { name: 'DJ LOCO', detail: 'ASILE resident' },
+        { name: 'DJ George.Rh', detail: 'From Haifa. Bringing deep rhythms and an underground edge to the night.' }
+      ]
       : [{ name: event.djName || DJ_NAME, detail: '' }],
     EVENT_BEVERAGE_PARTNER_LABEL: event.beveragePartnerLabel || 'Bar',
     CURRENCY,
