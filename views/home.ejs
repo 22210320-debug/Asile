@@ -84,6 +84,8 @@
         <span><b>Theme</b><%= EVENT_THEME %></span>
         <a class="detail-bubble detail-link detail-location" href="<%= MAP_URL %>" target="_blank" rel="noopener"><b>Location</b><strong class="detail-location-name"><%= EVENT_LOCATION %></strong><% if (EVENT_LOCATION === 'Warshe Pub') { %><img class="detail-location-logo" src="/public/warshe-pub-logo.png" alt="Warshe Pub logo" loading="lazy" decoding="async"><% } %></a>
         <span><b>Dress</b><%= DRESS_CODE %></span>
+        <% if (EVENT_EXCLUSIVITY) { %><span><b>Access</b><%= EVENT_EXCLUSIVITY %></span><% } %>
+        <% if (TICKET_INCLUDES) { %><span><b>Ticket includes</b><%= TICKET_INCLUDES %></span><% } %>
         <span><b>Capacity</b><%= EVENT_CAPACITY_LABEL || (ticketAvailability && ticketAvailability.soldOut ? `Sold out · ${CAPACITY}/${CAPACITY}` : `${ticketAvailability ? ticketAvailability.soldOrPending : 0}/${CAPACITY} reserved`) %></span>
         <% if (SPONSOR_LOGO_URL) { %><span class="detail-sponsor"><b>Official beer sponsor</b><img src="<%= SPONSOR_LOGO_URL %>" alt="<%= SPONSOR_NAME %> sponsor logo" loading="lazy" decoding="async"></span><% } %>
         <% (EVENT_PARTNERS || []).forEach(partner => { %><span class="detail-partner"><b><%= partner.name %></b><small><%= partner.role %></small></span><% }) %>

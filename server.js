@@ -55,7 +55,7 @@ const waitlistAttempts = new Map();
 const sensitiveAttempts = new Map();
 const SCANNER_TEST_BATCH = 'scanner-test-v1';
 
-const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_TIME, EVENT_START_AT, EVENT_THEME, DRESS_CODE, MIN_AGE, CAPACITY, TICKET_PRICE, EVENT_DISPLAY_NAME: '', EVENT_DESCRIPTION: '', EVENT_CAPACITY_LABEL: '', EVENT_ENTRY_POLICY: '', EVENT_MUSIC_DESCRIPTION: '', EVENT_CONCEPT: '', EVENT_PARTNERS: [], DJ_LINEUP: [{ name: DJ_NAME, detail: '' }], CURRENCY, MAP_URL, WHATSAPP_1, INSTAGRAM_URL, BAR_PARTNER, EVENT_BEVERAGE_PARTNER_LABEL, SPONSOR_NAME, SPONSOR_LOGO_URL, DJ_NAME, DJ_IMAGE_URL, SITE_IMAGE_URL, PAYMENT_METHODS, PAYMENT_PROVIDER_LABEL, PHOTO_BOOTH_PARTNER };
+const eventInfo = { EVENT_NAME, COMPANY_NAME, EVENT_LOCATION, EVENT_DATE, EVENT_TIME, EVENT_START_AT, EVENT_THEME, DRESS_CODE, MIN_AGE, CAPACITY, TICKET_PRICE, EVENT_DISPLAY_NAME: '', EVENT_DESCRIPTION: '', EVENT_CAPACITY_LABEL: '', EVENT_ENTRY_POLICY: '', EVENT_MUSIC_DESCRIPTION: '', EVENT_CONCEPT: '', EVENT_PARTNERS: [], DJ_LINEUP: [{ name: DJ_NAME, detail: '' }], TICKET_INCLUDES: '', EVENT_EXCLUSIVITY: '', CURRENCY, MAP_URL, WHATSAPP_1, INSTAGRAM_URL, BAR_PARTNER, EVENT_BEVERAGE_PARTNER_LABEL, SPONSOR_NAME, SPONSOR_LOGO_URL, DJ_NAME, DJ_IMAGE_URL, SITE_IMAGE_URL, PAYMENT_METHODS, PAYMENT_PROVIDER_LABEL, PHOTO_BOOTH_PARTNER };
 
 function currentEventContext() {
   return { id: CURRENT_EVENT_ID, kind: 'current', EVENT_STATUS: 'completed', ...eventInfo, eventPath: '/', reservePath: '/reserve', privateReservePath: VIP_RESERVE_PATH };
@@ -84,6 +84,12 @@ function managedEventContext(event) {
     EVENT_MUSIC_DESCRIPTION: event.musicDescription || '',
     EVENT_CONCEPT: event.concept || '',
     EVENT_PARTNERS: Array.isArray(event.partners) ? event.partners : [],
+    TICKET_INCLUDES: event.id === 'from-horizon-to-underground-2026'
+      ? 'First drink included'
+      : event.ticketIncludes || '',
+    EVENT_EXCLUSIVITY: event.id === 'from-horizon-to-underground-2026'
+      ? 'Exclusive underground access · Approved guests only'
+      : '',
     DJ_LINEUP: event.id === 'from-horizon-to-underground-2026'
       ? [
         { name: 'DJ LOCO', detail: 'ASILE resident' },
@@ -597,6 +603,10 @@ function ticketVerifyUrl(ticket) {
 function ticketPublicUrl(ticket) {
   return ticket.publicUrl || `${BASE_URL}/ticket/${ticket.id}`;
 }
+function ticketIncludedBenefit(ticket = {}) {
+  if (ticket.ticketIncludes) return ticket.ticketIncludes;
+  return ticket.eventId === 'from-horizon-to-underground-2026' ? 'First drink included' : '';
+}
 function ticketEmailHtml(ticket) {
   const qrCid = `qr-${ticket.id}@asile`;
   const publicUrl = ticketPublicUrl(ticket);
@@ -609,6 +619,7 @@ function ticketEmailHtml(ticket) {
     <p style="margin:6px 0"><b>Date &amp; time:</b> ${escapeHtml(ticket.eventDate || EVENT_DATE)} · ${escapeHtml(ticket.eventTime || EVENT_TIME)}</p>
     <p style="margin:6px 0"><b>Location:</b> ${escapeHtml(ticket.location || EVENT_LOCATION)}</p>
     <p style="margin:6px 0"><b>Dress code:</b> ${escapeHtml(ticket.dressCode || DRESS_CODE)}</p>
+    ${ticketIncludedBenefit(ticket) ? `<p style="margin:6px 0"><b>Included:</b> ${escapeHtml(ticketIncludedBenefit(ticket))}</p>` : ''}
     <div style="background:#fff;display:inline-block;padding:10px;margin:14px 0;border:1px solid #d4cec2"><img src="cid:${qrCid}" width="190" height="190" alt="QR code" style="display:block"></div>
     <p style="margin:8px 0"><a href="${publicUrl}" style="color:#8f1823;font-weight:700">Open QR ticket</a></p>
     <p style="font-size:13px;color:#555;margin:8px 0 0">Bring this QR and matching ID.</p>
@@ -639,6 +650,7 @@ function ticketEmailText(ticket) {
     `Time: ${ticket.eventTime || EVENT_TIME}`,
     `Location: ${ticket.location || EVENT_LOCATION}`,
     `Dress code: ${ticket.dressCode || DRESS_CODE}`,
+    ...(ticketIncludedBenefit(ticket) ? [`Included: ${ticketIncludedBenefit(ticket)}`] : []),
     `QR ticket: ${ticketPublicUrl(ticket)}`,
     'Bring this QR and matching ID.'
   ].join('\n');
@@ -670,6 +682,7 @@ async function createTicketForAttendee(order, attendee, overrides = {}) {
     photoBoothPartner: order.photoBoothPartner || PHOTO_BOOTH_PARTNER,
     sponsorName: order.sponsorName || SPONSOR_NAME,
     sponsorLogoUrl: SPONSOR_LOGO_URL,
+    ticketIncludes: order.ticketIncludes || (order.eventId === 'from-horizon-to-underground-2026' ? 'First drink included' : ''),
     status: 'valid',
     verifyUrl,
     publicUrl,
@@ -834,7 +847,7 @@ async function handleReserve(req, res, { bypassCapacity = false, event = current
     id: orderId, eventId: event.id, eventName: event.EVENT_NAME, eventDate: event.EVENT_DATE, eventTime: event.EVENT_TIME,
     eventLocation: event.EVENT_LOCATION, eventCapacity: event.CAPACITY, ticketPrice: event.TICKET_PRICE,
     dressCode: event.DRESS_CODE, minimumAge: event.MIN_AGE, barPartner: event.BAR_PARTNER,
-    sponsorName: event.SPONSOR_NAME, photoBoothPartner: event.PHOTO_BOOTH_PARTNER,
+    sponsorName: event.SPONSOR_NAME, photoBoothPartner: event.PHOTO_BOOTH_PARTNER, ticketIncludes: event.TICKET_INCLUDES,
     buyerName, buyerEmail, qty, attendees, amount: event.TICKET_PRICE * qty,
     paymentMethods: event.PAYMENT_METHODS, paymentProvider: event.PAYMENT_PROVIDER_LABEL,
     marketingConsent,

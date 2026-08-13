@@ -206,6 +206,7 @@ const BUILT_IN_MANAGED_EVENTS = [
     entryPolicy: 'Approved guests only, subject to capacity and ratio.',
     sponsorName: 'KEO',
     sponsorLogoUrl: '/public/keo-logo.png',
+    ticketIncludes: 'First drink included',
     djName: 'DJ LOCO',
     musicDescription: 'A journey from warm, groovy sounds into deeper and darker territory as the night progresses.',
     concept: 'This is not simply a change of venue. It is a different side of ASILE: closer, darker, and more intimate.',
